@@ -211,7 +211,7 @@ export async function GET(request: Request) {
           },
         };
 
-        // ยิง API ไปที่ LINE
+        // ยิง API ไปที่ LINE OA
         return fetch(LINE_API_URL, {
           method: "POST",
           headers: {
