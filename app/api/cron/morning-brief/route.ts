@@ -12,7 +12,7 @@ const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
 export async function GET(request: Request) {
   try {
-    // 🔒 1. ตรวจสอบความปลอดภัย (ป้องกันคนอื่นแอบมารัน API ของเรา)
+    // 🔒 1. ตรวจสอบความปลอดภัย
     const authHeader = request.headers.get("authorization");
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,12 +27,13 @@ export async function GET(request: Request) {
     const d = String(dateObj.getDate()).padStart(2, "0");
     const todayStr = `${y}-${m}-${d}`;
 
-    // 🔍 3. ดึงข้อมูล Users ทั้งหมด เพื่อหาว่าใครเป็น Manager บ้าง
+    // 🔍 3. ดึงข้อมูล Users ทั้งหมด
     const { data: users, error: userError } = await supabase
       .from("users")
       .select("*");
     if (userError) throw userError;
 
+    // หาเฉพาะ Manager หรือ Admin
     const managers = users.filter(
       (u) => u.role === "manager" || u.role === "admin",
     );
@@ -55,29 +56,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "No manager appointments today." });
     }
 
-    // 📦 6. จัดกลุ่มคิวงานตาม LINE User ID ของแต่ละคน (คนนึงอาจจะมีหลายคิวงานในวันนี้)
+    // 📦 6. จัดกลุ่มคิวงานตาม LINE User ID
     const userSchedules: Record<string, any[]> = {};
 
     managerAppointments.forEach((app) => {
-      // 6.1 เอาคิวงานใส่ให้ตัว Manager เอง
+      // ✅ [แก้ไขแล้ว]: บังคับส่งให้ Manager (คนสร้าง) เสมอ 100% ต่อให้ไม่มี Attendees ก็ตาม
       const creator = users.find((u) => u.id === app.created_by);
       if (creator && creator.line_user_id) {
         if (!userSchedules[creator.line_user_id])
           userSchedules[creator.line_user_id] = [];
-        // ป้องกันคิวซ้ำ
         if (!userSchedules[creator.line_user_id].find((a) => a.id === app.id)) {
           userSchedules[creator.line_user_id].push(app);
         }
       }
 
-      // 6.2 เอาคิวงานใส่ให้ ผู้เข้าร่วม (Attendees) ทุกคน
+      // ส่งให้ ผู้เข้าร่วม (Attendees) ถ้ามีการระบุไว้
       if (app.attendees && Array.isArray(app.attendees)) {
         app.attendees.forEach((attendeeId: string) => {
           const attendee = users.find((u) => u.id === attendeeId);
           if (attendee && attendee.line_user_id) {
             if (!userSchedules[attendee.line_user_id])
               userSchedules[attendee.line_user_id] = [];
-            // ป้องกันคิวซ้ำ
             if (
               !userSchedules[attendee.line_user_id].find((a) => a.id === app.id)
             ) {
@@ -88,7 +87,7 @@ export async function GET(request: Request) {
       }
     });
 
-    // 🚀 7. วนลูปยิงข้อความหาแต่ละคน (สร้างเป็น Flex Carousel)
+    // 🚀 7. วนลูปยิงข้อความหาแต่ละคน (ดีไซน์ Flex Carousel สไตล์ Modern SaaS)
     const pushPromises = Object.entries(userSchedules).map(
       async ([lineUserId, apps]) => {
         // เรียงเวลาจากเช้าไปเย็น
@@ -96,76 +95,116 @@ export async function GET(request: Request) {
           a.start_time.localeCompare(b.start_time),
         );
 
-        // สร้าง Bubble การ์ดสำหรับแต่ละคิวงาน
+        // สร้าง Bubble การ์ดสไตล์มินิมอล
         const bubbles = sortedApps.slice(0, 10).map((app) => ({
           type: "bubble",
-          size: "micro",
-          header: {
-            type: "box",
-            layout: "vertical",
-            contents: [
-              {
-                type: "text",
-                text: "แจ้งเตือนคิวงาน 🚨",
-                weight: "bold",
-                color: "#ffffff",
-                size: "sm",
-              },
-            ],
-            backgroundColor: "#2563eb",
-            paddingAll: "12px",
-          },
+          size: "kilo", // ขนาดกะทัดรัดพอดีจอสำหรับ Carousel
           body: {
             type: "box",
             layout: "vertical",
+            paddingAll: "24px",
             contents: [
+              {
+                type: "text",
+                text: "📅 TODAY'S SCHEDULE",
+                weight: "bold",
+                color: "#3b82f6", // สีน้ำเงิน Blue 500
+                size: "xs",
+                style: "normal",
+              },
               {
                 type: "text",
                 text: app.title,
                 weight: "bold",
-                size: "md",
-                wrap: true,
-              },
-              {
-                type: "box",
-                layout: "horizontal",
+                size: "xl",
                 margin: "md",
-                contents: [
-                  { type: "text", text: "🕒", size: "sm", flex: 0 },
-                  {
-                    type: "text",
-                    text: `${app.start_time.substring(0, 5)} - ${app.end_time.substring(0, 5)}`,
-                    size: "sm",
-                    color: "#64748b",
-                    margin: "sm",
-                  },
-                ],
+                wrap: true,
+                color: "#0f172a", // สีดำเข้ม Slate 900
               },
               {
                 type: "box",
-                layout: "horizontal",
-                margin: "sm",
+                layout: "vertical",
+                margin: "xl",
+                spacing: "md",
                 contents: [
-                  { type: "text", text: "📍", size: "sm", flex: 0 },
                   {
-                    type: "text",
-                    text: app.location || "ไม่ระบุ",
-                    size: "sm",
-                    color: "#64748b",
-                    margin: "sm",
-                    wrap: true,
+                    type: "box",
+                    layout: "baseline",
+                    spacing: "md",
+                    contents: [
+                      { type: "text", text: "🕒", size: "sm", flex: 0 },
+                      {
+                        type: "text",
+                        text: `${app.start_time.substring(0, 5)} - ${app.end_time.substring(0, 5)}`,
+                        size: "sm",
+                        color: "#334155",
+                        weight: "bold",
+                      },
+                    ],
+                  },
+                  {
+                    type: "box",
+                    layout: "baseline",
+                    spacing: "md",
+                    contents: [
+                      { type: "text", text: "📍", size: "sm", flex: 0 },
+                      {
+                        type: "text",
+                        text: app.location || "ไม่ระบุสถานที่",
+                        size: "sm",
+                        color: "#475569",
+                        wrap: true,
+                      },
+                    ],
+                  },
+                  {
+                    type: "box",
+                    layout: "baseline",
+                    spacing: "md",
+                    contents: [
+                      { type: "text", text: "👤", size: "sm", flex: 0 },
+                      {
+                        type: "text",
+                        text: app.contact_person || "-",
+                        size: "sm",
+                        color: "#475569",
+                        wrap: true,
+                      },
+                    ],
                   },
                 ],
               },
             ],
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
             paddingAll: "16px",
+            contents: [
+              {
+                type: "button",
+                action: {
+                  type: "uri",
+                  label: "เปิดดูปฏิทิน",
+                  uri: "https://stplus-system-bot-calendar.vercel.app",
+                },
+                height: "sm",
+                style: "primary",
+                color: "#2563eb", // สีปุ่มเป็นน้ำเงิน Vercel/Tailwind
+              },
+            ],
+          },
+          styles: {
+            footer: {
+              separator: true, // เส้นคั่นบางๆ สไตล์ Modern
+            },
           },
         }));
 
         // ประกอบร่างเป็น Carousel
         const flexMessage = {
           type: "flex",
-          altText: `คุณมีคิวงานสำคัญวันนี้ ${sortedApps.length} รายการ`,
+          altText: `แจ้งเตือน! คุณมีคิวงานวันนี้ ${sortedApps.length} รายการ`,
           contents: {
             type: "carousel",
             contents: bubbles,
