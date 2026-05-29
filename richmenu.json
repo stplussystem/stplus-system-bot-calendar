@@ -1,0 +1,59 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 1686
+  },
+  "selected": true,
+  "name": "Rich Menu 1",
+  "chatBarText": "เมนูหลัก",
+  "areas": [
+    {
+      "bounds": {
+        "x": 875,
+        "y": 107,
+        "width": 758,
+        "height": 699
+      },
+      "action": {
+        "type": "message",
+        "text": "ดูตารางคิวงานด่วน"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1703,
+        "y": 107,
+        "width": 758,
+        "height": 699
+      },
+      "action": {
+        "type": "uri",
+        "uri": "https://liff.line.me/2010143328-wyg8T4P5?tab=list"
+      }
+    },
+    {
+      "bounds": {
+        "x": 875,
+        "y": 873,
+        "width": 758,
+        "height": 699
+      },
+      "action": {
+        "type": "uri",
+        "uri": "https://liff.line.me/2010143328-wyg8T4P5?tab=book"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1703,
+        "y": 875,
+        "width": 758,
+        "height": 699
+      },
+      "action": {
+        "type": "uri",
+        "uri": "https://liff.line.me/2010143328-wyg8T4P5?action=profile"
+      }
+    }
+  ]
+}
