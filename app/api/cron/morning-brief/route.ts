@@ -16,20 +16,20 @@ const LIFF_URL =
   process.env.NEXT_PUBLIC_LIFF_URL ||
   "https://stplus-system-bot-calendar.vercel.app";
 
-// ฟังก์ชันหาธีมสีตามวัน
+// 🔥 ฟังก์ชันหาธีมสีตามวัน (ใช้โทน Pastel แบบในระบบ)
 const getDayTheme = (dateStr: string) => {
-  const date = new Date(dateStr + "T00:00:00");
-  const day = date.getDay();
-  const themes: Record<number, { light: string; dark: string }> = {
-    0: { light: "#fef2f2", dark: "#b91c1c" }, // อา - แดง
-    1: { light: "#fefce8", dark: "#a16207" }, // จ - เหลือง
-    2: { light: "#fdf2f8", dark: "#be185d" }, // อ - ชมพู
-    3: { light: "#f0fdf4", dark: "#15803d" }, // พ - เขียว
-    4: { light: "#fff7ed", dark: "#c2410c" }, // พฤ - ส้ม
-    5: { light: "#eff6ff", dark: "#1d4ed8" }, // ศ - ฟ้า
-    6: { light: "#f5f3ff", dark: "#6d28d9" }, // ส - ม่วง
+  const themes: { [key: number]: { light: string; dark: string } } = {
+    0: { light: "#FEE2E2", dark: "#991B1B" }, // อาทิตย์
+    1: { light: "#FEF9C3", dark: "#A16207" }, // จันทร์
+    2: { light: "#FCE7F3", dark: "#9D174D" }, // อังคาร
+    3: { light: "#DCFCE7", dark: "#166534" }, // พุธ
+    4: { light: "#FFEDD5", dark: "#C2410C" }, // พฤหัสบดี
+    5: { light: "#DBEAFE", dark: "#1E40AF" }, // ศุกร์
+    6: { light: "#F3E8FF", dark: "#6B21A8" }, // เสาร์
   };
-  return themes[day] || { light: "#eff6ff", dark: "#1d4ed8" };
+  const [y, m, d] = dateStr.split("-");
+  const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+  return themes[dateObj.getDay()] || { light: "#F3F4F6", dark: "#374151" };
 };
 
 export async function GET(request: Request) {
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
     const userSchedules: Record<string, any[]> = {};
 
     managerAppointments.forEach((app) => {
-      // ✅ [แก้ปัญหา]: ค้นหา LINE ID ของคนสร้าง (Manager) แบบครอบคลุม 100%
+      // ✅ ค้นหา LINE ID ของคนสร้าง (Manager)
       const creator = users.find(
         (u) => u.id === app.created_by || u.line_user_id === app.created_by,
       );
@@ -92,12 +92,11 @@ export async function GET(request: Request) {
           (creator.id?.startsWith("U") ? creator.id : null);
       }
       if (!creatorLineId && app.created_by?.startsWith("U")) {
-        creatorLineId = app.created_by; // กรณี id ถูกบันทึกเป็น LINE ID มาตรงๆ
+        creatorLineId = app.created_by;
       }
 
       if (creatorLineId) {
         if (!userSchedules[creatorLineId]) userSchedules[creatorLineId] = [];
-        // ป้องกันคิวซ้ำ
         if (!userSchedules[creatorLineId].some((a) => a.id === app.id)) {
           userSchedules[creatorLineId].push(app);
         }
@@ -129,18 +128,21 @@ export async function GET(request: Request) {
       }
     });
 
-    // 🚀 7. วนลูปยิงข้อความ (ดีไซน์ Carousel ถอดแบบจากเว็บเป๊ะๆ)
+    // 🚀 7. วนลูปยิงข้อความ (✨ ดีไซน์ Flex Carousel แบบในเว็บเป๊ะๆ)
     const pushPromises = Object.entries(userSchedules).map(
       async ([lineUserId, apps]) => {
         const sortedApps = apps.sort((a, b) =>
           a.start_time.localeCompare(b.start_time),
         );
+
+        // แสดงสูงสุด 10 รายการใน Carousel (ข้อจำกัดของ LINE คือ 12)
         const displayApps = sortedApps.slice(0, 10);
+        const remainingCount = sortedApps.length - 10;
 
         const bubbles = displayApps.map((item) => {
           const timeStr = `${item.start_time.substring(0, 5)} - ${item.end_time.substring(0, 5)}`;
           const [yy, mm, dd] = item.appointment_date.split("-");
-          const appDateObj = new Date(
+          const dateObj = new Date(
             parseInt(yy),
             parseInt(mm) - 1,
             parseInt(dd),
@@ -154,7 +156,7 @@ export async function GET(request: Request) {
             "ศุกร์",
             "เสาร์",
           ];
-          const thaiDateStr = `${dayNames[appDateObj.getDay()]}ที่ ${dd}/${mm}/${parseInt(yy) + 543}`;
+          const thaiDateStr = `${dayNames[dateObj.getDay()]}ที่ ${dd}/${mm}/${parseInt(yy) + 543}`;
 
           const theme = getDayTheme(item.appointment_date);
 
@@ -374,13 +376,65 @@ export async function GET(request: Request) {
                   action: {
                     type: "uri",
                     label: "ดูรายการ",
-                    uri: `${LIFF_URL}?tab=list`,
+                    uri: `${LIFF_URL}?tab=list&filter=today`,
                   },
                 },
               ],
             },
           };
         });
+
+        // กรณีมีมากกว่า 10 รายการ ให้เพิ่มการ์ด "ดูทั้งหมด"
+        if (remainingCount > 0) {
+          bubbles.push({
+            type: "bubble",
+            size: "mega",
+            body: {
+              type: "box",
+              layout: "vertical",
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              contents: [
+                {
+                  type: "text",
+                  text: `มีคิวงานอีก ${remainingCount} รายการ`,
+                  weight: "bold",
+                  color: "#64748b",
+                  align: "center",
+                  wrap: true,
+                },
+                {
+                  type: "text",
+                  text: "แตะเพื่อดูทั้งหมด",
+                  size: "xs",
+                  color: "#94a3b8",
+                  align: "center",
+                  margin: "md",
+                },
+              ],
+            },
+            footer: {
+              type: "box",
+              layout: "vertical",
+              paddingAll: "20px",
+              paddingTop: "0px",
+              contents: [
+                {
+                  type: "button",
+                  style: "primary",
+                  color: "#1f2937",
+                  height: "sm",
+                  action: {
+                    type: "uri",
+                    label: "ดูรายการทั้งหมด",
+                    uri: `${LIFF_URL}?tab=list&filter=today`,
+                  },
+                },
+              ],
+            },
+          });
+        }
 
         const flexMessage = {
           type: "flex",
