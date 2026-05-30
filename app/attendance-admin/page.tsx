@@ -430,7 +430,7 @@ export default function AttendanceAdminPage() {
                       setFormData({
                         ...formData,
                         work_type: "onsite",
-                        team_type: "team_a",
+                        team_type: "team_all", // ตั้งค่าเริ่มต้นเป็น "ทั้งหมดทุกทีม" เมื่อเลือกออกไซต์งาน
                       })
                     }
                   />
@@ -461,7 +461,7 @@ export default function AttendanceAdminPage() {
                     <option value="team_c">ทีม C (พี่บาส)</option>
                     <option value="team_d">ทีม D (แคมป์)</option>
                     <option value="team_e">ทีม E (หนึ่ง)</option>
-                    <option value="team_other">ทีมอื่นๆ</option>
+                    <option value="team_other">อื่นๆ</option>
                   </select>
                 </div>
               )}
