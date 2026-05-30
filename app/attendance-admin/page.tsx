@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   CalendarDays,
@@ -15,10 +15,11 @@ import {
   ImagePlus,
   CheckCircle2,
   XCircle,
-  X,
+  Edit,
+  Power,
+  Calendar,
 } from "lucide-react";
 
-// เชื่อมต่อ Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -26,15 +27,16 @@ const supabase = createClient(
 
 export default function AttendanceAdminPage() {
   const [loading, setLoading] = useState(false);
-
-  // 🌟 State สำหรับจัดการ Custom Pop-up
   const [modal, setModal] = useState({
     isOpen: false,
     type: "success",
     title: "",
     message: "",
   });
+  const [topics, setTopics] = useState<any[]>([]); // เก็บรายการหัวข้อทั้งหมด
+  const [editingId, setEditingId] = useState<string | null>(null); // จำว่ากำลังแก้ไข ID ไหนอยู่
 
+  // 🌟 ฟอร์มข้อมูล (เพิ่ม start_date, end_date, is_active)
   const [formData, setFormData] = useState({
     title: "",
     shift_type: "morning",
@@ -43,12 +45,28 @@ export default function AttendanceAdminPage() {
     location_type: "office",
     radius_meters: 100,
     photo_mode: "none",
+    start_date: new Date().toISOString().split("T")[0],
+    end_date: new Date().toISOString().split("T")[0],
+    is_active: true,
   });
+
+  useEffect(() => {
+    fetchTopics();
+  }, []);
+
+  // 📥 โหลดข้อมูลรายการหัวข้อทั้งหมด
+  const fetchTopics = async () => {
+    const { data, error } = await supabase
+      .from("attendance_topics")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (data) setTopics(data);
+  };
 
   const handleShiftChange = (shift: string) => {
     let start = formData.start_time;
     let end = formData.end_time;
-
     if (shift === "morning") {
       start = "09:00";
       end = "18:00";
@@ -57,7 +75,6 @@ export default function AttendanceAdminPage() {
       start = "12:00";
       end = "21:00";
     }
-
     setFormData({
       ...formData,
       shift_type: shift,
@@ -66,38 +83,77 @@ export default function AttendanceAdminPage() {
     });
   };
 
+  // ✏️ เมื่อกดปุ่มแก้ไขในตาราง
+  const handleEditClick = (topic: any) => {
+    setEditingId(topic.id);
+    setFormData({
+      title: topic.title,
+      shift_type: topic.shift_type,
+      start_time: topic.start_time,
+      end_time: topic.end_time,
+      location_type: topic.location_type,
+      radius_meters: topic.radius_meters,
+      photo_mode: topic.photo_mode,
+      start_date: topic.start_date,
+      end_date: topic.end_date,
+      is_active: topic.is_active,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" }); // เลื่อนจอกลับขึ้นไปที่ฟอร์ม
+  };
+
+  // 💾 บันทึกข้อมูล (แยกเป็น สร้างใหม่ vs อัปเดตของเดิม)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const mockUserId = "U_MANAGER_MOCK_ID";
+      const payload = {
+        title: formData.title,
+        shift_type: formData.shift_type,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        location_type: formData.location_type,
+        radius_meters: formData.radius_meters,
+        photo_mode: formData.photo_mode,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        is_active: formData.is_active,
+        created_by: mockUserId,
+      };
 
-      const { error } = await supabase.from("attendance_topics").insert([
-        {
-          title: formData.title,
-          shift_type: formData.shift_type,
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          location_type: formData.location_type,
-          radius_meters: formData.radius_meters,
-          photo_mode: formData.photo_mode,
-          created_by: mockUserId,
-        },
-      ]);
+      if (editingId) {
+        // อัปเดตข้อมูลเดิม
+        const { error } = await supabase
+          .from("attendance_topics")
+          .update(payload)
+          .eq("id", editingId);
+        if (error) throw error;
+        setModal({
+          isOpen: true,
+          type: "success",
+          title: "อัปเดตสำเร็จ!",
+          message: `ต่ออายุ/แก้ไขหัวข้อเรียบร้อยแล้ว`,
+        });
+      } else {
+        // สร้างใหม่
+        const { error } = await supabase
+          .from("attendance_topics")
+          .insert([payload]);
+        if (error) throw error;
+        setModal({
+          isOpen: true,
+          type: "success",
+          title: "บันทึกสำเร็จ!",
+          message: `เพิ่มหัวข้องานใหม่เรียบร้อยแล้ว`,
+        });
+      }
 
-      if (error) throw error;
-
-      // 🌟 เปิด Pop-up สำเร็จ
-      setModal({
-        isOpen: true,
-        type: "success",
-        title: "บันทึกข้อมูลสำเร็จ!",
-        message: `หัวข้อ "${formData.title}" ถูกเพิ่มเข้าสู่ระบบเรียบร้อยแล้ว`,
-      });
-      setFormData({ ...formData, title: "" });
+      // ล้างฟอร์มและโหลดข้อมูลใหม่
+      setEditingId(null);
+      setFormData({ ...formData, title: "", is_active: true });
+      fetchTopics();
     } catch (error: any) {
-      // 🌟 เปิด Pop-up แจ้งเตือน Error
       setModal({
         isOpen: true,
         type: "error",
@@ -112,10 +168,10 @@ export default function AttendanceAdminPage() {
   const closeModal = () => setModal({ ...modal, isOpen: false });
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6 flex justify-center items-start pt-10 font-sans relative">
+    <div className="min-h-screen bg-[#f8fafc] p-6 flex flex-col items-center pt-10 font-sans relative pb-20">
       {/* 🌟 Custom Pop-up Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div
               className={`p-6 flex flex-col items-center text-center ${modal.type === "success" ? "bg-green-50" : "bg-red-50"}`}
@@ -148,52 +204,118 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* แบบฟอร์มหลัก */}
-      <div className="bg-white max-w-2xl w-full rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden">
-        {/* ส่วนหัว */}
+      {/* ================= แบบฟอร์มสร้าง / แก้ไข ================= */}
+      <div className="bg-white max-w-3xl w-full rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden mb-8 relative">
+        {editingId && (
+          <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-sm animate-pulse">
+            โหมดแก้ไขข้อมูล
+          </div>
+        )}
+
         <div className="border-b border-[#e2e8f0] bg-white p-6 flex items-center gap-3">
-          <div className="bg-blue-50 p-2 rounded-lg">
-            <LayoutDashboard className="h-6 w-6 text-blue-600" />
+          <div
+            className={`${editingId ? "bg-amber-50" : "bg-blue-50"} p-2 rounded-lg`}
+          >
+            <LayoutDashboard
+              className={`h-6 w-6 ${editingId ? "text-amber-600" : "text-blue-600"}`}
+            />
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              ตั้งค่าหัวข้อ Check-in / Out
+              {editingId
+                ? "แก้ไขหัวข้อ Check-in / Out"
+                : "สร้างหัวข้อ Check-in / Out"}
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              กำหนดรูปแบบกะเวลา สถานที่ และเงื่อนไขการถ่ายรูป
+              กำหนดวันที่, กะเวลา, สถานที่ และการถ่ายรูป
             </p>
           </div>
         </div>
 
-        {/* ฟอร์มกรอกข้อมูล */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* ชื่อหัวข้องาน */}
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-              <CalendarDays className="h-4 w-4 text-gray-400" />
-              ชื่อหัวข้องาน <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="เช่น เข้าออฟฟิศปกติ, ตรวจไซต์งาน A"
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                <CalendarDays className="h-4 w-4 text-gray-400" /> ชื่อหัวข้องาน{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="เช่น ไซต์งาน A, เข้าออฟฟิศ"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
+              />
+            </div>
 
-          {/* กะเวลา */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            {/* 🌟 เพิ่มระบบวันที่ */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Clock className="h-4 w-4 text-gray-400" />
-                รูปแบบกะเวลางาน
+                <Calendar className="h-4 w-4 text-gray-400" /> เริ่มวันที่
+              </label>
+              <input
+                type="date"
+                required
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.start_date}
+                onChange={(e) =>
+                  setFormData({ ...formData, start_date: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                <Calendar className="h-4 w-4 text-gray-400" /> ถึงวันที่
+              </label>
+              <input
+                type="date"
+                required
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.end_date}
+                onChange={(e) =>
+                  setFormData({ ...formData, end_date: e.target.value })
+                }
+              />
+            </div>
+          </div>
+
+          {/* สวิตช์ เปิด/ปิด การใช้งาน */}
+          <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div>
+              <p className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Power className="h-4 w-4 text-gray-500" />{" "}
+                สถานะการเปิดให้ลงเวลา
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                ถ้าปิด พนักงานจะไม่เห็นหัวข้อนี้ในหน้าระบบ
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={formData.is_active}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+            </label>
+          </div>
+
+          <hr className="border-gray-100" />
+
+          {/* กะเวลา */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                <Clock className="h-4 w-4 text-gray-400" /> รูปแบบกะเวลางาน
               </label>
               <select
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none"
                 value={formData.shift_type}
                 onChange={(e) => handleShiftChange(e.target.value)}
               >
@@ -202,7 +324,6 @@ export default function AttendanceAdminPage() {
                 <option value="custom">ระบุเวลาเอง (Custom)</option>
               </select>
             </div>
-
             {formData.shift_type === "custom" && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -212,7 +333,7 @@ export default function AttendanceAdminPage() {
                   <input
                     type="time"
                     required
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm bg-white"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm"
                     value={formData.start_time}
                     onChange={(e) =>
                       setFormData({ ...formData, start_time: e.target.value })
@@ -226,7 +347,7 @@ export default function AttendanceAdminPage() {
                   <input
                     type="time"
                     required
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm bg-white"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm"
                     value={formData.end_time}
                     onChange={(e) =>
                       setFormData({ ...formData, end_time: e.target.value })
@@ -237,21 +358,18 @@ export default function AttendanceAdminPage() {
             )}
           </div>
 
-          <hr className="border-gray-100" />
-
           {/* สถานที่และรัศมี GPS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <MapPin className="h-4 w-4 text-gray-400" />
-                สถานที่ Check-in
+                <MapPin className="h-4 w-4 text-gray-400" /> สถานที่ Check-in
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center">
                   <Users className="h-4 w-4 text-blue-500" />
                 </div>
                 <select
-                  className="w-full border border-gray-300 rounded-lg py-3 pl-10 pr-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white"
+                  className="w-full border border-gray-300 rounded-lg py-3 pl-10 pr-3 text-sm outline-none appearance-none"
                   value={formData.location_type}
                   onChange={(e) =>
                     setFormData({ ...formData, location_type: e.target.value })
@@ -262,31 +380,16 @@ export default function AttendanceAdminPage() {
                   <option value="team_b">ทีม B (พี่หนึ่ง)</option>
                   <option value="team_other">ทีม C (อื่นๆ)</option>
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                  <svg
-                    className="w-4 h-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </div>
               </div>
             </div>
 
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Radar className="h-4 w-4 text-gray-400" />
-                ระยะบังคับ GPS (เมตร)
+                <Radar className="h-4 w-4 text-gray-400" /> ระยะบังคับ GPS
+                (เมตร)
               </label>
               <select
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none"
                 value={formData.radius_meters}
                 onChange={(e) =>
                   setFormData({
@@ -306,12 +409,13 @@ export default function AttendanceAdminPage() {
           {/* โหมดรูปถ่าย */}
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-              <Camera className="h-4 w-4 text-gray-400" />
-              การแนบรูปภาพ (Photo Check-in)
+              <Camera className="h-4 w-4 text-gray-400" /> การแนบรูปภาพ (Photo
+              Check-in)
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* ย่อส่วน Code UI เดิม */}
               <label
-                className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center text-center ${formData.photo_mode === "none" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                className={`border p-4 rounded-xl cursor-pointer flex flex-col items-center text-center ${formData.photo_mode === "none" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
                 <input
                   type="radio"
@@ -329,13 +433,9 @@ export default function AttendanceAdminPage() {
                 <span className="block text-sm font-bold text-gray-900">
                   ปิดระบบ
                 </span>
-                <span className="block text-xs text-gray-500 mt-1">
-                  บันทึกแค่พิกัด GPS
-                </span>
               </label>
-
               <label
-                className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center text-center ${formData.photo_mode === "upload" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                className={`border p-4 rounded-xl cursor-pointer flex flex-col items-center text-center ${formData.photo_mode === "upload" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
                 <input
                   type="radio"
@@ -353,13 +453,9 @@ export default function AttendanceAdminPage() {
                 <span className="block text-sm font-bold text-gray-900">
                   เลือกรูปได้
                 </span>
-                <span className="block text-xs text-gray-500 mt-1">
-                  อัปโหลดจากอัลบั้มได้
-                </span>
               </label>
-
               <label
-                className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center text-center ${formData.photo_mode === "camera" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                className={`border p-4 rounded-xl cursor-pointer flex flex-col items-center text-center ${formData.photo_mode === "camera" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
                 <input
                   type="radio"
@@ -377,25 +473,87 @@ export default function AttendanceAdminPage() {
                 <span className="block text-sm font-bold text-gray-900">
                   ถ่ายรูปสด
                 </span>
-                <span className="block text-xs text-gray-500 mt-1">
-                  บังคับเปิดกล้องถ่ายเท่านั้น
-                </span>
               </label>
             </div>
           </div>
 
-          {/* ปุ่ม Submit */}
-          <div className="pt-6 border-t border-gray-100">
+          <div className="pt-6 border-t border-gray-100 flex gap-4">
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setFormData({ ...formData, title: "", is_active: true });
+                }}
+                className="w-1/3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 px-4 rounded-xl transition-colors"
+              >
+                ยกเลิก
+              </button>
+            )}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#2563eb] hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl transition-colors flex justify-center items-center gap-2 shadow-sm"
+              className={`${editingId ? "w-2/3 bg-amber-500 hover:bg-amber-600" : "w-full bg-[#2563eb] hover:bg-blue-700"} text-white font-bold py-3.5 px-4 rounded-xl transition-colors flex justify-center items-center gap-2 shadow-sm`}
             >
               <Save className="h-5 w-5" />
-              {loading ? "กำลังบันทึกข้อมูล..." : "บันทึกหัวข้องาน"}
+              {loading
+                ? "กำลังบันทึก..."
+                : editingId
+                  ? "บันทึกการแก้ไข"
+                  : "บันทึกหัวข้องาน"}
             </button>
           </div>
         </form>
+      </div>
+
+      {/* ================= รายการหัวข้อทั้งหมด ================= */}
+      <div className="max-w-3xl w-full">
+        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <LayoutDashboard className="h-5 w-5 text-gray-500" />{" "}
+          รายการหัวข้องานทั้งหมด
+        </h2>
+        <div className="bg-white rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden">
+          {topics.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              ยังไม่มีหัวข้องานในระบบ
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {topics.map((topic) => (
+                <div
+                  key={topic.id}
+                  className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${topic.is_active ? "bg-green-500" : "bg-gray-300"}`}
+                      ></span>
+                      <h3 className="font-bold text-gray-900">{topic.title}</h3>
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center gap-4">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {topic.start_date} ถึง{" "}
+                        {topic.end_date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />{" "}
+                        {topic.start_time.substring(0, 5)} -{" "}
+                        {topic.end_time.substring(0, 5)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleEditClick(topic)}
+                    className="bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600 p-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-sm"
+                  >
+                    <Edit className="h-4 w-4" /> แก้ไข / ต่ออายุ
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
