@@ -454,8 +454,8 @@ export default function AttendanceAdminPage() {
                       setFormData({ ...formData, team_type: e.target.value })
                     }
                   >
-                    <option value="team_all">ทุกคน</option>
-                    <option value="team_n">ไปกับพพี่นุ</option>
+                    <option value="team_all">ทั้งหมดทุกทีม</option>
+                    <option value="team_n">พี่นุ</option>
                     <option value="team_a">ทีม A (พี่หนุ่ม)</option>
                     <option value="team_b">ทีม B (พี่หนึ่ง)</option>
                     <option value="team_c">ทีม C (พี่บาส)</option>
