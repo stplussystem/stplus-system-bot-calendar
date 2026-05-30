@@ -21,6 +21,8 @@ import {
   PlusCircle,
   List,
   ShieldAlert,
+  Building,
+  MapPinHouse,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -411,8 +413,9 @@ export default function AttendanceAdminPage() {
                       })
                     }
                   />
-                  <span className="block text-sm font-bold text-gray-900">
-                    🏢 ประจำออฟฟิศ
+                  <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
+                    <Building className="h-5 w-5" />
+                    ประจำออฟฟิศ
                   </span>
                 </label>
                 <label
@@ -431,8 +434,9 @@ export default function AttendanceAdminPage() {
                       })
                     }
                   />
-                  <span className="block text-sm font-bold text-gray-900">
-                    👷‍♂️ ออกไซต์งาน
+                  <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
+                    <MapPinHouse className="h-5 w-5" />
+                    ออกไซต์งาน
                   </span>
                 </label>
               </div>
@@ -450,9 +454,14 @@ export default function AttendanceAdminPage() {
                       setFormData({ ...formData, team_type: e.target.value })
                     }
                   >
+                    <option value="team_all">ทุกคน</option>
+                    <option value="team_n">ไปกับพพี่นุ</option>
                     <option value="team_a">ทีม A (พี่หนุ่ม)</option>
                     <option value="team_b">ทีม B (พี่หนึ่ง)</option>
-                    <option value="team_other">ทีม C (อื่นๆ)</option>
+                    <option value="team_c">ทีม C (พี่บาส)</option>
+                    <option value="team_d">ทีม D (แคมป์)</option>
+                    <option value="team_e">ทีม E (หนึ่ง)</option>
+                    <option value="team_other">ทีมอื่นๆ</option>
                   </select>
                 </div>
               )}
