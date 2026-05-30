@@ -11,6 +11,8 @@ import {
   Save,
   LayoutDashboard,
   Radar,
+  ImageOff,
+  ImagePlus,
 } from "lucide-react";
 
 // เชื่อมต่อ Supabase
@@ -192,10 +194,10 @@ export default function AttendanceAdminPage() {
                     setFormData({ ...formData, location_type: e.target.value })
                   }
                 >
-                  <option value="office">🏢 ออฟฟิศ (ค่าเริ่มต้น)</option>
-                  <option value="team_a">👷‍♂️ ทีม A (พี่หนุ่ม)</option>
-                  <option value="team_b">👷‍♂️ ทีม B (พี่หนึ่ง)</option>
-                  <option value="team_other">🌍 ทีม C (อื่นๆ)</option>
+                  <option value="office">ออฟฟิศ (ค่าเริ่มต้น)</option>
+                  <option value="team_a">ทีม A (พี่หนุ่ม)</option>
+                  <option value="team_b">ทีม B (พี่หนึ่ง)</option>
+                  <option value="team_other">ทีม C (อื่นๆ)</option>
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
                   <svg
@@ -258,6 +260,9 @@ export default function AttendanceAdminPage() {
                     setFormData({ ...formData, photo_mode: "none" })
                   }
                 />
+                <ImageOff
+                  className={`h-6 w-6 mb-2 ${formData.photo_mode === "none" ? "text-blue-600" : "text-gray-400"}`}
+                />
                 <span className="block text-sm font-bold text-gray-900">
                   ปิดระบบ
                 </span>
@@ -265,6 +270,7 @@ export default function AttendanceAdminPage() {
                   บันทึกแค่พิกัด GPS
                 </span>
               </label>
+
               <label
                 className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center text-center ${formData.photo_mode === "upload" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
@@ -278,6 +284,9 @@ export default function AttendanceAdminPage() {
                     setFormData({ ...formData, photo_mode: "upload" })
                   }
                 />
+                <ImagePlus
+                  className={`h-6 w-6 mb-2 ${formData.photo_mode === "upload" ? "text-blue-600" : "text-gray-400"}`}
+                />
                 <span className="block text-sm font-bold text-gray-900">
                   เลือกรูปได้
                 </span>
@@ -285,6 +294,7 @@ export default function AttendanceAdminPage() {
                   อัปโหลดจากอัลบั้มได้
                 </span>
               </label>
+
               <label
                 className={`border p-4 rounded-xl cursor-pointer transition-all flex flex-col items-center text-center ${formData.photo_mode === "camera" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
@@ -298,8 +308,11 @@ export default function AttendanceAdminPage() {
                     setFormData({ ...formData, photo_mode: "camera" })
                   }
                 />
+                <Camera
+                  className={`h-6 w-6 mb-2 ${formData.photo_mode === "camera" ? "text-blue-600" : "text-gray-400"}`}
+                />
                 <span className="block text-sm font-bold text-gray-900">
-                  ถ่ายรูปสด 📸
+                  ถ่ายรูปสด
                 </span>
                 <span className="block text-xs text-gray-500 mt-1">
                   บังคับเปิดกล้องถ่ายเท่านั้น
