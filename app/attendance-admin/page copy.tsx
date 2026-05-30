@@ -13,9 +13,6 @@ import {
   Radar,
   ImageOff,
   ImagePlus,
-  CheckCircle2,
-  XCircle,
-  X,
 } from "lucide-react";
 
 // เชื่อมต่อ Supabase
@@ -26,15 +23,6 @@ const supabase = createClient(
 
 export default function AttendanceAdminPage() {
   const [loading, setLoading] = useState(false);
-
-  // 🌟 State สำหรับจัดการ Custom Pop-up
-  const [modal, setModal] = useState({
-    isOpen: false,
-    type: "success",
-    title: "",
-    message: "",
-  });
-
   const [formData, setFormData] = useState({
     title: "",
     shift_type: "morning",
@@ -87,70 +75,19 @@ export default function AttendanceAdminPage() {
       ]);
 
       if (error) throw error;
-
-      // 🌟 เปิด Pop-up สำเร็จ
-      setModal({
-        isOpen: true,
-        type: "success",
-        title: "บันทึกข้อมูลสำเร็จ!",
-        message: `หัวข้อ "${formData.title}" ถูกเพิ่มเข้าสู่ระบบเรียบร้อยแล้ว`,
-      });
+      alert("✅ สร้างหัวข้องานสำเร็จ!");
       setFormData({ ...formData, title: "" });
     } catch (error: any) {
-      // 🌟 เปิด Pop-up แจ้งเตือน Error
-      setModal({
-        isOpen: true,
-        type: "error",
-        title: "เกิดข้อผิดพลาด",
-        message: error.message,
-      });
+      alert("❌ เกิดข้อผิดพลาด: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const closeModal = () => setModal({ ...modal, isOpen: false });
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6 flex justify-center items-start pt-10 font-sans relative">
-      {/* 🌟 Custom Pop-up Modal */}
-      {modal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div
-              className={`p-6 flex flex-col items-center text-center ${modal.type === "success" ? "bg-green-50" : "bg-red-50"}`}
-            >
-              {modal.type === "success" ? (
-                <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
-              ) : (
-                <XCircle className="w-16 h-16 text-red-500 mb-4" />
-              )}
-              <h3
-                className={`text-xl font-bold ${modal.type === "success" ? "text-green-900" : "text-red-900"}`}
-              >
-                {modal.title}
-              </h3>
-              <p
-                className={`text-sm mt-2 ${modal.type === "success" ? "text-green-700" : "text-red-700"}`}
-              >
-                {modal.message}
-              </p>
-            </div>
-            <div className="p-4 bg-white border-t border-gray-100">
-              <button
-                onClick={closeModal}
-                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors"
-              >
-                ตกลง
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* แบบฟอร์มหลัก */}
+    <div className="min-h-screen bg-[#f8fafc] p-6 flex justify-center items-start pt-10 font-sans">
       <div className="bg-white max-w-2xl w-full rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden">
-        {/* ส่วนหัว */}
+        {/* ส่วนหัว (ธีมเดียวกับ Calendar) */}
         <div className="border-b border-[#e2e8f0] bg-white p-6 flex items-center gap-3">
           <div className="bg-blue-50 p-2 rounded-lg">
             <LayoutDashboard className="h-6 w-6 text-blue-600" />
