@@ -134,7 +134,7 @@ export default function CheckinPage() {
         try {
           const { error } = await supabase.from("attendance_logs").insert([
             {
-              user_id: userProfile.userId, // 🚀 ใช้ LINE ID ตัวจริง!
+              user_id: userProfile.userId,
               topic_id: selectedTopic,
               check_in_lat: latitude,
               check_in_lng: longitude,
@@ -144,6 +144,54 @@ export default function CheckinPage() {
           if (error) throw error;
 
           showToast("Check-in สำเร็จแล้ว! ระบบบันทึกพิกัดเรียบร้อย", "success");
+
+          // 🔥 เพิ่มส่วนนี้: ยิง API แจ้งเตือนเข้า LINE ตัวเอง
+          const selectedTopicData = topics.find((t) => t.id === selectedTopic);
+          if (selectedTopicData) {
+            // แปลงวันที่และเวลาสำหรับ Flex
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            const dayNames = [
+              "อาทิตย์",
+              "จันทร์",
+              "อังคาร",
+              "พุธ",
+              "พฤหัสบดี",
+              "ศุกร์",
+              "เสาร์",
+            ];
+            const thaiDateStr = `${dayNames[now.getDay()]}ที่ ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear() + 543}`;
+
+            let shiftStr = "งานเช้า";
+            if (selectedTopicData.shift_type === "afternoon")
+              shiftStr = "งานบ่าย";
+            if (selectedTopicData.shift_type === "custom")
+              shiftStr = "กำหนดเอง";
+
+            let teamStr = "ออฟฟิศ";
+            if (selectedTopicData.work_type === "onsite")
+              teamStr = `ทีม ${selectedTopicData.team_type.replace("team_", "").toUpperCase()}`;
+            if (selectedTopicData.team_type === "team_all")
+              teamStr = "ทั้งหมดทุกทีม";
+
+            await fetch("/api/checkin-notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: userProfile.userId,
+                topicTitle: selectedTopicData.title,
+                thaiDateStr: thaiDateStr,
+                shiftType: shiftStr,
+                teamName: teamStr,
+                checkInTime: timeStr,
+                liffUrl: "https://liff.line.me/2010143328-wyg8T4P5/checkin",
+              }),
+            });
+          }
+
           setTimeout(() => setActiveTab("history"), 1500);
         } catch (err: any) {
           showToast(err.message, "error");

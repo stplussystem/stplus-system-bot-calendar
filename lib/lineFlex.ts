@@ -633,3 +633,248 @@ export const getOpenForm = (liffUrl: string) => ({
     },
   },
 });
+
+// 6. Flex แจ้งเตือนการ Check-in / Check-out (จาก Template ของพี่แม็ค)
+export const getAttendanceMessage = (
+  topicTitle: string,
+  thaiDateStr: string,
+  shiftType: string,
+  teamName: string,
+  checkInTime: string,
+  checkOutTime: string = "ยังไม่ลงชื่อ",
+  liffUrl: string,
+) => ({
+  type: "flex",
+  altText: `ลงเวลา: ${topicTitle}`,
+  contents: {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "งาน",
+              color: "#ffffff66",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: topicTitle,
+              color: "#ffffff",
+              size: "md",
+              flex: 4,
+              weight: "bold",
+            },
+          ],
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: "#0367D3",
+      spacing: "md",
+      height: "80px",
+      paddingTop: "22px",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: thaiDateStr,
+          size: "md",
+          weight: "bold",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: shiftType,
+                  size: "md",
+                  gravity: "center",
+                },
+                {
+                  type: "text",
+                  text: teamName,
+                  gravity: "center",
+                  flex: 2,
+                  size: "md",
+                },
+              ],
+              spacing: "lg",
+              cornerRadius: "30px",
+              margin: "xl",
+            },
+          ],
+        },
+        // จุด Check-in
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "text",
+              text: checkInTime,
+              size: "md",
+              gravity: "center",
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  cornerRadius: "30px",
+                  height: "12px",
+                  width: "12px",
+                  borderColor: "#008000", // สีเขียว
+                  borderWidth: "2px",
+                },
+                { type: "filler" },
+              ],
+              flex: 0,
+            },
+            {
+              type: "text",
+              text: "ลงชื่อเข้างาน",
+              gravity: "center",
+              flex: 4,
+              size: "md",
+            },
+          ],
+          spacing: "lg",
+          cornerRadius: "30px",
+          margin: "xl",
+        },
+        // เส้นเชื่อม
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [{ type: "filler" }],
+              flex: 1,
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    { type: "filler" },
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [],
+                      width: "2px",
+                      backgroundColor: "#B7B7B7",
+                    },
+                    { type: "filler" },
+                  ],
+                  flex: 1,
+                },
+              ],
+              width: "12px",
+            },
+            {
+              type: "text",
+              text: "ระยะเวลาการทำงาน",
+              gravity: "center",
+              flex: 4,
+              size: "xs",
+              color: "#8c8c8c",
+            },
+          ],
+          spacing: "lg",
+          height: "64px",
+        },
+        // จุด Check-out
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: checkOutTime,
+                  gravity: "center",
+                  size: "md",
+                  color:
+                    checkOutTime === "ยังไม่ลงชื่อ" ? "#b7b7b7" : "#000000",
+                },
+              ],
+              flex: 1,
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  cornerRadius: "30px",
+                  width: "12px",
+                  height: "12px",
+                  borderWidth: "2px",
+                  borderColor:
+                    checkOutTime === "ยังไม่ลงชื่อ" ? "#b7b7b7" : "#EF454D", // ถ้ายังไม่ออกให้เป็นสีเทา ออกแล้วเป็นสีแดง
+                },
+                { type: "filler" },
+              ],
+              flex: 0,
+            },
+            {
+              type: "text",
+              text: "ลงชื่อออกงาน",
+              gravity: "center",
+              flex: 4,
+              size: "md",
+              color: checkOutTime === "ยังไม่ลงชื่อ" ? "#b7b7b7" : "#000000",
+            },
+          ],
+          spacing: "lg",
+          cornerRadius: "30px",
+        },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          action: {
+            type: "uri",
+            label: "ลงชื่อออกงาน",
+            uri: liffUrl,
+          },
+          style: "primary",
+          color: "#0367D3",
+        },
+      ],
+    },
+  },
+});
