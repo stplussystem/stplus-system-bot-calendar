@@ -18,6 +18,7 @@ import {
   Edit,
   Power,
   Calendar,
+  Infinity,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -33,10 +34,9 @@ export default function AttendanceAdminPage() {
     title: "",
     message: "",
   });
-  const [topics, setTopics] = useState<any[]>([]); // เก็บรายการหัวข้อทั้งหมด
-  const [editingId, setEditingId] = useState<string | null>(null); // จำว่ากำลังแก้ไข ID ไหนอยู่
+  const [topics, setTopics] = useState<any[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // 🌟 ฟอร์มข้อมูล (เพิ่ม start_date, end_date, is_active)
   const [formData, setFormData] = useState({
     title: "",
     shift_type: "morning",
@@ -54,7 +54,6 @@ export default function AttendanceAdminPage() {
     fetchTopics();
   }, []);
 
-  // 📥 โหลดข้อมูลรายการหัวข้อทั้งหมด
   const fetchTopics = async () => {
     const { data, error } = await supabase
       .from("attendance_topics")
@@ -83,7 +82,6 @@ export default function AttendanceAdminPage() {
     });
   };
 
-  // ✏️ เมื่อกดปุ่มแก้ไขในตาราง
   const handleEditClick = (topic: any) => {
     setEditingId(topic.id);
     setFormData({
@@ -98,10 +96,9 @@ export default function AttendanceAdminPage() {
       end_date: topic.end_date,
       is_active: topic.is_active,
     });
-    window.scrollTo({ top: 0, behavior: "smooth" }); // เลื่อนจอกลับขึ้นไปที่ฟอร์ม
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // 💾 บันทึกข้อมูล (แยกเป็น สร้างใหม่ vs อัปเดตของเดิม)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -123,7 +120,6 @@ export default function AttendanceAdminPage() {
       };
 
       if (editingId) {
-        // อัปเดตข้อมูลเดิม
         const { error } = await supabase
           .from("attendance_topics")
           .update(payload)
@@ -136,7 +132,6 @@ export default function AttendanceAdminPage() {
           message: `ต่ออายุ/แก้ไขหัวข้อเรียบร้อยแล้ว`,
         });
       } else {
-        // สร้างใหม่
         const { error } = await supabase
           .from("attendance_topics")
           .insert([payload]);
@@ -149,7 +144,6 @@ export default function AttendanceAdminPage() {
         });
       }
 
-      // ล้างฟอร์มและโหลดข้อมูลใหม่
       setEditingId(null);
       setFormData({ ...formData, title: "", is_active: true });
       fetchTopics();
@@ -167,9 +161,11 @@ export default function AttendanceAdminPage() {
 
   const closeModal = () => setModal({ ...modal, isOpen: false });
 
+  // 🌟 เช็คว่าเป็นงานแบบไม่มีวันหมดอายุหรือไม่
+  const isPermanent = formData.end_date === "2099-12-31";
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-6 flex flex-col items-center pt-10 font-sans relative pb-20">
-      {/* 🌟 Custom Pop-up Modal */}
       {modal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
@@ -204,7 +200,7 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* ================= แบบฟอร์มสร้าง / แก้ไข ================= */}
+      {/* ================= แบบฟอร์ม ================= */}
       <div className="bg-white max-w-3xl w-full rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden mb-8 relative">
         {editingId && (
           <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-sm animate-pulse">
@@ -233,57 +229,91 @@ export default function AttendanceAdminPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <CalendarDays className="h-4 w-4 text-gray-400" /> ชื่อหัวข้องาน{" "}
-                <span className="text-red-500">*</span>
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+              <CalendarDays className="h-4 w-4 text-gray-400" /> ชื่อหัวข้องาน{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="เช่น ไซต์งาน A, เข้าออฟฟิศ"
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              value={formData.title}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
+            />
+          </div>
+
+          {/* 🌟 ระบบวันที่ + ปุ่มไม่มีวันหมดอายุ */}
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+              <label className="flex items-center gap-2 text-sm font-bold text-blue-900 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer"
+                  checked={isPermanent}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setFormData({ ...formData, end_date: "2099-12-31" });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        end_date: formData.start_date,
+                      });
+                    }
+                  }}
+                />
+                <Infinity className="h-4 w-4 text-blue-600" />
+                หัวข้องานประจำ (ไม่มีวันหมดอายุ)
               </label>
-              <input
-                type="text"
-                required
-                placeholder="เช่น ไซต์งาน A, เข้าออฟฟิศ"
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
-              />
+              <span className="text-xs text-gray-500 hidden md:block">
+                เหมาะสำหรับ "เข้าออฟฟิศ"
+              </span>
             </div>
 
-            {/* 🌟 เพิ่มระบบวันที่ */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Calendar className="h-4 w-4 text-gray-400" /> เริ่มวันที่
-              </label>
-              <input
-                type="date"
-                required
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.start_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, start_date: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Calendar className="h-4 w-4 text-gray-400" /> ถึงวันที่
-              </label>
-              <input
-                type="date"
-                required
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.end_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_date: e.target.value })
-                }
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                  <Calendar className="h-4 w-4 text-gray-400" /> เริ่มวันที่
+                </label>
+                <input
+                  type="date"
+                  required
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  value={formData.start_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, start_date: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label
+                  className={`flex items-center gap-2 text-sm font-semibold mb-2 ${isPermanent ? "text-gray-400" : "text-gray-700"}`}
+                >
+                  <Calendar className="h-4 w-4 text-gray-400" /> ถึงวันที่
+                </label>
+                {isPermanent ? (
+                  <div className="w-full border border-gray-200 bg-gray-100 rounded-lg p-3 text-sm text-gray-500 font-semibold flex items-center justify-center">
+                    ไม่มีกำหนด (2099)
+                  </div>
+                ) : (
+                  <input
+                    type="date"
+                    required
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    value={formData.end_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, end_date: e.target.value })
+                    }
+                  />
+                )}
+              </div>
             </div>
           </div>
 
-          {/* สวิตช์ เปิด/ปิด การใช้งาน */}
-          <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+          <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200">
             <div>
               <p className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <Power className="h-4 w-4 text-gray-500" />{" "}
@@ -413,7 +443,6 @@ export default function AttendanceAdminPage() {
               Check-in)
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* ย่อส่วน Code UI เดิม */}
               <label
                 className={`border p-4 rounded-xl cursor-pointer flex flex-col items-center text-center ${formData.photo_mode === "none" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
               >
@@ -522,7 +551,7 @@ export default function AttendanceAdminPage() {
               {topics.map((topic) => (
                 <div
                   key={topic.id}
-                  className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className="p-5 flex flex-col md:flex-row md:items-center justify-between hover:bg-gray-50 transition-colors gap-4"
                 >
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -530,24 +559,35 @@ export default function AttendanceAdminPage() {
                         className={`w-2.5 h-2.5 rounded-full ${topic.is_active ? "bg-green-500" : "bg-gray-300"}`}
                       ></span>
                       <h3 className="font-bold text-gray-900">{topic.title}</h3>
+                      {topic.end_date === "2099-12-31" && (
+                        <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 border border-blue-200">
+                          ประจำ
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-500 flex items-center gap-4">
+                    <div className="text-xs text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
                       <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" /> {topic.start_date} ถึง{" "}
-                        {topic.end_date}
+                        <Calendar className="h-3 w-3" />
+                        {topic.end_date === "2099-12-31"
+                          ? "ไม่มีวันหมดอายุ"
+                          : `${topic.start_date} ถึง ${topic.end_date}`}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />{" "}
                         {topic.start_time.substring(0, 5)} -{" "}
-                        {topic.end_time.substring(0, 5)}
+                        {topic.end_time.substring(0, 5)} น.
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {topic.location_type} (
+                        {topic.radius_meters}m)
                       </span>
                     </div>
                   </div>
                   <button
                     onClick={() => handleEditClick(topic)}
-                    className="bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600 p-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-sm"
+                    className="shrink-0 bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600 px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all shadow-sm w-full md:w-auto"
                   >
-                    <Edit className="h-4 w-4" /> แก้ไข / ต่ออายุ
+                    <Edit className="h-4 w-4" /> แก้ไข / ดูข้อมูล
                   </button>
                 </div>
               ))}
