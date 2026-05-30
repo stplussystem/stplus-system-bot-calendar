@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   Building,
   MapPinHouse,
+  Trash2,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -31,21 +32,28 @@ const supabase = createClient(
 );
 
 export default function AttendanceAdminPage() {
-  // 🌟 State สำหรับระบบรักษาความปลอดภัยและแท็บ
   const [authStatus, setAuthStatus] = useState<
     "checking" | "allowed" | "denied"
   >("checking");
   const [activeTab, setActiveTab] = useState<"form" | "list">("form");
-
   const [loading, setLoading] = useState(false);
-  const [modal, setModal] = useState({
-    isOpen: false,
+  const [topics, setTopics] = useState<any[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // 🍞 1. State สำหรับ Toaster (แจ้งเตือนแบบเด้งแล้วหายไป)
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
     type: "success",
+  });
+
+  // 🚨 2. State สำหรับ Modal Pop-up (ใช้สำหรับยืนยันการลบเท่านั้น)
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    topicId: null as string | null,
     title: "",
     message: "",
   });
-  const [topics, setTopics] = useState<any[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -66,42 +74,34 @@ export default function AttendanceAdminPage() {
     fetchTopics();
   }, []);
 
-  // 🔒 ฟังก์ชันตรวจสอบสิทธิ์ (Role)
   const checkUserRole = async () => {
     try {
-      const mockUserId = "U_MANAGER_MOCK_ID";
-
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", mockUserId)
-        .single();
-
-      // ⚠️ เปลี่ยนเป็น true เพื่อให้พี่แม็คเทส UI ได้ก่อน
-      const isAuthorized = true;
-
-      if (isAuthorized) {
-        setAuthStatus("allowed");
-      } else {
-        setAuthStatus("denied");
-      }
+      setAuthStatus("allowed"); // ⚠️ Bypass สิทธิ์ไว้ให้พี่แม็คเทส
     } catch (error) {
-      console.error("Auth error:", error);
       setAuthStatus("allowed");
     }
   };
 
   const fetchTopics = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("attendance_topics")
       .select("*")
       .order("created_at", { ascending: false });
     if (data) setTopics(data);
   };
 
+  // 🍞 ฟังก์ชันเรียก Toaster
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success",
+  ) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000); // หายไปเองใน 3 วิ
+  };
+
   const handleShiftChange = (shift: string) => {
-    let start = formData.start_time;
-    let end = formData.end_time;
+    let start = formData.start_time,
+      end = formData.end_time;
     if (shift === "morning") {
       start = "09:00";
       end = "18:00";
@@ -137,6 +137,34 @@ export default function AttendanceAdminPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // 🚨 ฟังก์ชันกดปุ่มลบ (เรียก Modal ยืนยัน)
+  const handleDeleteClick = (topicId: string, topicTitle: string) => {
+    setConfirmModal({
+      isOpen: true,
+      topicId: topicId,
+      title: "ยืนยันการลบข้อมูล",
+      message: `คุณแน่ใจหรือไม่ว่าต้องการลบหัวข้อ "${topicTitle}" ? ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้`,
+    });
+  };
+
+  // 🚨 ฟังก์ชันลบจริงๆ เมื่อกดยืนยันใน Modal
+  const confirmDelete = async () => {
+    if (!confirmModal.topicId) return;
+    try {
+      const { error } = await supabase
+        .from("attendance_topics")
+        .delete()
+        .eq("id", confirmModal.topicId);
+      if (error) throw error;
+      showToast("ลบข้อมูลสำเร็จเรียบร้อยแล้ว", "success");
+      fetchTopics();
+    } catch (error: any) {
+      showToast("ลบไม่สำเร็จ: " + error.message, "error");
+    } finally {
+      setConfirmModal({ isOpen: false, topicId: null, title: "", message: "" }); // ปิด Modal
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -164,23 +192,13 @@ export default function AttendanceAdminPage() {
           .update(payload)
           .eq("id", editingId);
         if (error) throw error;
-        setModal({
-          isOpen: true,
-          type: "success",
-          title: "อัปเดตสำเร็จ!",
-          message: `แก้ไขหัวข้อเรียบร้อยแล้ว`,
-        });
+        showToast("อัปเดตข้อมูลสำเร็จ!", "success"); // 🍞 เรียกใช้ Toaster
       } else {
         const { error } = await supabase
           .from("attendance_topics")
           .insert([payload]);
         if (error) throw error;
-        setModal({
-          isOpen: true,
-          type: "success",
-          title: "บันทึกสำเร็จ!",
-          message: `เพิ่มหัวข้องานใหม่เรียบร้อยแล้ว`,
-        });
+        showToast("บันทึกหัวข้อใหม่สำเร็จ!", "success"); // 🍞 เรียกใช้ Toaster
       }
 
       setEditingId(null);
@@ -188,30 +206,21 @@ export default function AttendanceAdminPage() {
       fetchTopics();
       setActiveTab("list");
     } catch (error: any) {
-      setModal({
-        isOpen: true,
-        type: "error",
-        title: "เกิดข้อผิดพลาด",
-        message: error.message,
-      });
+      showToast(error.message, "error"); // 🍞 เรียกใช้ Toaster แสดง Error
     } finally {
       setLoading(false);
     }
   };
 
-  const closeModal = () => setModal({ ...modal, isOpen: false });
   const isPermanent = formData.end_date === "2099-12-31";
 
-  // 🌟 เปลี่ยนดีไซน์หน้า Loading ให้เหมือนกับแอป Calendar
+  // Loading Screen
   if (authStatus === "checking") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] font-sans">
         <div className="relative w-40 h-40 flex items-center justify-center mb-6">
-          {/* วงกลมพื้นหลังสีฟ้าอ่อน */}
           <div className="absolute inset-0 rounded-full border-[6px] border-blue-100"></div>
-          {/* วงกลมอนิเมชันสีน้ำเงินเข้มหมุนๆ */}
           <div className="absolute inset-0 rounded-full border-[6px] border-blue-600 border-t-transparent animate-spin"></div>
-          {/* ข้อความ Loading ตรงกลาง */}
           <div className="text-blue-600 font-bold text-xl z-10">Loading...</div>
         </div>
         <p className="text-gray-500 text-sm font-medium">
@@ -221,7 +230,7 @@ export default function AttendanceAdminPage() {
     );
   }
 
-  // หน้าจอปฏิเสธสิทธิ์
+  // Access Denied Screen
   if (authStatus === "denied") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6">
@@ -239,36 +248,48 @@ export default function AttendanceAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-6 flex flex-col items-center pt-8 font-sans pb-20">
-      {/* Pop-up Modal */}
-      {modal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div
-              className={`p-6 flex flex-col items-center text-center ${modal.type === "success" ? "bg-green-50" : "bg-red-50"}`}
-            >
-              {modal.type === "success" ? (
-                <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
-              ) : (
-                <XCircle className="w-16 h-16 text-red-500 mb-4" />
-              )}
-              <h3
-                className={`text-xl font-bold ${modal.type === "success" ? "text-green-900" : "text-red-900"}`}
-              >
-                {modal.title}
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-6 flex flex-col items-center pt-8 font-sans pb-20 relative">
+      {/* 🍞 Toaster Notification (แจ้งเตือนมุมขวาบน) */}
+      {toast.show && (
+        <div className="fixed top-6 right-6 z-[60] flex items-center gap-3 bg-white border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-5 py-4 rounded-xl animate-in slide-in-from-top-5 fade-in duration-300">
+          {toast.type === "success" ? (
+            <CheckCircle2 className="w-6 h-6 text-green-500" />
+          ) : (
+            <XCircle className="w-6 h-6 text-red-500" />
+          )}
+          <p className="text-sm font-bold text-gray-800">{toast.message}</p>
+        </div>
+      )}
+
+      {/* 🚨 Confirm Modal (เฉพาะลบข้อมูล หรือยืนยันคำสั่งสำคัญ) */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-8 flex flex-col items-center text-center bg-red-50">
+              <div className="bg-red-100 p-4 rounded-full mb-4">
+                <Trash2 className="w-10 h-10 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-red-900">
+                {confirmModal.title}
               </h3>
-              <p
-                className={`text-sm mt-2 ${modal.type === "success" ? "text-green-700" : "text-red-700"}`}
-              >
-                {modal.message}
+              <p className="text-sm mt-3 text-red-700/80 leading-relaxed">
+                {confirmModal.message}
               </p>
             </div>
-            <div className="p-4 bg-white border-t border-gray-100">
+            <div className="p-4 bg-white flex gap-3">
               <button
-                onClick={closeModal}
-                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors"
+                onClick={() =>
+                  setConfirmModal({ ...confirmModal, isOpen: false })
+                }
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3.5 rounded-xl transition-colors"
               >
-                ตกลง
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm shadow-red-200"
+              >
+                ยืนยันการลบ
               </button>
             </div>
           </div>
@@ -349,8 +370,8 @@ export default function AttendanceAdminPage() {
                         });
                     }}
                   />
-                  <Infinity className="h-4 w-4 text-blue-600" />
-                  หัวข้องานประจำ (ไม่มีวันหมดอายุ)
+                  <Infinity className="h-4 w-4 text-blue-600" /> หัวข้องานประจำ
+                  (ไม่มีวันหมดอายุ)
                 </label>
               </div>
 
@@ -419,8 +440,7 @@ export default function AttendanceAdminPage() {
                     }
                   />
                   <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
-                    <Building className="h-5 w-5" />
-                    ประจำออฟฟิศ
+                    <Building className="h-5 w-5" /> ประจำออฟฟิศ
                   </span>
                 </label>
                 <label
@@ -440,8 +460,7 @@ export default function AttendanceAdminPage() {
                     }
                   />
                   <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
-                    <MapPinHouse className="h-5 w-5" />
-                    ออกไซต์งาน
+                    <MapPinHouse className="h-5 w-5" /> ออกไซต์งาน
                   </span>
                 </label>
               </div>
@@ -671,12 +690,22 @@ export default function AttendanceAdminPage() {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleEditClick(topic)}
-                      className="shrink-0 bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600 px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all shadow-sm"
-                    >
-                      <Edit className="h-4 w-4" /> แก้ไข
-                    </button>
+
+                    {/* ปุ่มแก้ไข & ลบ */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditClick(topic)}
+                        className="flex-1 sm:flex-none bg-white border border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600 px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all shadow-sm"
+                      >
+                        <Edit className="h-4 w-4" /> แก้ไข
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(topic.id, topic.title)}
+                        className="bg-white border border-gray-200 text-gray-400 hover:border-red-500 hover:text-red-600 p-2 rounded-lg flex items-center justify-center transition-all shadow-sm"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
