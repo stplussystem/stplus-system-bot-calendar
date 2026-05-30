@@ -52,8 +52,8 @@ export default function AttendanceAdminPage() {
     shift_type: "morning",
     start_time: "09:00",
     end_time: "18:00",
-    work_type: "office", // เลือกประเภทงาน: 'office' | 'onsite'
-    team_type: "office", // ชื่อทีม: 'office', 'team_a', 'team_b', 'team_other'
+    work_type: "office",
+    team_type: "office",
     radius_meters: 100,
     photo_mode: "none",
     start_date: new Date().toISOString().split("T")[0],
@@ -69,22 +69,16 @@ export default function AttendanceAdminPage() {
   // 🔒 ฟังก์ชันตรวจสอบสิทธิ์ (Role)
   const checkUserRole = async () => {
     try {
-      // 💡 [คำแนะนำ]: ในอนาคตเราจะดึง LINE ID มาจาก LIFF
-      // const profile = await liff.getProfile();
-      // const userId = profile.userId;
+      const mockUserId = "U_MANAGER_MOCK_ID";
 
-      const mockUserId = "U_MANAGER_MOCK_ID"; // จำลองรหัสเพื่อทดสอบ
-
-      // ค้นหาสิทธิ์ในตาราง users ของ Supabase
       const { data: user, error } = await supabase
         .from("users")
         .select("role")
-        .eq("id", mockUserId) // ถ้าพี่แม็คใช้ line_user_id เป็น Primary Key ก็ใช้ 'id' ได้เลย
+        .eq("id", mockUserId)
         .single();
 
-      // ถ้าระบบยังไม่มีข้อมูล หรือต้องการบายพาสให้เทสได้ก่อน ให้ใช้บรรทัดล่างครับ
-      // แต่ถ้าระบบจริงให้ใช้: if (user && ['it', 'manager', 'hr'].includes(user.role))
-      const isAuthorized = true; // ⚠️ เปลี่ยนเป็น true เพื่อให้พี่แม็คเทส UI ได้ก่อน
+      // ⚠️ เปลี่ยนเป็น true เพื่อให้พี่แม็คเทส UI ได้ก่อน
+      const isAuthorized = true;
 
       if (isAuthorized) {
         setAuthStatus("allowed");
@@ -93,7 +87,6 @@ export default function AttendanceAdminPage() {
       }
     } catch (error) {
       console.error("Auth error:", error);
-      // อนุญาตให้เทสไปก่อน
       setAuthStatus("allowed");
     }
   };
@@ -140,7 +133,7 @@ export default function AttendanceAdminPage() {
       end_date: topic.end_date,
       is_active: topic.is_active,
     });
-    setActiveTab("form"); // เด้งกลับมาแท็บฟอร์ม
+    setActiveTab("form");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -193,7 +186,7 @@ export default function AttendanceAdminPage() {
       setEditingId(null);
       setFormData({ ...formData, title: "", is_active: true });
       fetchTopics();
-      setActiveTab("list"); // บันทึกเสร็จให้เด้งไปหน้ารายการ
+      setActiveTab("list");
     } catch (error: any) {
       setModal({
         isOpen: true,
@@ -209,14 +202,26 @@ export default function AttendanceAdminPage() {
   const closeModal = () => setModal({ ...modal, isOpen: false });
   const isPermanent = formData.end_date === "2099-12-31";
 
-  // 🔒 หน้าจอโหลด & หน้าจอปฏิเสธสิทธิ์
+  // 🌟 เปลี่ยนดีไซน์หน้า Loading ให้เหมือนกับแอป Calendar
   if (authStatus === "checking") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] text-gray-500 font-bold">
-        กำลังตรวจสอบสิทธิ์...
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] font-sans">
+        <div className="relative w-40 h-40 flex items-center justify-center mb-6">
+          {/* วงกลมพื้นหลังสีฟ้าอ่อน */}
+          <div className="absolute inset-0 rounded-full border-[6px] border-blue-100"></div>
+          {/* วงกลมอนิเมชันสีน้ำเงินเข้มหมุนๆ */}
+          <div className="absolute inset-0 rounded-full border-[6px] border-blue-600 border-t-transparent animate-spin"></div>
+          {/* ข้อความ Loading ตรงกลาง */}
+          <div className="text-blue-600 font-bold text-xl z-10">Loading...</div>
+        </div>
+        <p className="text-gray-500 text-sm font-medium">
+          กำลังตรวจสอบข้อมูล...
+        </p>
       </div>
     );
   }
+
+  // หน้าจอปฏิเสธสิทธิ์
   if (authStatus === "denied") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6">
@@ -270,7 +275,7 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* 🌟 เมนู Tabs สไตล์ Modern SaaS */}
+      {/* เมนู Tabs สไตล์ Modern SaaS */}
       <div className="max-w-2xl w-full mb-6">
         <div className="flex space-x-2 bg-gray-200/50 p-1.5 rounded-2xl">
           <button
@@ -391,7 +396,7 @@ export default function AttendanceAdminPage() {
 
             <hr className="border-gray-100" />
 
-            {/* 🌟 เลือกระบบทีม หรือ ออฟฟิศ */}
+            {/* เลือกระบบทีม หรือ ออฟฟิศ */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
                 <Briefcase className="h-4 w-4 text-gray-400" /> รูปแบบการเข้างาน
@@ -430,7 +435,7 @@ export default function AttendanceAdminPage() {
                       setFormData({
                         ...formData,
                         work_type: "onsite",
-                        team_type: "team_all", // ตั้งค่าเริ่มต้นเป็น "ทั้งหมดทุกทีม" เมื่อเลือกออกไซต์งาน
+                        team_type: "team_all",
                       })
                     }
                   />
@@ -555,7 +560,7 @@ export default function AttendanceAdminPage() {
                 >
                   <option value="none">ปิดระบบ (ใช้แค่ GPS)</option>
                   <option value="upload">เลือกรูปได้จากอัลบั้ม</option>
-                  <option value="camera">บังคับถ่ายสดเท่านั้น 📸</option>
+                  <option value="camera">บังคับถ่ายสดเท่านั้น</option>
                 </select>
               </div>
             </div>
