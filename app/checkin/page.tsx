@@ -11,7 +11,6 @@ import {
   History,
   CalendarDays,
   Calendar as CalendarIcon,
-  ChevronRight,
   XCircle,
 } from "lucide-react";
 
@@ -21,10 +20,12 @@ const supabase = createClient(
 );
 
 export default function CheckinPage() {
-  // 🌟 Tabs: 'checkin' (ลงเวลา) | 'history' (ประวัติของฉัน)
   const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
 
-  // 🌟 State สำหรับหน้าลงเวลา
+  // 🌟 State สำหรับ LINE LIFF
+  const [isLiffInit, setIsLiffInit] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
   const [topics, setTopics] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,6 @@ export default function CheckinPage() {
     type: "success",
   });
 
-  // 🌟 State สำหรับหน้าประวัติ
   const [logs, setLogs] = useState<any[]>([]);
   const [historyFilter, setHistoryFilter] = useState<
     "today" | "week" | "month" | "custom"
@@ -44,31 +44,59 @@ export default function CheckinPage() {
   );
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // 💡 จำลอง User ID ไปก่อน (เดี๋ยวชิ้นที่ 3 เราจะดึงจาก LINE LIFF)
-  const mockUserId = "U_EMPLOYEE_TEST_001";
-
+  // ================= 1. เริ่มต้นระบบ LINE LIFF =================
   useEffect(() => {
-    if (activeTab === "checkin") {
-      fetchActiveTopics();
-    } else {
-      fetchHistory();
-    }
-  }, [activeTab, historyFilter, customDate]);
+    const initLiff = async () => {
+      try {
+        const liff = (await import("@line/liff")).default;
+        await liff.init({ liffId: "2010143328-wyg8T4P5" }); // 🚀 ใส่ LIFF ID ของพี่แม็คที่นี่!
 
-  // ================= 1. โหลดหัวข้องาน (เฉพาะที่ยังไม่หมดอายุและเปิดใช้งาน) =================
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setUserProfile(profile);
+        } else {
+          // ถ้าไม่ได้เปิดในแอป LINE ให้บังคับ Login
+          liff.login();
+        }
+      } catch (error) {
+        console.error("LIFF Init Error:", error);
+        // Fallback: เผื่อพี่แม็คเปิดเทสบนคอมผ่าน localhost
+        setUserProfile({
+          userId: "U_LOCAL_TESTER",
+          displayName: "Developer Mode",
+          pictureUrl:
+            "https://ui-avatars.com/api/?name=Dev&background=0D8ABC&color=fff",
+        });
+      } finally {
+        setIsLiffInit(true);
+      }
+    };
+    initLiff();
+  }, []);
+
+  // โหลดข้อมูลเมื่อ LIFF พร้อมและดึง User Profile ได้แล้ว
+  useEffect(() => {
+    if (isLiffInit && userProfile) {
+      if (activeTab === "checkin") {
+        fetchActiveTopics();
+      } else {
+        fetchHistory();
+      }
+    }
+  }, [activeTab, historyFilter, customDate, isLiffInit, userProfile]);
+
+  // ================= 2. โหลดหัวข้องาน =================
   const fetchActiveTopics = async () => {
     const todayStr = new Date().toISOString().split("T")[0];
-
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("attendance_topics")
       .select("*")
       .eq("is_active", true)
-      .gte("end_date", todayStr) // ดึงเฉพาะงานที่วันที่สิ้นสุด มากกว่าหรือเท่ากับ วันนี้
+      .gte("end_date", todayStr)
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
       setTopics(data);
-      // ถ้าเลือกหัวข้อเก่าค้างไว้แล้วยังอยู่ ไม่ต้องเปลี่ยน แต่ถ้าไม่มีให้เลือกอันแรกเป็นค่าเริ่มต้น
       if (!selectedTopic || !data.find((t) => t.id === selectedTopic)) {
         setSelectedTopic(data[0].id);
       }
@@ -77,7 +105,6 @@ export default function CheckinPage() {
     }
   };
 
-  // ================= 2. ฟังก์ชันกด Check-in =================
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
@@ -86,11 +113,12 @@ export default function CheckinPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
+  // ================= 3. ฟังก์ชันกด Check-in =================
   const handleCheckIn = async () => {
-    if (!selectedTopic) {
-      showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
-      return;
-    }
+    if (!selectedTopic)
+      return showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
+    if (!userProfile?.userId)
+      return showToast("ไม่พบข้อมูลผู้ใช้ LINE กรุณาลองใหม่อีกครั้ง", "error");
 
     setLoading(true);
 
@@ -100,27 +128,22 @@ export default function CheckinPage() {
       return;
     }
 
-    // 📍 ขอสิทธิ์ดึงพิกัด GPS
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-
         try {
           const { error } = await supabase.from("attendance_logs").insert([
             {
-              user_id: mockUserId,
+              user_id: userProfile.userId, // 🚀 ใช้ LINE ID ตัวจริง!
               topic_id: selectedTopic,
               check_in_lat: latitude,
               check_in_lng: longitude,
               status: "checked_in",
             },
           ]);
-
           if (error) throw error;
 
           showToast("Check-in สำเร็จแล้ว! ระบบบันทึกพิกัดเรียบร้อย", "success");
-
-          // บันทึกเสร็จ ให้เด้งไปหน้าประวัติเพื่อดูผลงานตัวเอง
           setTimeout(() => setActiveTab("history"), 1500);
         } catch (err: any) {
           showToast(err.message, "error");
@@ -129,7 +152,6 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        // ⚠️ แจ้งเตือนกรณีปิด GPS (Workaround)
         showToast(
           "ไม่สามารถดึงตำแหน่งได้! กรุณาไปที่ การตั้งค่า > ความเป็นส่วนตัว > เปิดตำแหน่งที่ตั้ง",
           "error",
@@ -140,11 +162,9 @@ export default function CheckinPage() {
     );
   };
 
-  // ================= 3. โหลดประวัติการทำงาน (History) =================
+  // ================= 4. โหลดประวัติ =================
   const fetchHistory = async () => {
     setLoadingHistory(true);
-
-    // คำนวณช่วงวันที่ตาม Filter
     let startDate = new Date();
     let endDate = new Date();
     startDate.setHours(0, 0, 0, 0);
@@ -152,7 +172,7 @@ export default function CheckinPage() {
 
     if (historyFilter === "week") {
       const day = startDate.getDay();
-      const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // เริ่มนับที่วันจันทร์
+      const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
       startDate = new Date(startDate.setDate(diff));
     } else if (historyFilter === "month") {
       startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
@@ -163,16 +183,10 @@ export default function CheckinPage() {
       endDate.setHours(23, 59, 59, 999);
     }
 
-    // ดึง Log พร้อม Join ชื่อหัวข้อจากตาราง attendance_topics
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("attendance_logs")
-      .select(
-        `
-        *,
-        attendance_topics ( title, team_type, work_type )
-      `,
-      )
-      .eq("user_id", mockUserId)
+      .select(`*, attendance_topics ( title, team_type, work_type )`)
+      .eq("user_id", userProfile?.userId) // 🚀 ดึงเฉพาะประวัติของ LINE ID นี้
       .gte("check_in_time", startDate.toISOString())
       .lte("check_in_time", endDate.toISOString())
       .order("check_in_time", { ascending: false });
@@ -181,28 +195,38 @@ export default function CheckinPage() {
     setLoadingHistory(false);
   };
 
-  // แปลงเวลาให้ดูง่าย (เช่น 09:30 น.)
   const formatTime = (isoString: string) => {
     if (!isoString) return "-";
-    const date = new Date(isoString);
     return (
-      date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) +
-      " น."
+      new Date(isoString).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " น."
     );
   };
 
   const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString("th-TH", {
+    return new Date(isoString).toLocaleDateString("th-TH", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
   };
 
+  // หน้าจอ Loading รอ LIFF
+  if (!isLiffInit) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-gray-500">
+          กำลังเชื่อมต่อ LINE...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
-      {/* 🍞 Toaster Notification */}
       {toast.show && (
         <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 bg-white border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300">
           {toast.type === "success" ? (
@@ -216,37 +240,45 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Header & Tabs */}
+      {/* 🌟 Header & โปรไฟล์ผู้ใช้ */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
-        <div className="p-4 bg-blue-600 text-white flex items-center justify-center gap-2">
-          <Clock className="w-5 h-5" />
-          <h1 className="font-bold text-lg">ST PLUS SYSTEM</h1>
+        <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            <h1 className="font-bold text-lg">ST PLUS SYSTEM</h1>
+          </div>
+          {/* แสดงรูปโปรไฟล์ LINE */}
+          {userProfile && (
+            <div className="flex items-center gap-2 bg-black/20 py-1.5 px-3 rounded-full backdrop-blur-sm">
+              <span className="text-xs font-bold truncate max-w-[100px]">
+                {userProfile.displayName}
+              </span>
+              <img
+                src={userProfile.pictureUrl}
+                alt="profile"
+                className="w-6 h-6 rounded-full border border-white/50"
+              />
+            </div>
+          )}
         </div>
+
         <div className="flex">
           <button
             onClick={() => setActiveTab("checkin")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-              activeTab === "checkin"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
+            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "checkin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
           >
             <MapPin className="w-4 h-4" /> ลงเวลาทำงาน
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${
-              activeTab === "history"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
+            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
           >
             <History className="w-4 h-4" /> ประวัติของฉัน
           </button>
         </div>
       </div>
 
-      {/* ================= TAB 1: ลงเวลาทำงาน (Check-in) ================= */}
+      {/* ================= TAB 1: ลงเวลาทำงาน ================= */}
       {activeTab === "checkin" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-left-4 duration-300">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
@@ -271,11 +303,7 @@ export default function CheckinPage() {
                   {topics.map((topic) => (
                     <label
                       key={topic.id}
-                      className={`flex items-start p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                        selectedTopic === topic.id
-                          ? "border-blue-600 bg-blue-50"
-                          : "border-gray-100 hover:border-blue-200 hover:bg-gray-50"
-                      }`}
+                      className={`flex items-start p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedTopic === topic.id ? "border-blue-600 bg-blue-50" : "border-gray-100 hover:border-blue-200 hover:bg-gray-50"}`}
                     >
                       <input
                         type="radio"
@@ -315,7 +343,6 @@ export default function CheckinPage() {
               )}
             </div>
 
-            {/* ปุ่ม Check-in ใหญ่ๆ ลอยเด่น */}
             <div className="p-6 bg-gray-50 border-t border-gray-100">
               <button
                 onClick={handleCheckIn}
@@ -325,7 +352,7 @@ export default function CheckinPage() {
                 {loading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    กำลังดึงพิกัด GPS...
+                    กำลังดึงพิกัด...
                   </div>
                 ) : (
                   <>
@@ -335,18 +362,16 @@ export default function CheckinPage() {
                 )}
               </button>
               <p className="text-center text-[11px] text-gray-400 mt-3 flex items-center justify-center gap-1">
-                <MapPin className="w-3 h-3" />{" "}
-                ระบบจะบันทึกพิกัดสถานที่ปัจจุบันของคุณ
+                <MapPin className="w-3 h-3" /> ระบบจะบันทึกพิกัดปัจจุบันของคุณ
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 2: ประวัติของฉัน (History) ================= */}
+      {/* ================= TAB 2: ประวัติของฉัน ================= */}
       {activeTab === "history" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
-          {/* ตัวกรองวันที่ (Filters) */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setHistoryFilter("today")}
@@ -366,7 +391,6 @@ export default function CheckinPage() {
             >
               เดือนนี้
             </button>
-
             <div
               className={`w-full flex items-center mt-1 p-1 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-50 border border-blue-200" : "border border-transparent"}`}
             >
@@ -388,7 +412,6 @@ export default function CheckinPage() {
             </div>
           </div>
 
-          {/* รายการประวัติ */}
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
