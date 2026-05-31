@@ -26,6 +26,18 @@ const supabase = createClient(
 export default function CheckinPage() {
   const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
   const [isLiffInit, setIsLiffInit] = useState(false);
+  // 🌟 เพิ่มฟังก์ชันอ่านค่า ?tab=... จาก URL
+  useEffect(() => {
+    // ดึงค่า parameter จาก URL
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+
+    // ถ้าเจอคำว่า history ให้สลับแท็บทันที
+    if (tabParam === "history") {
+      setActiveTab("history");
+    }
+  }, []);
+
   const [userProfile, setUserProfile] = useState<any>(null);
 
   const [topics, setTopics] = useState<any[]>([]);
