@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import imageCompression from "browser-image-compression";
 import {
   MapPin,
   Clock,
@@ -13,9 +12,6 @@ import {
   CalendarDays,
   Calendar as CalendarIcon,
   XCircle,
-  Camera,
-  ImagePlus,
-  X,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -25,6 +21,8 @@ const supabase = createClient(
 
 export default function CheckinPage() {
   const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
+
+  // 🌟 State สำหรับ LINE LIFF
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
@@ -37,11 +35,6 @@ export default function CheckinPage() {
     type: "success",
   });
 
-  // 📸 State สำหรับจัดการรูปภาพ
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [logs, setLogs] = useState<any[]>([]);
   const [historyFilter, setHistoryFilter] = useState<
     "today" | "week" | "month" | "custom"
@@ -51,22 +44,28 @@ export default function CheckinPage() {
   );
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // ================= 1. เริ่มต้นระบบ LINE LIFF =================
   useEffect(() => {
     const initLiff = async () => {
       try {
         const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId: "2010143328-wyg8T4P5" });
+        await liff.init({ liffId: "2010143328-wyg8T4P5" }); // 🚀 ใส่ LIFF ID ของพี่แม็คที่นี่!
 
         if (liff.isLoggedIn()) {
-          setUserProfile(await liff.getProfile());
+          const profile = await liff.getProfile();
+          setUserProfile(profile);
         } else {
+          // ถ้าไม่ได้เปิดในแอป LINE ให้บังคับ Login
           liff.login();
         }
       } catch (error) {
+        console.error("LIFF Init Error:", error);
+        // Fallback: เผื่อพี่แม็คเปิดเทสบนคอมผ่าน localhost
         setUserProfile({
           userId: "U_LOCAL_TESTER",
-          displayName: "Dev Mode",
-          pictureUrl: "https://ui-avatars.com/api/?name=Dev",
+          displayName: "Developer Mode",
+          pictureUrl:
+            "https://ui-avatars.com/api/?name=Dev&background=0D8ABC&color=fff",
         });
       } finally {
         setIsLiffInit(true);
@@ -75,19 +74,18 @@ export default function CheckinPage() {
     initLiff();
   }, []);
 
+  // โหลดข้อมูลเมื่อ LIFF พร้อมและดึง User Profile ได้แล้ว
   useEffect(() => {
     if (isLiffInit && userProfile) {
-      if (activeTab === "checkin") fetchActiveTopics();
-      else fetchHistory();
+      if (activeTab === "checkin") {
+        fetchActiveTopics();
+      } else {
+        fetchHistory();
+      }
     }
   }, [activeTab, historyFilter, customDate, isLiffInit, userProfile]);
 
-  // เมื่อเปลี่ยนหัวข้องาน ให้ล้างรูปภาพที่ถ่ายค้างไว้
-  useEffect(() => {
-    setPhotoFile(null);
-    setPhotoPreview(null);
-  }, [selectedTopic]);
-
+  // ================= 2. โหลดหัวข้องาน =================
   const fetchActiveTopics = async () => {
     const todayStr = new Date().toISOString().split("T")[0];
     const { data } = await supabase
@@ -96,10 +94,12 @@ export default function CheckinPage() {
       .eq("is_active", true)
       .gte("end_date", todayStr)
       .order("created_at", { ascending: false });
+
     if (data && data.length > 0) {
       setTopics(data);
-      if (!selectedTopic || !data.find((t) => t.id === selectedTopic))
+      if (!selectedTopic || !data.find((t) => t.id === selectedTopic)) {
         setSelectedTopic(data[0].id);
+      }
     } else {
       setTopics([]);
     }
@@ -113,29 +113,12 @@ export default function CheckinPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  // 📸 ฟังก์ชันจัดการเมื่อเลือกรูป/ถ่ายรูป
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // โชว์ภาพตัวอย่างทันที
-      setPhotoPreview(URL.createObjectURL(file));
-      setPhotoFile(file);
-    }
-  };
-
+  // ================= 3. ฟังก์ชันกด Check-in =================
   const handleCheckIn = async () => {
     if (!selectedTopic)
       return showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
     if (!userProfile?.userId)
       return showToast("ไม่พบข้อมูลผู้ใช้ LINE กรุณาลองใหม่อีกครั้ง", "error");
-
-    const selectedTopicData = topics.find((t) => t.id === selectedTopic);
-    if (!selectedTopicData) return;
-
-    // เช็คว่าบังคับถ่ายรูปไหม
-    if (selectedTopicData.photo_mode !== "none" && !photoFile) {
-      return showToast("กรุณาแนบรูปภาพเพื่อ Check-in ครับ", "error");
-    }
 
     setLoading(true);
 
@@ -149,96 +132,65 @@ export default function CheckinPage() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          let uploadedPhotoUrl = null;
-
-          // 🗜️ กระบวนการบีบอัดและอัปโหลดรูปภาพ
-          if (photoFile) {
-            const options = {
-              maxSizeMB: 0.1, // บีบให้เหลือไม่เกิน 100KB
-              maxWidthOrHeight: 1024, // ย่อขนาดภาพไม่เกิน 1024px
-              useWebWorker: true,
-            };
-            const compressedFile = await imageCompression(photoFile, options);
-
-            // สร้างชื่อไฟล์แบบสุ่มกันซ้ำ
-            const fileName = `${userProfile.userId}_${Date.now()}.jpg`;
-
-            // อัปโหลดขึ้น Supabase Storage
-            const { data: uploadData, error: uploadError } =
-              await supabase.storage
-                .from("attendance_photos")
-                .upload(fileName, compressedFile, {
-                  cacheControl: "3600",
-                  upsert: false,
-                });
-
-            if (uploadError)
-              throw new Error("อัปโหลดรูปภาพไม่สำเร็จ: " + uploadError.message);
-
-            // ดึง Public URL ของรูป
-            const { data: publicUrlData } = supabase.storage
-              .from("attendance_photos")
-              .getPublicUrl(fileName);
-            uploadedPhotoUrl = publicUrlData.publicUrl;
-          }
-
-          // 💾 บันทึกข้อมูลลง Database พร้อม URL รูปภาพ
           const { error } = await supabase.from("attendance_logs").insert([
             {
               user_id: userProfile.userId,
               topic_id: selectedTopic,
               check_in_lat: latitude,
               check_in_lng: longitude,
-              photo_url: uploadedPhotoUrl, // บันทึกลิงก์รูป (ถ้ามี)
               status: "checked_in",
             },
           ]);
-
           if (error) throw error;
 
-          showToast("Check-in สำเร็จแล้ว!", "success");
+          showToast("Check-in สำเร็จแล้ว! ระบบบันทึกพิกัดเรียบร้อย", "success");
 
-          // ยิง API แจ้งเตือนเข้า LINE ตัวเอง
-          const now = new Date();
-          const timeStr = now.toLocaleTimeString("th-TH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          const dayNames = [
-            "อาทิตย์",
-            "จันทร์",
-            "อังคาร",
-            "พุธ",
-            "พฤหัสบดี",
-            "ศุกร์",
-            "เสาร์",
-          ];
-          const thaiDateStr = `${dayNames[now.getDay()]}ที่ ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear() + 543}`;
+          // 🔥 เพิ่มส่วนนี้: ยิง API แจ้งเตือนเข้า LINE ตัวเอง
+          const selectedTopicData = topics.find((t) => t.id === selectedTopic);
+          if (selectedTopicData) {
+            // แปลงวันที่และเวลาสำหรับ Flex
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString("th-TH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            const dayNames = [
+              "อาทิตย์",
+              "จันทร์",
+              "อังคาร",
+              "พุธ",
+              "พฤหัสบดี",
+              "ศุกร์",
+              "เสาร์",
+            ];
+            const thaiDateStr = `${dayNames[now.getDay()]}ที่ ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear() + 543}`;
 
-          let shiftStr = "งานเช้า";
-          if (selectedTopicData.shift_type === "afternoon")
-            shiftStr = "งานบ่าย";
-          if (selectedTopicData.shift_type === "custom") shiftStr = "กำหนดเอง";
+            let shiftStr = "งานเช้า";
+            if (selectedTopicData.shift_type === "afternoon")
+              shiftStr = "งานบ่าย";
+            if (selectedTopicData.shift_type === "custom")
+              shiftStr = "กำหนดเอง";
 
-          let teamStr = "ออฟฟิศ";
-          if (selectedTopicData.work_type === "onsite")
-            teamStr = `ทีม ${selectedTopicData.team_type.replace("team_", "").toUpperCase()}`;
-          if (selectedTopicData.team_type === "team_all")
-            teamStr = "ทั้งหมดทุกทีม";
+            let teamStr = "ออฟฟิศ";
+            if (selectedTopicData.work_type === "onsite")
+              teamStr = `ทีม ${selectedTopicData.team_type.replace("team_", "").toUpperCase()}`;
+            if (selectedTopicData.team_type === "team_all")
+              teamStr = "ทั้งหมดทุกทีม";
 
-          await fetch("/api/checkin-notify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: userProfile.userId,
-              topicTitle: selectedTopicData.title,
-              thaiDateStr: thaiDateStr,
-              shiftType: shiftStr,
-              teamName: teamStr,
-              checkInTime: timeStr,
-              liffUrl: "https://liff.line.me/2010143328-wyg8T4P5/checkin",
-            }),
-          });
+            await fetch("/api/checkin-notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: userProfile.userId,
+                topicTitle: selectedTopicData.title,
+                thaiDateStr: thaiDateStr,
+                shiftType: shiftStr,
+                teamName: teamStr,
+                checkInTime: timeStr,
+                liffUrl: "https://liff.line.me/2010143328-wyg8T4P5/checkin",
+              }),
+            });
+          }
 
           setTimeout(() => setActiveTab("history"), 1500);
         } catch (err: any) {
@@ -248,13 +200,17 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่งได้! กรุณาไปที่ การตั้งค่า > ความเป็นส่วนตัว > เปิดตำแหน่งที่ตั้ง",
+          "error",
+        );
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   };
 
+  // ================= 4. โหลดประวัติ =================
   const fetchHistory = async () => {
     setLoadingHistory(true);
     let startDate = new Date();
@@ -278,7 +234,7 @@ export default function CheckinPage() {
     const { data } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, team_type, work_type )`)
-      .eq("user_id", userProfile?.userId)
+      .eq("user_id", userProfile?.userId) // 🚀 ดึงเฉพาะประวัติของ LINE ID นี้
       .gte("check_in_time", startDate.toISOString())
       .lte("check_in_time", endDate.toISOString())
       .order("check_in_time", { ascending: false });
@@ -287,20 +243,25 @@ export default function CheckinPage() {
     setLoadingHistory(false);
   };
 
-  const formatTime = (isoString: string) =>
-    isoString
-      ? new Date(isoString).toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }) + " น."
-      : "-";
-  const formatDate = (isoString: string) =>
-    new Date(isoString).toLocaleDateString("th-TH", {
+  const formatTime = (isoString: string) => {
+    if (!isoString) return "-";
+    return (
+      new Date(isoString).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " น."
+    );
+  };
+
+  const formatDate = (isoString: string) => {
+    return new Date(isoString).toLocaleDateString("th-TH", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  };
 
+  // หน้าจอ Loading รอ LIFF
   if (!isLiffInit) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
@@ -311,8 +272,6 @@ export default function CheckinPage() {
       </div>
     );
   }
-
-  const currentTopic = topics.find((t) => t.id === selectedTopic);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
@@ -329,13 +288,14 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* Header */}
+      {/* 🌟 Header & โปรไฟล์ผู้ใช้ */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
             <h1 className="font-bold text-lg">ST PLUS SYSTEM</h1>
           </div>
+          {/* แสดงรูปโปรไฟล์ LINE */}
           {userProfile && (
             <div className="flex items-center gap-2 bg-black/20 py-1.5 px-3 rounded-full backdrop-blur-sm">
               <span className="text-xs font-bold truncate max-w-[100px]">
@@ -349,6 +309,7 @@ export default function CheckinPage() {
             </div>
           )}
         </div>
+
         <div className="flex">
           <button
             onClick={() => setActiveTab("checkin")}
@@ -365,13 +326,13 @@ export default function CheckinPage() {
         </div>
       </div>
 
-      {/* TAB 1: ลงเวลา */}
+      {/* ================= TAB 1: ลงเวลาทำงาน ================= */}
       {activeTab === "checkin" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-left-4 duration-300">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6">
               <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
-                <CalendarDays className="h-5 w-5 text-blue-500" />{" "}
+                <CalendarDays className="h-5 w-5 text-blue-500" />
                 เลือกหัวข้องานวันนี้
               </label>
 
@@ -380,6 +341,9 @@ export default function CheckinPage() {
                   <XCircle className="w-8 h-8 text-gray-300 mb-2" />
                   <p className="font-bold text-gray-600">
                     ไม่มีหัวข้องานที่เปิดอยู่
+                  </p>
+                  <p className="text-xs mt-1">
+                    กรุณาติดต่อ Manager เพื่อสร้างหัวข้องาน
                   </p>
                 </div>
               ) : (
@@ -416,7 +380,7 @@ export default function CheckinPage() {
                           </span>
                           {topic.team_type !== "office" && (
                             <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">
-                              ไซต์: {topic.team_type}
+                              ออกไซต์ ({topic.team_type})
                             </span>
                           )}
                         </div>
@@ -427,71 +391,6 @@ export default function CheckinPage() {
               )}
             </div>
 
-            {/* 📸 ส่วนของการแนบรูปภาพ */}
-            {currentTopic && currentTopic.photo_mode !== "none" && (
-              <div className="px-6 pb-6">
-                <hr className="border-gray-100 mb-6" />
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
-                  <Camera className="h-5 w-5 text-blue-500" />{" "}
-                  ถ่ายรูปเพื่อยืนยัน <span className="text-red-500">*</span>
-                </label>
-
-                {/* ซ่อน Input แบบดั้งเดิม */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  capture={
-                    currentTopic.photo_mode === "camera"
-                      ? "environment"
-                      : undefined
-                  }
-                  className="hidden"
-                  onChange={handlePhotoChange}
-                />
-
-                {photoPreview ? (
-                  <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 aspect-video flex items-center justify-center">
-                    <img
-                      src={photoPreview}
-                      alt="Preview"
-                      className="max-h-full object-contain"
-                    />
-                    <button
-                      onClick={() => {
-                        setPhotoFile(null);
-                        setPhotoPreview(null);
-                      }}
-                      className="absolute top-2 right-2 bg-gray-900/60 hover:bg-red-600 text-white p-2 rounded-full backdrop-blur-sm transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-blue-50 hover:bg-blue-100 border-2 border-dashed border-blue-300 text-blue-700 rounded-2xl p-8 flex flex-col items-center justify-center transition-colors"
-                  >
-                    {currentTopic.photo_mode === "camera" ? (
-                      <>
-                        <Camera className="w-8 h-8 mb-2" />
-                        <span className="font-bold text-sm">
-                          กดเพื่อเปิดกล้อง
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <ImagePlus className="w-8 h-8 mb-2" />
-                        <span className="font-bold text-sm">
-                          กดเพื่อเลือกรูปภาพ / ถ่ายรูป
-                        </span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
-
             <div className="p-6 bg-gray-50 border-t border-gray-100">
               <button
                 onClick={handleCheckIn}
@@ -501,7 +400,7 @@ export default function CheckinPage() {
                 {loading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    กำลังบันทึกข้อมูล...
+                    กำลังดึงพิกัด...
                   </div>
                 ) : (
                   <>
@@ -518,37 +417,63 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* TAB 2: ประวัติ */}
+      {/* ================= TAB 2: ประวัติของฉัน ================= */}
       {activeTab === "history" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setHistoryFilter("today")}
-              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "today" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "today" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100"}`}
             >
               วันนี้
             </button>
             <button
               onClick={() => setHistoryFilter("week")}
-              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "week" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "week" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100"}`}
             >
               สัปดาห์นี้
             </button>
             <button
               onClick={() => setHistoryFilter("month")}
-              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100"}`}
             >
               เดือนนี้
             </button>
+            <div
+              className={`w-full flex items-center mt-1 p-1 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-50 border border-blue-200" : "border border-transparent"}`}
+            >
+              <button
+                onClick={() => setHistoryFilter("custom")}
+                className={`shrink-0 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-600 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"}`}
+              >
+                ระบุวัน
+              </button>
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => {
+                  setCustomDate(e.target.value);
+                  setHistoryFilter("custom");
+                }}
+                className={`ml-2 flex-1 bg-transparent text-sm font-bold outline-none ${historyFilter === "custom" ? "text-blue-900" : "text-gray-400"}`}
+              />
+            </div>
           </div>
+
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
               <p className="text-sm font-bold">กำลังโหลดประวัติ...</p>
             </div>
           ) : logs.length === 0 ? (
-            <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center">
+            <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center flex flex-col items-center">
+              <div className="bg-gray-50 p-4 rounded-full mb-3">
+                <History className="w-8 h-8 text-gray-300" />
+              </div>
               <p className="font-bold text-gray-600">ไม่มีประวัติการลงเวลา</p>
+              <p className="text-xs text-gray-400 mt-1">
+                ในช่วงเวลาที่คุณเลือก
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -557,27 +482,20 @@ export default function CheckinPage() {
                   key={log.id}
                   className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center gap-3">
-                    {/* แสดงรูปขนาดย่อในประวัติ (ถ้ามี) */}
-                    {log.photo_url ? (
-                      <img
-                        src={log.photo_url}
-                        alt="Check-in"
-                        className="w-12 h-12 rounded-xl object-cover border border-gray-200"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-sm mb-1">
-                        {log.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
-                      </h3>
-                      <div className="text-xs text-gray-500">
-                        <CalendarIcon className="w-3 h-3 inline pb-0.5" />{" "}
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-sm mb-1">
+                      {log.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <CalendarIcon className="w-3 h-3" />{" "}
                         {formatDate(log.check_in_time)}
-                      </div>
+                      </span>
+                      {log.attendance_topics?.work_type === "onsite" && (
+                        <span className="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded font-bold">
+                          ไซต์: {log.attendance_topics?.team_type}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
