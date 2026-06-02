@@ -403,6 +403,67 @@ export default function AttendanceAdminPage() {
               />
             </div>
 
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                <label className="flex items-center gap-2 text-sm font-bold text-blue-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                    checked={isPermanent}
+                    onChange={(e) => {
+                      if (e.target.checked)
+                        setFormData({ ...formData, end_date: "2099-12-31" });
+                      else
+                        setFormData({
+                          ...formData,
+                          end_date: formData.start_date,
+                        });
+                    }}
+                  />
+                  <Infinity className="h-4 w-4 text-blue-600" /> หัวข้องานประจำ
+                  (ไม่มีวันหมดอายุ)
+                </label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    เริ่มวันที่
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
+                    value={formData.start_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, start_date: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label
+                    className={`text-sm font-semibold mb-2 block ${isPermanent ? "text-gray-400" : "text-gray-700"}`}
+                  >
+                    ถึงวันที่
+                  </label>
+                  {isPermanent ? (
+                    <div className="w-full border border-gray-200 bg-gray-100 rounded-lg p-3 text-sm text-gray-500 font-semibold text-center">
+                      ไม่มีกำหนด
+                    </div>
+                  ) : (
+                    <input
+                      type="date"
+                      required
+                      className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
+                      value={formData.end_date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, end_date: e.target.value })
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* 🌟 นำส่วนการตั้งค่า "กะการทำงาน" และ "เวลา" กลับมาใส่ */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
@@ -477,67 +538,6 @@ export default function AttendanceAdminPage() {
                       setFormData({ ...formData, end_time: e.target.value })
                     }
                   />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-                <label className="flex items-center gap-2 text-sm font-bold text-blue-900 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300"
-                    checked={isPermanent}
-                    onChange={(e) => {
-                      if (e.target.checked)
-                        setFormData({ ...formData, end_date: "2099-12-31" });
-                      else
-                        setFormData({
-                          ...formData,
-                          end_date: formData.start_date,
-                        });
-                    }}
-                  />
-                  <Infinity className="h-4 w-4 text-blue-600" /> หัวข้องานประจำ
-                  (ไม่มีวันหมดอายุ)
-                </label>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    เริ่มวันที่
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
-                    value={formData.start_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, start_date: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`text-sm font-semibold mb-2 block ${isPermanent ? "text-gray-400" : "text-gray-700"}`}
-                  >
-                    ถึงวันที่
-                  </label>
-                  {isPermanent ? (
-                    <div className="w-full border border-gray-200 bg-gray-100 rounded-lg p-3 text-sm text-gray-500 font-semibold text-center">
-                      ไม่มีกำหนด
-                    </div>
-                  ) : (
-                    <input
-                      type="date"
-                      required
-                      className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
-                      value={formData.end_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, end_date: e.target.value })
-                      }
-                    />
-                  )}
                 </div>
               </div>
             </div>
