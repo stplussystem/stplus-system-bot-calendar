@@ -33,7 +33,7 @@ export default function CheckinPage() {
   const [selectedTopic, setSelectedTopic] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🌟 State สำหรับเก็บข้อมูลว่าวันนี้ Check-in ไปหรือยัง
+  // 🌟 State ใหม่: สำหรับเก็บข้อมูลว่าวันนี้ Check-in ไปหรือยัง
   const [todayLog, setTodayLog] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
@@ -70,7 +70,6 @@ export default function CheckinPage() {
           liff.login();
         }
       } catch (error) {
-        // Fallback for local development testing
         setUserProfile({
           userId: "U_LOCAL_TESTER",
           displayName: "Dev Mode",
@@ -223,17 +222,10 @@ export default function CheckinPage() {
           if (error) throw error;
           showToast("Check-in สำเร็จแล้ว!", "success");
 
-          // อัปเดต State ให้เปลี่ยนหน้าจอเป็นโหมด Check-out ทันที
+          // เปลี่ยนสถานะหน้าจอให้กลายเป็นโหมด Check-out ทันที
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
 
-          // 🌟 สั่ง LIFF ส่งข้อความเข้าแชท เพื่อรับ Flex Message "สีเขียว" แล้วปิดหน้าต่างตัวเองลง
-          const liff = (await import("@line/liff")).default;
-          if (liff.isInClient()) {
-            await liff.sendMessages([
-              { type: "text", text: "📍 เช็คอินเข้างาน" },
-            ]);
-            liff.closeWindow();
-          }
+          // TODO: ยิง API LINE Flex Message (ถ้าต้องการ)
         } catch (err: any) {
           showToast(err.message, "error");
         } finally {
@@ -270,7 +262,7 @@ export default function CheckinPage() {
               check_out_time: new Date().toISOString(),
               check_out_lat: position.coords.latitude,
               check_out_lng: position.coords.longitude,
-              check_out_photo_url: uploadedPhotoUrl,
+              check_out_photo_url: uploadedPhotoUrl, // ต้องเพิ่มคอลัมน์นี้ใน Database ถ้าอยากเก็บรูปขาออกด้วย
               status: "checked_out",
             })
             .eq("id", todayLog.id);
@@ -278,17 +270,8 @@ export default function CheckinPage() {
           if (error) throw error;
           showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
 
-          // 🌟 สั่ง LIFF ส่งข้อความเข้าแชท เพื่อรับ Flex Message "สีแดง" แล้วปิดหน้าต่างตัวเองลง
-          const liff = (await import("@line/liff")).default;
-          if (liff.isInClient()) {
-            await liff.sendMessages([
-              { type: "text", text: "📍 เช็คเอาต์ออกงาน" },
-            ]);
-            liff.closeWindow();
-          } else {
-            // กรณีรันบนบราวเซอร์ทั่วไป ให้สลับแท็บไปที่ประวัติ
-            setTimeout(() => setActiveTab("history"), 1500);
-          }
+          // สลับไปหน้าประวัติให้ดูว่าลงเวลาออกเรียบร้อย
+          setTimeout(() => setActiveTab("history"), 1500);
         } catch (err: any) {
           showToast(err.message, "error");
         } finally {
@@ -443,7 +426,7 @@ export default function CheckinPage() {
                 </div>
               </div>
 
-              {/* 📸 ส่วนของการแนบรูปภาพ */}
+              {/* 📸 ส่วนของการแนบรูปภาพ (อิงตามโหมดที่ตั้งไว้ตอนสร้างหัวข้อ) */}
               {currentTopic && currentTopic.photo_mode !== "none" && (
                 <div className="p-6">
                   <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
