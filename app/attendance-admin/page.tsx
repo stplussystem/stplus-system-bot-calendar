@@ -40,6 +40,9 @@ export default function AttendanceAdminPage() {
   const [activeTopics, setActiveTopics] = useState<any[]>([]);
   const [pastTopics, setPastTopics] = useState<any[]>([]);
 
+  // 🌟 State ใหม่สำหรับเก็บรายชื่อพนักงานที่ดึงจาก Supabase
+  const [employeeList, setEmployeeList] = useState<any[]>([]);
+
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [toast, setToast] = useState({
@@ -68,28 +71,35 @@ export default function AttendanceAdminPage() {
     maps_url: "",
     lat: "",
     lng: "",
-    allowed_users: [] as string[], // 🌟 ตอนนี้จะใช้เก็บ ID ของ "หัวหน้าทีม" แทนครับ
+    allowed_users: [] as string[],
   });
-
-  // 👥 รายชื่อ "หัวหน้าทีม" (Team Leaders)
-  const teamLeaderList = [
-    { id: "team_n", name: "พี่นุ" },
-    { id: "team_a", name: "พี่หนุ่ม" },
-    { id: "team_b", name: "พี่หนึ่ง" },
-    { id: "team_c", name: "พี่บาส" },
-    { id: "team_d", name: "แคมป์" },
-    { id: "team_e", name: "หนึ่ง" },
-    { id: "team_f", name: "ทิ" },
-    { id: "team_g", name: "พี่แม็ค" },
-  ];
 
   useEffect(() => {
     checkUserRole();
     fetchTopics();
+    fetchEmployees(); // 🌟 เรียกใช้ฟังก์ชันดึงพนักงานตอนเปิดหน้าเว็บ
   }, []);
 
   const checkUserRole = async () => {
     setAuthStatus("allowed");
+  };
+
+  // 🌟 ฟังก์ชันดึงรายชื่อพนักงานจาก Supabase
+  const fetchEmployees = async () => {
+    try {
+      // ⚠️ หมายเหตุ: โค้ดดี้สมมติว่าตารางชื่อ 'users' และเก็บชื่อเล่นไว้ในคอลัมน์ 'nickname'
+      // ถ้าพี่แม็คใช้ชื่ออื่น (เช่น profiles หรือ play_name) สามารถแก้ตรงคำว่า 'users' และ 'nickname' ด้านล่างได้เลยครับ
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, nickname")
+        .order("nickname", { ascending: true }); // เรียงตามตัวอักษรให้อัตโนมัติ
+
+      if (data) {
+        setEmployeeList(data);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
   };
 
   const fetchTopics = async () => {
@@ -128,17 +138,16 @@ export default function AttendanceAdminPage() {
     }
   };
 
-  // 🌟 ฟังก์ชันสลับการเลือกหัวหน้าทีม
-  const toggleTeamLeader = (leaderId: string) => {
+  const toggleUserAccess = (userId: string) => {
     setFormData((prev) => {
-      const isSelected = prev.allowed_users.includes(leaderId);
+      const isSelected = prev.allowed_users.includes(userId);
       if (isSelected) {
         return {
           ...prev,
-          allowed_users: prev.allowed_users.filter((id) => id !== leaderId),
+          allowed_users: prev.allowed_users.filter((id) => id !== userId),
         };
       } else {
-        return { ...prev, allowed_users: [...prev.allowed_users, leaderId] };
+        return { ...prev, allowed_users: [...prev.allowed_users, userId] };
       }
     });
   };
@@ -159,7 +168,7 @@ export default function AttendanceAdminPage() {
       maps_url: topic.maps_url || "",
       lat: topic.lat || "",
       lng: topic.lng || "",
-      allowed_users: topic.allowed_users || [], // ดึงรายชื่อหัวหน้าทีมที่เคยเลือกไว้
+      allowed_users: topic.allowed_users || [],
     });
     setActiveTab("form");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -212,7 +221,7 @@ export default function AttendanceAdminPage() {
         shift_type: formData.shift_type,
         start_time: formData.start_time,
         end_time: formData.end_time,
-        team_type: formData.work_type === "office" ? "office" : "onsite", // ใช้เป็น flag แยกประเภท
+        team_type: formData.work_type === "office" ? "office" : "onsite",
         radius_meters: formData.radius_meters,
         photo_mode: formData.photo_mode,
         start_date: formData.start_date,
@@ -222,7 +231,7 @@ export default function AttendanceAdminPage() {
         lat: formData.lat ? parseFloat(formData.lat) : null,
         lng: formData.lng ? parseFloat(formData.lng) : null,
         allowed_users:
-          formData.work_type === "office" ? [] : formData.allowed_users, // ถ้าเป็นออฟฟิศให้เคลียร์สิทธิ์หัวหน้าทีมทิ้ง (เห็นทุกคน)
+          formData.work_type === "office" ? [] : formData.allowed_users,
         created_by: "U_MANAGER_MOCK_ID",
       };
 
@@ -253,12 +262,13 @@ export default function AttendanceAdminPage() {
 
   const isPermanent = formData.end_date === "2099-12-31";
 
-  // 🌟 ฟังก์ชันแปลง ID หัวหน้าทีม เป็นชื่อแสดงผล
-  const getLeaderNames = (ids: string[]) => {
-    if (!ids || ids.length === 0) return "เห็นทุกคนทุกทีม";
-    const names = ids.map(
-      (id) => teamLeaderList.find((l) => l.id === id)?.name || id,
-    );
+  // 🌟 ฟังก์ชันแปลง ID พนักงาน เป็นชื่อเล่น (ดึงจาก State)
+  const getEmployeeNames = (ids: string[]) => {
+    if (!ids || ids.length === 0) return "เข้าร่วมทุกคน";
+    const names = ids.map((id) => {
+      const emp = employeeList.find((e) => e.id === id);
+      return emp ? emp.nickname : id;
+    });
     return names.join(", ");
   };
 
@@ -492,27 +502,32 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* 🌟 ปรับปรุง: การเลือกหัวหน้าทีมแทนการเลือกพนักงานทั่วไป */}
+                  {/* 🌟 ดึงข้อมูลรายชื่อพนักงานจาก Supabase มาสร้างเป็น Checkbox แบบอัตโนมัติ */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
-                      <Users className="h-4 w-4" />{" "}
-                      เลือกหัวหน้าทีมที่รับผิดชอบไซต์นี้ (เว้นว่าง = เห็นทุกคน)
+                      <Users className="h-4 w-4" /> พนักงานที่เข้าร่วมไซต์นี้
+                      (เว้นว่าง = เข้าร่วมทุกคน)
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {teamLeaderList.map((leader) => (
+                      {employeeList.map((emp) => (
                         <label
-                          key={leader.id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(leader.id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                          key={emp.id}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(emp.id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                         >
                           <input
                             type="checkbox"
                             className="hidden"
-                            checked={formData.allowed_users.includes(leader.id)}
-                            onChange={() => toggleTeamLeader(leader.id)}
+                            checked={formData.allowed_users.includes(emp.id)}
+                            onChange={() => toggleUserAccess(emp.id)}
                           />
-                          {leader.name}
+                          {emp.nickname || emp.id}
                         </label>
                       ))}
+                      {employeeList.length === 0 && (
+                        <p className="text-xs text-orange-600/60 font-semibold">
+                          ไม่พบข้อมูลพนักงานในระบบ...
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -623,7 +638,7 @@ export default function AttendanceAdminPage() {
                         {topic.team_type !== "office" && (
                           <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
                             <Users className="w-3 h-3" />{" "}
-                            {getLeaderNames(topic.allowed_users)}
+                            {getEmployeeNames(topic.allowed_users)}
                           </span>
                         )}
                       </div>
