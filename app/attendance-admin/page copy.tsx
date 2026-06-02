@@ -8,13 +8,9 @@ import {
   Users,
   Camera,
   Save,
-  Radar,
-  ImagePlus,
   CheckCircle2,
   XCircle,
-  Edit,
   Power,
-  Calendar,
   Infinity,
   Briefcase,
   PlusCircle,
@@ -59,11 +55,11 @@ export default function AttendanceAdminPage() {
 
   const [formData, setFormData] = useState({
     title: "",
-    shift_type: "morning",
+    shift_type: "morning", // 🌟 ค่าเริ่มต้นเป็นกะเช้า
     start_time: "09:00",
     end_time: "18:00",
     work_type: "onsite",
-    team_type: "team_all", // ค่าเริ่มต้นเป็นทั้งหมดทุกคน
+    team_type: "team_all",
     radius_meters: 100,
     photo_mode: "camera",
     start_date: new Date().toISOString().split("T")[0],
@@ -75,7 +71,6 @@ export default function AttendanceAdminPage() {
     allowed_users: [] as string[],
   });
 
-  // ข้อความแสดงชื่อหัวหน้าทีมในตารางหน้า List
   const teamLabels: { [key: string]: string } = {
     team_all: "ทั้งหมดทุกคน",
     team_n: "พี่นุ",
@@ -168,6 +163,27 @@ export default function AttendanceAdminPage() {
         return { ...prev, allowed_users: [...prev.allowed_users, userId] };
       }
     });
+  };
+
+  // 🌟 ฟังก์ชันจัดการการเปลี่ยนกะเวลา เพื่อให้เวลาเปลี่ยนอัตโนมัติ
+  const handleShiftChange = (type: string) => {
+    if (type === "morning") {
+      setFormData({
+        ...formData,
+        shift_type: type,
+        start_time: "09:00",
+        end_time: "18:00",
+      });
+    } else if (type === "afternoon") {
+      setFormData({
+        ...formData,
+        shift_type: type,
+        start_time: "13:00",
+        end_time: "22:00",
+      });
+    } else {
+      setFormData({ ...formData, shift_type: type });
+    }
   };
 
   const handleEditClick = (topic: any) => {
@@ -448,6 +464,84 @@ export default function AttendanceAdminPage() {
               </div>
             </div>
 
+            {/* 🌟 นำส่วนการตั้งค่า "กะการทำงาน" และ "เวลา" กลับมาใส่ */}
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                <Clock className="h-4 w-4" /> กะเวลาการทำงาน
+              </label>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "morning" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700 font-bold" : "border-gray-200 hover:bg-white text-gray-600 text-sm"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift"
+                    className="hidden"
+                    checked={formData.shift_type === "morning"}
+                    onChange={() => handleShiftChange("morning")}
+                  />
+                  เช้า (09-18)
+                </label>
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "afternoon" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700 font-bold" : "border-gray-200 hover:bg-white text-gray-600 text-sm"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift"
+                    className="hidden"
+                    checked={formData.shift_type === "afternoon"}
+                    onChange={() => handleShiftChange("afternoon")}
+                  />
+                  บ่าย (13-22)
+                </label>
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "custom" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700 font-bold" : "border-gray-200 hover:bg-white text-gray-600 text-sm"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift"
+                    className="hidden"
+                    checked={formData.shift_type === "custom"}
+                    onChange={() => handleShiftChange("custom")}
+                  />
+                  กำหนดเอง
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    เวลาเริ่ม
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    disabled={formData.shift_type !== "custom"}
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500"
+                    value={formData.start_time}
+                    onChange={(e) =>
+                      setFormData({ ...formData, start_time: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    เวลาสิ้นสุด
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    disabled={formData.shift_type !== "custom"}
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500"
+                    value={formData.end_time}
+                    onChange={(e) =>
+                      setFormData({ ...formData, end_time: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
             <hr className="border-gray-100" />
 
             <div>
@@ -491,7 +585,6 @@ export default function AttendanceAdminPage() {
 
               {formData.work_type === "onsite" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  {/* 🌟 1. ช่องเลือกหัวหน้าทีมประจำหน้างาน (Dropdown ที่ต้องการ) */}
                   <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
                       <Users className="h-4 w-4" />{" "}
@@ -547,7 +640,6 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* 🌟 2. แสดงพนักงานที่เข้าร่วมรายบุคคล (ดึงจาก Supabase) */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
                       <Users className="h-4 w-4" /> พนักงานที่เข้าร่วมไซต์นี้
