@@ -17,6 +17,7 @@ import {
   ImagePlus,
   X,
   LogOut,
+  MapPinHouse, // 🌟 เพิ่มการ Import ไอคอนตัวนี้เข้ามาแล้วครับ! ระบบจะไม่พังแล้ว
 } from "lucide-react";
 
 const supabase = createClient(
@@ -45,7 +46,6 @@ export default function CheckinPage() {
   const [topics, setTopics] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
 
-  // 🌟 เพิ่ม State สำหรับเก็บตัวเลือกไซต์งานตอนขาออก
   const [checkoutTopic, setCheckoutTopic] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -133,7 +133,6 @@ export default function CheckinPage() {
 
     if (data && !data.check_out_time) {
       setTodayLog(data);
-      // ตั้งค่าเริ่มต้นของ Dropdown ตอนออกงาน ให้เป็นงานเดียวกับที่เช็คอินตอนเช้า
       setCheckoutTopic(data.topic_id);
     } else {
       setTodayLog(null);
@@ -226,6 +225,8 @@ export default function CheckinPage() {
 
           if (error) throw error;
           showToast("Check-in สำเร็จแล้ว!", "success");
+
+          setCheckoutTopic(selectedTopic);
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
 
           try {
@@ -260,7 +261,6 @@ export default function CheckinPage() {
   const handleCheckOut = async () => {
     if (!todayLog) return;
 
-    // 🌟 ดึงข้อมูล Topic ที่พนักงานกดเลือกใหม่ตอนขาออก (Override Topic)
     const finalTopicId = checkoutTopic || todayLog.topic_id;
     const finalTopicData =
       topics.find((t) => t.id === finalTopicId) || todayLog.attendance_topics;
@@ -274,11 +274,10 @@ export default function CheckinPage() {
         try {
           const uploadedPhotoUrl = await uploadPhoto();
 
-          // 🌟 บันทึกเวลาออกงาน พร้อมกับ "เขียนทับ topic_id ใหม่" (ถ้ามีการเปลี่ยน)
           const { error } = await supabase
             .from("attendance_logs")
             .update({
-              topic_id: finalTopicId, // 🔥 จุดสำคัญที่ทำให้เปลี่ยนไซต์งานตอนออกได้
+              topic_id: finalTopicId,
               check_out_time: new Date().toISOString(),
               check_out_lat: position.coords.latitude,
               check_out_lng: position.coords.longitude,
@@ -321,10 +320,15 @@ export default function CheckinPage() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
 
+    const getThaiDateStr = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
     let start = new Date();
     let end = new Date();
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
 
     if (historyFilter === "week") {
       const day = start.getDay();
@@ -335,12 +339,10 @@ export default function CheckinPage() {
     } else if (historyFilter === "custom") {
       start = new Date(customDate);
       end = new Date(customDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
     }
 
-    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}T00:00:00+07:00`;
-    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T23:59:59+07:00`;
+    const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
+    const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
     const { data } = await supabase
       .from("attendance_logs")
@@ -379,7 +381,6 @@ export default function CheckinPage() {
     );
   }
 
-  // กำหนดว่า Topic ตอนนี้ที่จะใช้โชว์เงื่อนไขรูปภาพคืออันไหน
   const currentTopic = todayLog
     ? topics.find((t) => t.id === checkoutTopic) || todayLog.attendance_topics
     : topics.find((t) => t.id === selectedTopic);
