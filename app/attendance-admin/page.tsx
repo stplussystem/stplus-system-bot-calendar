@@ -608,6 +608,9 @@ export default function AttendanceAdminPage() {
                   <option value={50}>50 เมตร (เข้มงวด)</option>
                   <option value={100}>100 เมตร (มาตรฐาน)</option>
                   <option value={200}>200 เมตร (ยืดหยุ่น)</option>
+                  <option value={300}>300 เมตร (ไซต์กว้าง)</option>
+                  <option value={500}>500 เมตร (ไซต์กว้างมาก)</option>
+                  <option value={1000}>1กิโลเมตร (ไซต์กว้างมากที่สุด)</option>
                   <option value={0}>ไม่กำหนดระยะบังคับ</option>
                 </select>
               </div>
