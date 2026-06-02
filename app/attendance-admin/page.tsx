@@ -19,11 +19,9 @@ import {
   Briefcase,
   PlusCircle,
   List,
-  ShieldAlert,
   Building,
   MapPinHouse,
   Trash2,
-  Map,
   Link as LinkIcon,
 } from "lucide-react";
 
@@ -39,7 +37,6 @@ export default function AttendanceAdminPage() {
   const [activeTab, setActiveTab] = useState<"form" | "list">("form");
   const [loading, setLoading] = useState(false);
 
-  // 🌟 แยกหัวข้อเป็น Active และ Past
   const [activeTopics, setActiveTopics] = useState<any[]>([]);
   const [pastTopics, setPastTopics] = useState<any[]>([]);
 
@@ -62,29 +59,28 @@ export default function AttendanceAdminPage() {
     shift_type: "morning",
     start_time: "09:00",
     end_time: "18:00",
-    work_type: "onsite", // เปลี่ยน Default เป็น ออกไซต์งานตามคำขอ
-    team_type: "team_all",
+    work_type: "onsite",
     radius_meters: 100,
-    photo_mode: "camera", // Default ให้บังคับถ่ายรูป
+    photo_mode: "camera",
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date().toISOString().split("T")[0],
     is_active: true,
     maps_url: "",
     lat: "",
     lng: "",
-    allowed_users: [] as string[], // เก็บรายชื่อ User ที่ได้รับสิทธิ์
+    allowed_users: [] as string[], // 🌟 ตอนนี้จะใช้เก็บ ID ของ "หัวหน้าทีม" แทนครับ
   });
 
-  // 👥 รายชื่อพนักงาน (จำลองไว้ให้เลือกสิทธิ์)
-  const employeeList = [
-    { id: "U_Nhoo", name: "พี่นุ" },
-    { id: "U_Noom", name: "พี่หนุ่ม" },
-    { id: "U_Nueng1", name: "พี่หนึ่ง" },
-    { id: "U_Bas", name: "พี่บาส" },
-    { id: "U_Camp", name: "แคมป์" },
-    { id: "U_Nueng2", name: "หนึ่ง" },
-    { id: "U_Thi", name: "ทิ" },
-    { id: "U_Mack", name: "พี่แม็ค" },
+  // 👥 รายชื่อ "หัวหน้าทีม" (Team Leaders)
+  const teamLeaderList = [
+    { id: "team_n", name: "พี่นุ" },
+    { id: "team_a", name: "พี่หนุ่ม" },
+    { id: "team_b", name: "พี่หนึ่ง" },
+    { id: "team_c", name: "พี่บาส" },
+    { id: "team_d", name: "แคมป์" },
+    { id: "team_e", name: "หนึ่ง" },
+    { id: "team_f", name: "ทิ" },
+    { id: "team_g", name: "พี่แม็ค" },
   ];
 
   useEffect(() => {
@@ -93,7 +89,7 @@ export default function AttendanceAdminPage() {
   }, []);
 
   const checkUserRole = async () => {
-    setAuthStatus("allowed"); // Bypass สิทธิ์ไว้ให้พี่แม็คเทส
+    setAuthStatus("allowed");
   };
 
   const fetchTopics = async () => {
@@ -104,7 +100,6 @@ export default function AttendanceAdminPage() {
       .order("created_at", { ascending: false });
 
     if (data) {
-      // 🌟 แยกลิสต์: อันไหนหมดอายุ หรือ ปิดใช้งาน ให้ไปอยู่ Past
       const active = data.filter((t) => t.is_active && t.end_date >= todayStr);
       const past = data.filter((t) => !t.is_active || t.end_date < todayStr);
       setActiveTopics(active);
@@ -120,15 +115,11 @@ export default function AttendanceAdminPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
   };
 
-  // 📍 ฟังก์ชันสกัดพิกัดจาก Google Maps Link
   const handleMapsUrlParse = (url: string) => {
     setFormData((prev) => ({ ...prev, maps_url: url }));
     if (!url) return;
-
-    // ค้นหาพิกัด @lat,lng หรือ query=lat,lng ใน URL
     const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)/;
     const match = url.match(regex);
-
     if (match) {
       const lat = match[1] || match[3];
       const lng = match[2] || match[4];
@@ -137,16 +128,17 @@ export default function AttendanceAdminPage() {
     }
   };
 
-  const toggleUserAccess = (userId: string) => {
+  // 🌟 ฟังก์ชันสลับการเลือกหัวหน้าทีม
+  const toggleTeamLeader = (leaderId: string) => {
     setFormData((prev) => {
-      const isSelected = prev.allowed_users.includes(userId);
+      const isSelected = prev.allowed_users.includes(leaderId);
       if (isSelected) {
         return {
           ...prev,
-          allowed_users: prev.allowed_users.filter((id) => id !== userId),
+          allowed_users: prev.allowed_users.filter((id) => id !== leaderId),
         };
       } else {
-        return { ...prev, allowed_users: [...prev.allowed_users, userId] };
+        return { ...prev, allowed_users: [...prev.allowed_users, leaderId] };
       }
     });
   };
@@ -159,7 +151,6 @@ export default function AttendanceAdminPage() {
       start_time: topic.start_time,
       end_time: topic.end_time,
       work_type: topic.team_type === "office" ? "office" : "onsite",
-      team_type: topic.team_type,
       radius_meters: topic.radius_meters,
       photo_mode: topic.photo_mode,
       start_date: topic.start_date,
@@ -168,7 +159,7 @@ export default function AttendanceAdminPage() {
       maps_url: topic.maps_url || "",
       lat: topic.lat || "",
       lng: topic.lng || "",
-      allowed_users: topic.allowed_users || [],
+      allowed_users: topic.allowed_users || [], // ดึงรายชื่อหัวหน้าทีมที่เคยเลือกไว้
     });
     setActiveTab("form");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -221,8 +212,7 @@ export default function AttendanceAdminPage() {
         shift_type: formData.shift_type,
         start_time: formData.start_time,
         end_time: formData.end_time,
-        team_type:
-          formData.work_type === "office" ? "office" : formData.team_type,
+        team_type: formData.work_type === "office" ? "office" : "onsite", // ใช้เป็น flag แยกประเภท
         radius_meters: formData.radius_meters,
         photo_mode: formData.photo_mode,
         start_date: formData.start_date,
@@ -231,7 +221,8 @@ export default function AttendanceAdminPage() {
         maps_url: formData.maps_url,
         lat: formData.lat ? parseFloat(formData.lat) : null,
         lng: formData.lng ? parseFloat(formData.lng) : null,
-        allowed_users: formData.allowed_users,
+        allowed_users:
+          formData.work_type === "office" ? [] : formData.allowed_users, // ถ้าเป็นออฟฟิศให้เคลียร์สิทธิ์หัวหน้าทีมทิ้ง (เห็นทุกคน)
         created_by: "U_MANAGER_MOCK_ID",
       };
 
@@ -261,6 +252,15 @@ export default function AttendanceAdminPage() {
   };
 
   const isPermanent = formData.end_date === "2099-12-31";
+
+  // 🌟 ฟังก์ชันแปลง ID หัวหน้าทีม เป็นชื่อแสดงผล
+  const getLeaderNames = (ids: string[]) => {
+    if (!ids || ids.length === 0) return "เห็นทุกคนทุกทีม";
+    const names = ids.map(
+      (id) => teamLeaderList.find((l) => l.id === id)?.name || id,
+    );
+    return names.join(", ");
+  };
 
   if (authStatus === "checking")
     return (
@@ -421,7 +421,6 @@ export default function AttendanceAdminPage() {
 
             <hr className="border-gray-100" />
 
-            {/* 📍 ส่วนของการจัดการพิกัดและไซต์งาน */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
                 <Briefcase className="h-4 w-4" /> รูปแบบการเข้างาน
@@ -436,11 +435,7 @@ export default function AttendanceAdminPage() {
                     className="hidden"
                     checked={formData.work_type === "office"}
                     onChange={() =>
-                      setFormData({
-                        ...formData,
-                        work_type: "office",
-                        team_type: "office",
-                      })
+                      setFormData({ ...formData, work_type: "office" })
                     }
                   />
                   <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
@@ -456,11 +451,7 @@ export default function AttendanceAdminPage() {
                     className="hidden"
                     checked={formData.work_type === "onsite"}
                     onChange={() =>
-                      setFormData({
-                        ...formData,
-                        work_type: "onsite",
-                        team_type: "team_all",
-                      })
+                      setFormData({ ...formData, work_type: "onsite" })
                     }
                   />
                   <span className="flex items-center justify-center gap-2 text-sm font-bold text-gray-900">
@@ -501,25 +492,25 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* 👥 การกำหนดสิทธิ์ผู้ใช้งาน */}
+                  {/* 🌟 ปรับปรุง: การเลือกหัวหน้าทีมแทนการเลือกพนักงานทั่วไป */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
-                      <Users className="h-4 w-4" /> พนักงานที่ต้องไปไซต์นี้
-                      (เว้นว่าง = เห็นทุกคน)
+                      <Users className="h-4 w-4" />{" "}
+                      เลือกหัวหน้าทีมที่รับผิดชอบไซต์นี้ (เว้นว่าง = เห็นทุกคน)
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {employeeList.map((emp) => (
+                      {teamLeaderList.map((leader) => (
                         <label
-                          key={emp.id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(emp.id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                          key={leader.id}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(leader.id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                         >
                           <input
                             type="checkbox"
                             className="hidden"
-                            checked={formData.allowed_users.includes(emp.id)}
-                            onChange={() => toggleUserAccess(emp.id)}
+                            checked={formData.allowed_users.includes(leader.id)}
+                            onChange={() => toggleTeamLeader(leader.id)}
                           />
-                          {emp.name}
+                          {leader.name}
                         </label>
                       ))}
                     </div>
@@ -605,7 +596,6 @@ export default function AttendanceAdminPage() {
       {/* ================= แท็บ 2: รายการหัวข้อ ================= */}
       {activeTab === "list" && (
         <div className="max-w-2xl w-full animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
-          {/* Active Topics */}
           <div>
             <h2 className="text-sm font-bold text-gray-500 mb-3 pl-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>{" "}
@@ -630,13 +620,12 @@ export default function AttendanceAdminPage() {
                         <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
                           {topic.team_type === "office" ? "ออฟฟิศ" : "ออกไซต์"}
                         </span>
-                        {topic.allowed_users &&
-                          topic.allowed_users.length > 0 && (
-                            <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Users className="w-3 h-3" />{" "}
-                              {topic.allowed_users.length} คน
-                            </span>
-                          )}
+                        {topic.team_type !== "office" && (
+                          <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                            <Users className="w-3 h-3" />{" "}
+                            {getLeaderNames(topic.allowed_users)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -665,7 +654,6 @@ export default function AttendanceAdminPage() {
             </div>
           </div>
 
-          {/* Past Topics (เทาๆ) */}
           <div className="opacity-60 grayscale">
             <h2 className="text-sm font-bold text-gray-500 mb-3 pl-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-gray-400"></div>{" "}
