@@ -68,13 +68,13 @@ export async function POST(request: Request) {
         // 🌟 1. ดักจับคำสั่งลงเวลาทำงาน (Check-in / Check-out)
         // ==========================================
         if (
-          userMessage === "📍 เช็คอินเข้างาน" ||
-          userMessage === "📍 เช็คเอาต์ออกงาน"
+          userMessage === "🕘 เช็คอินเข้างาน" ||
+          userMessage === "🕕 เช็คเอาต์ออกงาน"
         ) {
           // 🔥 เรียกแอนิเมชันจุด 3 จุดทันที
           await startLoading(userId);
 
-          const isCheckin = userMessage === "📍 เช็คอินเข้างาน";
+          const isCheckin = userMessage === "🕘 เช็คอินเข้างาน";
 
           const { data: log, error } = await supabase
             .from("attendance_logs")
