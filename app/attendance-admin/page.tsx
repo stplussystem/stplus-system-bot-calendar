@@ -63,7 +63,7 @@ export default function AttendanceAdminPage() {
     start_time: "09:00",
     end_time: "18:00",
     work_type: "onsite",
-    team_type: "team_all",
+    team_type: "team_all", // ค่าเริ่มต้นเป็นทั้งหมดทุกคน
     radius_meters: 100,
     photo_mode: "camera",
     start_date: new Date().toISOString().split("T")[0],
@@ -75,6 +75,20 @@ export default function AttendanceAdminPage() {
     allowed_users: [] as string[],
   });
 
+  // ข้อความแสดงชื่อหัวหน้าทีมในตารางหน้า List
+  const teamLabels: { [key: string]: string } = {
+    team_all: "ทั้งหมดทุกคน",
+    team_n: "พี่นุ",
+    team_a: "พี่หนุ่ม",
+    team_b: "พี่หนึ่ง",
+    team_c: "พี่บาส",
+    team_d: "แคมป์",
+    team_e: "หนึ่ง",
+    team_f: "ทิ",
+    team_g: "แม็ค",
+    team_other: "อื่นๆ",
+  };
+
   useEffect(() => {
     checkUserRole();
     fetchTopics();
@@ -85,17 +99,15 @@ export default function AttendanceAdminPage() {
     setAuthStatus("allowed");
   };
 
-  // 🌟 ฟังก์ชันดึงรายชื่อพนักงานจาก Supabase (แก้ไขคอลัมน์เป็น line_user_id)
   const fetchEmployees = async () => {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("line_user_id, nickname") // 🚀 เปลี่ยนจาก id เป็น line_user_id
+        .select("line_user_id, nickname")
         .order("nickname", { ascending: true });
 
       if (error) {
-        console.error("Supabase Fetch Error:", error.message);
-        setFetchError(`ดึงข้อมูลไม่ได้: ${error.message}`);
+        setFetchError(`ดึงข้อมูลพนักงานไม่ได้: ${error.message}`);
         return;
       }
 
@@ -104,7 +116,6 @@ export default function AttendanceAdminPage() {
         setFetchError(null);
       }
     } catch (error: any) {
-      console.error("Error fetching employees:", error);
       setFetchError("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
     }
   };
@@ -271,7 +282,6 @@ export default function AttendanceAdminPage() {
 
   const isPermanent = formData.end_date === "2099-12-31";
 
-  // 🌟 อัปเดตฟังก์ชันหาชื่อให้เช็คจาก line_user_id
   const getEmployeeNames = (ids: string[]) => {
     if (!ids || ids.length === 0) return "เข้าร่วมทุกคน";
     const names = ids.map((id) => {
@@ -481,6 +491,32 @@ export default function AttendanceAdminPage() {
 
               {formData.work_type === "onsite" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  {/* 🌟 1. ช่องเลือกหัวหน้าทีมประจำหน้างาน (Dropdown ที่ต้องการ) */}
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
+                      <Users className="h-4 w-4" />{" "}
+                      หัวหน้าทีมที่รับผิดชอบไซต์นี้
+                    </label>
+                    <select
+                      className="w-full border border-blue-200 rounded-lg p-3 text-sm outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                      value={formData.team_type}
+                      onChange={(e) =>
+                        setFormData({ ...formData, team_type: e.target.value })
+                      }
+                    >
+                      <option value="team_all">ทั้งหมดทุกคน</option>
+                      <option value="team_n">พี่นุ</option>
+                      <option value="team_a">พี่หนุ่ม</option>
+                      <option value="team_b">พี่หนึ่ง</option>
+                      <option value="team_c">พี่บาส</option>
+                      <option value="team_d">แคมป์</option>
+                      <option value="team_e">หนึ่ง</option>
+                      <option value="team_f">ทิ</option>
+                      <option value="team_g">แม็ค</option>
+                      <option value="team_other">อื่นๆ</option>
+                    </select>
+                  </div>
+
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
                       <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps
@@ -511,7 +547,7 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* 🌟 แสดงพนักงานอิงตาม line_user_id */}
+                  {/* 🌟 2. แสดงพนักงานที่เข้าร่วมรายบุคคล (ดึงจาก Supabase) */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
                       <Users className="h-4 w-4" /> พนักงานที่เข้าร่วมไซต์นี้
@@ -538,7 +574,7 @@ export default function AttendanceAdminPage() {
                             )}
                             onChange={() => toggleUserAccess(emp.line_user_id)}
                           />
-                          {emp.nickname || emp.display_name}
+                          {emp.nickname}
                         </label>
                       ))}
                       {!fetchError && employeeList.length === 0 && (
@@ -649,19 +685,24 @@ export default function AttendanceAdminPage() {
                       <h3 className="font-bold text-gray-900 text-base">
                         {topic.title}
                       </h3>
-                      <div className="text-xs text-gray-500 flex flex-wrap gap-2 mt-2">
-                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-                          {topic.team_type === "office" ? "ออฟฟิศ" : `ไซต์งาน`}
-                        </span>
-                        {topic.team_type !== "office" && (
-                          <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
-                            <Users className="w-3 h-3" />{" "}
-                            {getEmployeeNames(topic.allowed_users)}
+                      <div className="text-xs text-gray-500 flex flex-col gap-y-1 mt-2">
+                        <p>
+                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold text-[11px]">
+                            หัวหน้าทีม:{" "}
+                            {teamLabels[topic.team_type] || topic.team_type}
                           </span>
+                        </p>
+                        {topic.team_type !== "office" && (
+                          <p className="text-[11px] text-gray-500 font-medium pl-1 mt-1">
+                            👥 ผู้เข้าร่วม:{" "}
+                            <span className="text-orange-600 font-bold">
+                              {getEmployeeNames(topic.allowed_users)}
+                            </span>
+                          </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 self-start sm:self-center">
                       <button
                         onClick={() => handleEditClick(topic)}
                         className="bg-white border border-gray-200 hover:border-blue-500 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold"
@@ -676,7 +717,7 @@ export default function AttendanceAdminPage() {
                             topic.team_type === "office",
                           )
                         }
-                        className="bg-white border border-gray-200 hover:border-red-500 text-red-500 px-3 py-1.5 rounded-lg"
+                        className="bg-white border border-gray-200 hover:border-red-500 text-red-500 p-2 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
