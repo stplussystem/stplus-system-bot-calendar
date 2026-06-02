@@ -233,7 +233,10 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิดใช้งานการเข้าถึงตำแหน่ง (Location) ในโทรศัพมือถือ",
+          "error",
+        );
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
