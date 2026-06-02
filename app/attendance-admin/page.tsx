@@ -40,8 +40,8 @@ export default function AttendanceAdminPage() {
   const [activeTopics, setActiveTopics] = useState<any[]>([]);
   const [pastTopics, setPastTopics] = useState<any[]>([]);
 
-  // 🌟 State ใหม่สำหรับเก็บรายชื่อพนักงานที่ดึงจาก Supabase
   const [employeeList, setEmployeeList] = useState<any[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -63,6 +63,7 @@ export default function AttendanceAdminPage() {
     start_time: "09:00",
     end_time: "18:00",
     work_type: "onsite",
+    team_type: "team_all",
     radius_meters: 100,
     photo_mode: "camera",
     start_date: new Date().toISOString().split("T")[0],
@@ -77,28 +78,34 @@ export default function AttendanceAdminPage() {
   useEffect(() => {
     checkUserRole();
     fetchTopics();
-    fetchEmployees(); // 🌟 เรียกใช้ฟังก์ชันดึงพนักงานตอนเปิดหน้าเว็บ
+    fetchEmployees();
   }, []);
 
   const checkUserRole = async () => {
     setAuthStatus("allowed");
   };
 
-  // 🌟 ฟังก์ชันดึงรายชื่อพนักงานจาก Supabase
+  // 🌟 ฟังก์ชันดึงรายชื่อพนักงานจาก Supabase (แก้ไขคอลัมน์เป็น line_user_id)
   const fetchEmployees = async () => {
     try {
-      // ⚠️ หมายเหตุ: โค้ดดี้สมมติว่าตารางชื่อ 'users' และเก็บชื่อเล่นไว้ในคอลัมน์ 'nickname'
-      // ถ้าพี่แม็คใช้ชื่ออื่น (เช่น profiles หรือ play_name) สามารถแก้ตรงคำว่า 'users' และ 'nickname' ด้านล่างได้เลยครับ
       const { data, error } = await supabase
         .from("users")
-        .select("id, nickname")
-        .order("nickname", { ascending: true }); // เรียงตามตัวอักษรให้อัตโนมัติ
+        .select("line_user_id, nickname") // 🚀 เปลี่ยนจาก id เป็น line_user_id
+        .order("nickname", { ascending: true });
+
+      if (error) {
+        console.error("Supabase Fetch Error:", error.message);
+        setFetchError(`ดึงข้อมูลไม่ได้: ${error.message}`);
+        return;
+      }
 
       if (data) {
         setEmployeeList(data);
+        setFetchError(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching employees:", error);
+      setFetchError("เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล");
     }
   };
 
@@ -160,6 +167,7 @@ export default function AttendanceAdminPage() {
       start_time: topic.start_time,
       end_time: topic.end_time,
       work_type: topic.team_type === "office" ? "office" : "onsite",
+      team_type: topic.team_type,
       radius_meters: topic.radius_meters,
       photo_mode: topic.photo_mode,
       start_date: topic.start_date,
@@ -221,7 +229,8 @@ export default function AttendanceAdminPage() {
         shift_type: formData.shift_type,
         start_time: formData.start_time,
         end_time: formData.end_time,
-        team_type: formData.work_type === "office" ? "office" : "onsite",
+        team_type:
+          formData.work_type === "office" ? "office" : formData.team_type,
         radius_meters: formData.radius_meters,
         photo_mode: formData.photo_mode,
         start_date: formData.start_date,
@@ -262,11 +271,11 @@ export default function AttendanceAdminPage() {
 
   const isPermanent = formData.end_date === "2099-12-31";
 
-  // 🌟 ฟังก์ชันแปลง ID พนักงาน เป็นชื่อเล่น (ดึงจาก State)
+  // 🌟 อัปเดตฟังก์ชันหาชื่อให้เช็คจาก line_user_id
   const getEmployeeNames = (ids: string[]) => {
     if (!ids || ids.length === 0) return "เข้าร่วมทุกคน";
     const names = ids.map((id) => {
-      const emp = employeeList.find((e) => e.id === id);
+      const emp = employeeList.find((e) => e.line_user_id === id);
       return emp ? emp.nickname : id;
     });
     return names.join(", ");
@@ -472,15 +481,15 @@ export default function AttendanceAdminPage() {
 
               {formData.work_type === "onsite" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
                       <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps
                       เพื่อดึงพิกัด
                     </label>
                     <input
                       type="text"
                       placeholder="https://maps.google.com/..."
-                      className="w-full border border-blue-200 rounded-lg p-3 text-sm outline-none bg-white mb-2"
+                      className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white mb-2"
                       value={formData.maps_url}
                       onChange={(e) => handleMapsUrlParse(e.target.value)}
                     />
@@ -502,30 +511,39 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* 🌟 ดึงข้อมูลรายชื่อพนักงานจาก Supabase มาสร้างเป็น Checkbox แบบอัตโนมัติ */}
+                  {/* 🌟 แสดงพนักงานอิงตาม line_user_id */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
                       <Users className="h-4 w-4" /> พนักงานที่เข้าร่วมไซต์นี้
                       (เว้นว่าง = เข้าร่วมทุกคน)
                     </label>
+
+                    {fetchError && (
+                      <div className="mb-3 p-3 bg-red-100 text-red-700 text-xs rounded-lg border border-red-200">
+                        <strong>⚠️ แจ้งเตือน:</strong> {fetchError}
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-2">
                       {employeeList.map((emp) => (
                         <label
-                          key={emp.id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(emp.id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                          key={emp.line_user_id}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(emp.line_user_id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                         >
                           <input
                             type="checkbox"
                             className="hidden"
-                            checked={formData.allowed_users.includes(emp.id)}
-                            onChange={() => toggleUserAccess(emp.id)}
+                            checked={formData.allowed_users.includes(
+                              emp.line_user_id,
+                            )}
+                            onChange={() => toggleUserAccess(emp.line_user_id)}
                           />
-                          {emp.nickname || emp.id}
+                          {emp.nickname || emp.display_name}
                         </label>
                       ))}
-                      {employeeList.length === 0 && (
+                      {!fetchError && employeeList.length === 0 && (
                         <p className="text-xs text-orange-600/60 font-semibold">
-                          ไม่พบข้อมูลพนักงานในระบบ...
+                          กำลังโหลดข้อมูลพนักงาน...
                         </p>
                       )}
                     </div>
@@ -633,7 +651,7 @@ export default function AttendanceAdminPage() {
                       </h3>
                       <div className="text-xs text-gray-500 flex flex-wrap gap-2 mt-2">
                         <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-                          {topic.team_type === "office" ? "ออฟฟิศ" : "ออกไซต์"}
+                          {topic.team_type === "office" ? "ออฟฟิศ" : `ไซต์งาน`}
                         </span>
                         {topic.team_type !== "office" && (
                           <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
