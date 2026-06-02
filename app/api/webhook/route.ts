@@ -45,6 +45,316 @@ const getThaiDateStr = (offsetDays = 0) => {
   return `${y}-${m}-${day}`;
 };
 
+// 🎨 ฟังก์ชันปั้น Flex Message เช็คอิน/เช็คเอาต์ (ย้ายมาไว้ที่นี่เพื่อป้องกัน Error)
+function buildAttendanceFlex(isCheckin: boolean, data: any, actionUrl: string) {
+  const headerColor = isCheckin ? "#009900" : "#EF454D";
+
+  const flexObj: any = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "20px",
+      backgroundColor: headerColor,
+      spacing: "md",
+      height: "110px",
+      paddingTop: "22px",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: "กะการทำงาน :",
+                  color: "#ffffff66",
+                  size: "md",
+                  flex: 0,
+                },
+                {
+                  type: "text",
+                  text: data.shift,
+                  color: "#ffffff",
+                  size: "md",
+                  flex: 1,
+                  margin: "md",
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: data.date,
+              color: "#ffffff",
+              size: "lg",
+              flex: 4,
+              weight: "bold",
+              margin: "sm",
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: "ทีม :",
+                  color: "#ffffff66",
+                  size: "md",
+                  flex: 0,
+                },
+                {
+                  type: "text",
+                  text: data.team,
+                  color: "#ffffff",
+                  size: "md",
+                  flex: 1,
+                  margin: "md",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "box",
+          layout: "baseline",
+          contents: [
+            {
+              type: "text",
+              text: "ชื่องาน :",
+              color: "#b7b7b7",
+              size: "sm",
+              flex: 0,
+            },
+            {
+              type: "text",
+              text: data.topic,
+              color: "#000000",
+              size: "sm",
+              flex: 1,
+              margin: "md",
+              wrap: true,
+            },
+          ],
+        },
+        // 🟢 กล่องเวลาเข้างาน (แสดงเสมอ)
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "lg",
+          cornerRadius: "30px",
+          margin: "xl",
+          contents: [
+            { type: "text", text: data.inTime, size: "sm", gravity: "center" },
+            {
+              type: "box",
+              layout: "vertical",
+              flex: 0,
+              margin: "xs",
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  cornerRadius: "30px",
+                  height: "12px",
+                  width: "12px",
+                  borderWidth: "2px",
+                  borderColor: "#008000",
+                },
+                { type: "filler" },
+              ],
+            },
+            {
+              type: "text",
+              text: "ลงชื่อเข้างาน",
+              gravity: "center",
+              flex: 4,
+              size: "sm",
+              color: "#008000",
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "lg",
+          height: isCheckin ? "40px" : "64px",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              flex: 1,
+              contents: [{ type: "filler" }],
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              width: "12px",
+              margin: "xs",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  flex: 1,
+                  contents: [
+                    { type: "filler" },
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [],
+                      width: isCheckin ? "0px" : "2px",
+                      backgroundColor: "#B7B7B7",
+                    },
+                    { type: "filler" },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: data.inLocation,
+              gravity: "top",
+              flex: 4,
+              size: "xs",
+              color: "#8c8c8c",
+              wrap: true,
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  // 🔴 ถ้าเป็นการออกงาน (Check-out) ให้ต่อกล่องเวลาออกงานเข้าไป
+  if (!isCheckin) {
+    flexObj.body.contents.push(
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "lg",
+        cornerRadius: "30px",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            flex: 1,
+            contents: [
+              {
+                type: "text",
+                text: data.outTime,
+                gravity: "center",
+                size: "sm",
+              },
+            ],
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            flex: 0,
+            margin: "xs",
+            contents: [
+              { type: "filler" },
+              {
+                type: "box",
+                layout: "vertical",
+                contents: [],
+                cornerRadius: "30px",
+                width: "12px",
+                height: "12px",
+                borderWidth: "2px",
+                borderColor: "#EF454D",
+              },
+              { type: "filler" },
+            ],
+          },
+          {
+            type: "text",
+            text: "ลงชื่อออกงาน",
+            gravity: "center",
+            flex: 4,
+            size: "sm",
+            color: "#EF454D",
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "lg",
+        height: "35px",
+        contents: [
+          {
+            type: "box",
+            layout: "baseline",
+            flex: 1,
+            contents: [{ type: "filler" }],
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            width: "12px",
+            margin: "xs",
+            contents: [
+              {
+                type: "box",
+                layout: "horizontal",
+                flex: 1,
+                contents: [
+                  { type: "filler" },
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [],
+                    width: "0px",
+                    backgroundColor: "#6486E3",
+                    height: "30px",
+                  },
+                  { type: "filler" },
+                ],
+              },
+            ],
+          },
+          {
+            type: "text",
+            text: data.outLocation,
+            gravity: "top",
+            flex: 4,
+            size: "xs",
+            color: "#8c8c8c",
+            wrap: true,
+          },
+        ],
+      },
+    );
+  } else {
+    // 🟢 ถ้าเพิ่งเข้างาน ให้ใส่ปุ่มสำหรับกดออกงานใน Footer สีเขียว
+    flexObj.footer = {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          action: { type: "uri", label: "ลงเวลาออกงาน", uri: actionUrl },
+          color: "#009900",
+          style: "primary",
+        },
+      ],
+    };
+  }
+  return flexObj;
+}
+
 export async function POST(request: Request) {
   try {
     const signature = request.headers.get("x-line-signature");
@@ -71,6 +381,9 @@ export async function POST(request: Request) {
           userMessage === "📍 เช็คอินเข้างาน" ||
           userMessage === "📍 เช็คเอาต์ออกงาน"
         ) {
+          // 🔥 เรียกแอนิเมชันจุด 3 จุดทันทีที่ได้รับคำสั่ง
+          await startLoading(userId);
+
           const isCheckin = userMessage === "📍 เช็คอินเข้างาน";
 
           const { data: log, error } = await supabase
@@ -104,8 +417,11 @@ export async function POST(request: Request) {
                 : log.attendance_topics.shift_type === "custom"
                   ? "กำหนดเอง"
                   : "เช้า";
+
+            // ใช้ teamLabels แปลงเป็นภาษาไทย ถ้าไม่มีให้แสดงคำเดิม
             let teamStr =
-              teamLabels[log.attendance_topics.team_type] || "ออฟฟิศ";
+              teamLabels[log.attendance_topics.team_type] ||
+              log.attendance_topics.team_type;
 
             const inTime = new Date(log.check_in_time).toLocaleTimeString(
               "th-TH",
@@ -128,7 +444,8 @@ export async function POST(request: Request) {
                 : log.attendance_topics.title || "ไซต์งาน"
               : "-";
 
-            const flexMessage = flex.getAttendanceMessage(
+            // เรียกใช้ฟังก์ชันภายในไฟล์นี้เลย
+            const flexMessage = buildAttendanceFlex(
               isCheckin,
               {
                 shift: shiftStr,

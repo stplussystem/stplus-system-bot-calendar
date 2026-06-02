@@ -24,6 +24,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
+const teamLabels: { [key: string]: string } = {
+  team_all: "ทั้งหมดทุกคน",
+  team_n: "พี่นุ",
+  team_a: "พี่หนุ่ม",
+  team_b: "พี่หนึ่ง",
+  team_c: "พี่บาส",
+  team_d: "แคมป์",
+  team_e: "หนึ่ง",
+  team_f: "ทิ",
+  team_g: "พี่แม็ค",
+  team_other: "อื่นๆ",
+};
+
 export default function CheckinPage() {
   const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
   const [isLiffInit, setIsLiffInit] = useState(false);
@@ -33,7 +46,6 @@ export default function CheckinPage() {
   const [selectedTopic, setSelectedTopic] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🌟 State สำหรับเก็บข้อมูลว่าวันนี้ Check-in ไปหรือยัง
   const [todayLog, setTodayLog] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
@@ -70,7 +82,6 @@ export default function CheckinPage() {
           liff.login();
         }
       } catch (error) {
-        // Fallback for local development testing
         setUserProfile({
           userId: "U_LOCAL_TESTER",
           displayName: "Dev Mode",
@@ -86,7 +97,7 @@ export default function CheckinPage() {
   useEffect(() => {
     if (isLiffInit && userProfile) {
       if (activeTab === "checkin") {
-        checkTodayStatus(); // เช็คสถานะก่อน
+        checkTodayStatus();
         fetchActiveTopics();
       } else fetchHistory();
     }
@@ -97,40 +108,31 @@ export default function CheckinPage() {
     setPhotoPreview(null);
   }, [selectedTopic, activeTab]);
 
-  // 🔍 ตรวจสอบว่าวันนี้ Check-in ไปแล้วหรือยัง
   const checkTodayStatus = async () => {
     setIsCheckingStatus(true);
+
+    // 🌟 เปลี่ยนมาใช้การระบุ Timezone +07:00 (เวลาไทย) เพื่อความแม่นยำ
     const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    ).toISOString();
-    const endOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999,
-    ).toISOString();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const startOfDayStr = `${y}-${m}-${d}T00:00:00+07:00`;
+    const endOfDayStr = `${y}-${m}-${d}T23:59:59+07:00`;
 
     const { data, error } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, photo_mode )`)
       .eq("user_id", userProfile.userId)
-      .gte("check_in_time", startOfDay)
-      .lte("check_in_time", endOfDay)
+      .gte("check_in_time", startOfDayStr)
+      .lte("check_in_time", endOfDayStr)
       .order("check_in_time", { ascending: false })
       .limit(1)
       .single();
 
-    // ถ้ามีข้อมูล และยังไม่ได้ลงเวลาออก (check_out_time เป็น null)
     if (data && !data.check_out_time) {
       setTodayLog(data);
     } else {
-      setTodayLog(null); // แปลว่ายังไม่เข้างาน หรือออกงานไปแล้ว
+      setTodayLog(null);
     }
     setIsCheckingStatus(false);
   };
@@ -168,7 +170,6 @@ export default function CheckinPage() {
     }
   };
 
-  // 📥 ฟังก์ชันอัปโหลดรูปภาพ (ใช้ร่วมกันทั้ง Check-in และ Check-out)
   const uploadPhoto = async () => {
     if (!photoFile) return null;
     const options = {
@@ -191,7 +192,6 @@ export default function CheckinPage() {
     return publicUrlData.publicUrl;
   };
 
-  // 🟢 ฟังก์ชันลงเวลาเข้างาน (Check-in)
   const handleCheckIn = async () => {
     if (!selectedTopic)
       return showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
@@ -222,17 +222,20 @@ export default function CheckinPage() {
 
           if (error) throw error;
           showToast("Check-in สำเร็จแล้ว!", "success");
-
-          // อัปเดต State ให้เปลี่ยนหน้าจอเป็นโหมด Check-out ทันที
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
 
-          // 🌟 สั่ง LIFF ส่งข้อความเข้าแชท เพื่อรับ Flex Message "สีเขียว" แล้วปิดหน้าต่างตัวเองลง
-          const liff = (await import("@line/liff")).default;
-          if (liff.isInClient()) {
-            await liff.sendMessages([
-              { type: "text", text: "📍 เช็คอินเข้างาน" },
-            ]);
-            liff.closeWindow();
+          // 🌟 ครอบ Try-catch ป้องกัน Error ทำให้ Liff ไม่ยอมปิด
+          try {
+            const liff = (await import("@line/liff")).default;
+            if (liff.isInClient()) {
+              await liff.sendMessages([
+                { type: "text", text: "📍 เช็คอินเข้างาน" },
+              ]);
+              liff.closeWindow();
+            }
+          } catch (liffError) {
+            console.error("LIFF Send Message Error:", liffError);
+            setTimeout(() => setActiveTab("history"), 1500);
           }
         } catch (err: any) {
           showToast(err.message, "error");
@@ -242,7 +245,7 @@ export default function CheckinPage() {
       },
       (error) => {
         showToast(
-          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิดใช้งานการเข้าถึงตำแหน่ง (Location) ในโทรศัพมือถือ",
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิดใช้งานการเข้าถึงตำแหน่ง (Location) ในโทรศัพท์มือถือ",
           "error",
         );
         setLoading(false);
@@ -251,7 +254,6 @@ export default function CheckinPage() {
     );
   };
 
-  // 🔴 ฟังก์ชันลงเวลาออกงาน (Check-out)
   const handleCheckOut = async () => {
     if (!todayLog) return;
     if (todayLog.attendance_topics.photo_mode !== "none" && !photoFile)
@@ -263,7 +265,6 @@ export default function CheckinPage() {
         try {
           const uploadedPhotoUrl = await uploadPhoto();
 
-          // ทำการ Update ข้อมูลแถวเดิม เติมเวลาออกงานเข้าไป
           const { error } = await supabase
             .from("attendance_logs")
             .update({
@@ -278,15 +279,19 @@ export default function CheckinPage() {
           if (error) throw error;
           showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
 
-          // 🌟 สั่ง LIFF ส่งข้อความเข้าแชท เพื่อรับ Flex Message "สีแดง" แล้วปิดหน้าต่างตัวเองลง
-          const liff = (await import("@line/liff")).default;
-          if (liff.isInClient()) {
-            await liff.sendMessages([
-              { type: "text", text: "📍 เช็คเอาต์ออกงาน" },
-            ]);
-            liff.closeWindow();
-          } else {
-            // กรณีรันบนบราวเซอร์ทั่วไป ให้สลับแท็บไปที่ประวัติ
+          // 🌟 ครอบ Try-catch ป้องกัน Error
+          try {
+            const liff = (await import("@line/liff")).default;
+            if (liff.isInClient()) {
+              await liff.sendMessages([
+                { type: "text", text: "📍 เช็คเอาต์ออกงาน" },
+              ]);
+              liff.closeWindow();
+            } else {
+              setTimeout(() => setActiveTab("history"), 1500);
+            }
+          } catch (liffError) {
+            console.error("LIFF Send Message Error:", liffError);
             setTimeout(() => setActiveTab("history"), 1500);
           }
         } catch (err: any) {
@@ -305,30 +310,39 @@ export default function CheckinPage() {
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    let startDate = new Date();
-    let endDate = new Date();
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
+
+    // 🌟 แก้ไข Timezone ของประวัติให้แม่นยำขึ้น
+    const getThaiDateStr = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
+    let start = new Date();
+    let end = new Date();
 
     if (historyFilter === "week") {
-      const day = startDate.getDay();
-      const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
-      startDate = new Date(startDate.setDate(diff));
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff);
     } else if (historyFilter === "month") {
-      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      start.setDate(1);
     } else if (historyFilter === "custom") {
-      startDate = new Date(customDate);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(customDate);
-      endDate.setHours(23, 59, 59, 999);
+      start = new Date(customDate);
+      end = new Date(customDate);
     }
+
+    // แปลงรูปแบบวันที่และยัด Timezone เข้าไปตอน Query Database
+    const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
+    const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
     const { data } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, team_type, work_type )`)
       .eq("user_id", userProfile?.userId)
-      .gte("check_in_time", startDate.toISOString())
-      .lte("check_in_time", endDate.toISOString())
+      .gte("check_in_time", startStr)
+      .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
 
     if (data) setLogs(data);
@@ -570,9 +584,11 @@ export default function CheckinPage() {
                               {topic.start_time.substring(0, 5)} -{" "}
                               {topic.end_time.substring(0, 5)} น.
                             </span>
+                            {/* 🌟 3. แสดงชื่อทีมภาษาไทยที่ถูกต้องแล้ว */}
                             {topic.team_type !== "office" && (
                               <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">
-                                ไซต์: {topic.team_type}
+                                ไซต์:{" "}
+                                {teamLabels[topic.team_type] || topic.team_type}
                               </span>
                             )}
                           </div>
