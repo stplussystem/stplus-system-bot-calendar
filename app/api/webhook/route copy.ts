@@ -12,26 +12,10 @@ const channelAccessToken = (process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
 const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}`;
-// 🌟 เพิ่มลิงก์หน้า Checkin
-const checkinLiffUrl = `${liffUrl}/checkin`;
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
-
-// Dictionary แปลงชื่อทีม
-const teamLabels: { [key: string]: string } = {
-  team_all: "ทั้งหมดทุกคน",
-  team_n: "พี่นุ",
-  team_a: "พี่หนุ่ม",
-  team_b: "พี่หนึ่ง",
-  team_c: "พี่บาส",
-  team_d: "แคมป์",
-  team_e: "หนึ่ง",
-  team_f: "ทิ",
-  team_g: "พี่แม็ค",
-  team_other: "อื่นๆ",
-};
 
 const getThaiDateStr = (offsetDays = 0) => {
   const d = new Date();
@@ -64,101 +48,6 @@ export async function POST(request: Request) {
         const userMessage = event.message.text.trim();
         const userId = event.source.userId;
 
-        // ==========================================
-        // 🌟 1. ดักจับคำสั่งลงเวลาทำงาน (Check-in / Check-out)
-        // ==========================================
-        if (
-          userMessage === "📍 เช็คอินเข้างาน" ||
-          userMessage === "📍 เช็คเอาต์ออกงาน"
-        ) {
-          const isCheckin = userMessage === "📍 เช็คอินเข้างาน";
-
-          const { data: log, error } = await supabase
-            .from("attendance_logs")
-            .select(
-              `*, attendance_topics ( title, shift_type, team_type, work_type )`,
-            )
-            .eq("user_id", userId)
-            .order("check_in_time", { ascending: false })
-            .limit(1)
-            .single();
-
-          if (log && log.attendance_topics) {
-            const dateObj = new Date(
-              isCheckin ? log.check_in_time : log.check_out_time || new Date(),
-            );
-            const dayNames = [
-              "อาทิตย์",
-              "จันทร์",
-              "อังคาร",
-              "พุธ",
-              "พฤหัสบดี",
-              "ศุกร์",
-              "เสาร์",
-            ];
-            const dateStr = `${dayNames[dateObj.getDay()]}ที่ ${String(dateObj.getDate()).padStart(2, "0")}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${dateObj.getFullYear() + 543}`;
-
-            let shiftStr =
-              log.attendance_topics.shift_type === "afternoon"
-                ? "บ่าย"
-                : log.attendance_topics.shift_type === "custom"
-                  ? "กำหนดเอง"
-                  : "เช้า";
-            let teamStr =
-              teamLabels[log.attendance_topics.team_type] || "ออฟฟิศ";
-
-            const inTime = new Date(log.check_in_time).toLocaleTimeString(
-              "th-TH",
-              { hour: "2-digit", minute: "2-digit" },
-            );
-            const outTime = log.check_out_time
-              ? new Date(log.check_out_time).toLocaleTimeString("th-TH", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : "-";
-
-            const inLocation =
-              log.attendance_topics.work_type === "office"
-                ? "ประจำออฟฟิศ"
-                : log.attendance_topics.title || "ไซต์งาน";
-            const outLocation = log.check_out_time
-              ? log.attendance_topics.work_type === "office"
-                ? "ประจำออฟฟิศ"
-                : log.attendance_topics.title || "ไซต์งาน"
-              : "-";
-
-            const flexMessage = flex.getAttendanceMessage(
-              isCheckin,
-              {
-                shift: shiftStr,
-                date: dateStr,
-                team: teamStr,
-                topic: log.attendance_topics.title,
-                inTime,
-                inLocation,
-                outTime,
-                outLocation,
-              },
-              checkinLiffUrl,
-            );
-
-            await replyToLine(replyToken, [
-              {
-                type: "flex",
-                altText: isCheckin
-                  ? "บันทึกเวลาเข้างานเรียบร้อย"
-                  : "บันทึกเวลาออกงานเรียบร้อย",
-                contents: flexMessage,
-              },
-            ]);
-          }
-          continue; // จบการทำงานลูปนี้ ไม่ต้องไปเช็ค Calendar ต่อ
-        }
-
-        // ==========================================
-        // 📅 2. ระบบ Calendar เดิมทั้งหมด (ไม่พังแน่นอน!)
-        // ==========================================
         let startDate = "";
         let endDate = "";
         let queryTitle = "";
@@ -167,6 +56,9 @@ export async function POST(request: Request) {
 
         const todayStr = getThaiDateStr(0);
 
+        // ==========================================
+        // 🌟 แก้ไขใหม่: รองรับคำสั่งตรงจาก Rich Menu "ตารางงานดูแบบด่วน"
+        // ==========================================
         if (
           userMessage === "ดูตารางคิวงานด่วน" ||
           userMessage === "ดูตารางนัดด่วน" ||
@@ -223,9 +115,10 @@ export async function POST(request: Request) {
               },
             },
           ]);
-          continue;
+          continue; // จบการทำงานลูปข้อความนี้ทันที
         }
 
+        // 🔥 1. เช็คคำสั่ง ค้นหาวันที่แบบเจาะจง (พิมพ์วันที่ตรงๆ เช่น 29/05/2569)
         const dateRegex =
           /^(?:ระบุวัน|วันที่|คิววันที่|คิวงานวันที่)?\s*(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
         const dateMatch = userMessage.match(dateRegex);
@@ -240,7 +133,9 @@ export async function POST(request: Request) {
           queryTitle = `คิวงานวันที่ ${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
           matchDateQuery = true;
           filterParam = "custom";
-        } else if (
+        }
+        // 🔥 2. เช็คกรณีพิมพ์คำว่า "ระบุวัน" ลอยๆ ไม่มีวันที่ต่อท้าย (ให้บอทแนะนำ)
+        else if (
           ["ระบุวัน", "วันที่", "คิววันที่", "คิวงานวันที่"].includes(
             userMessage,
           )
@@ -251,8 +146,10 @@ export async function POST(request: Request) {
               text: "กรุณาพิมพ์วันที่ต้องการค้นหาในรูปแบบ วัน/เดือน/ปี (พ.ศ.) ครับ\n\n👉 ตัวอย่างเช่น: 24/05/2569 หรือ วันที่ 24/05/2569",
             },
           ]);
-          continue;
-        } else if (
+          continue; // หยุดการทำงานไม่ต้องไปค้นหาฐานข้อมูล
+        }
+        // 🔥 3. เช็คเงื่อนไข วันนี้, พรุ่งนี้, สัปดาห์นี้, เดือนนี้
+        else if (
           userMessage === "คิววันนี้" ||
           userMessage === "คิวงานวันนี้"
         ) {
@@ -274,9 +171,10 @@ export async function POST(request: Request) {
           userMessage === "คิวสัปดาห์นี้" ||
           userMessage === "คิวงานสัปดาห์นี้"
         ) {
+          // เปลี่ยนเป็นสัปดาห์นี้
           startDate = todayStr;
           endDate = getThaiDateStr(6);
-          queryTitle = "คิวงานสัปดาห์นี้";
+          queryTitle = "คิวงานสัปดาห์นี้"; // เปลี่ยนเป็นสัปดาห์นี้
           matchDateQuery = true;
           filterParam = "week";
         } else if (
@@ -297,13 +195,17 @@ export async function POST(request: Request) {
 
         if (matchDateQuery) {
           await startLoading(userId);
-          const { count } = await supabase
+
+          const { count, error: countError } = await supabase
             .from("appointments")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("status", "active")
             .gte("appointment_date", startDate)
             .lte("appointment_date", endDate);
+
+          const totalCount = count || 0;
+
           const { data, error } = await supabase
             .from("appointments")
             .select("*")
@@ -316,6 +218,7 @@ export async function POST(request: Request) {
             .limit(10);
 
           if (error) {
+            console.error("Supabase Error:", error);
             await replyToLine(replyToken, [
               {
                 type: "text",
@@ -324,12 +227,13 @@ export async function POST(request: Request) {
             ]);
             continue;
           }
+
           if (!data || data.length === 0) {
             await replyToLine(replyToken, [
               flex.getEmptyAppointment(queryTitle, liffUrl),
             ]);
           } else {
-            const remainingCount = (count || 0) > 10 ? (count || 0) - 10 : 0;
+            const remainingCount = totalCount > 10 ? totalCount - 10 : 0;
             await replyToLine(replyToken, [
               flex.getDateCarousel(
                 data,
@@ -343,6 +247,9 @@ export async function POST(request: Request) {
           continue;
         }
 
+        // ==========================================
+        // ส่วนอื่นๆ เช่น แจ้งเตือนสำเร็จ, รายการคิวงาน, ฟอร์มจอง (เหมือนเดิม)
+        // ==========================================
         if (
           userMessage.startsWith("ข้อมุลบันทึกคิวงาน") ||
           userMessage.startsWith("ข้อมูลบันทึกคิวงาน")
@@ -370,12 +277,14 @@ export async function POST(request: Request) {
           userMessage === "ดูตารางคิวงาน"
         ) {
           await startLoading(userId);
+          const todayStr = getThaiDateStr(0);
           const { count } = await supabase
             .from("appointments")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("status", "active")
             .gte("appointment_date", todayStr);
+          const totalCount = count || 0;
           const { data, error } = await supabase
             .from("appointments")
             .select("*")
@@ -397,35 +306,38 @@ export async function POST(request: Request) {
               flex.getEmptyAppointment("รายการคิวงาน", liffUrl),
             ]);
           } else {
-            const remainingCount = (count || 0) > 10 ? (count || 0) - 10 : 0;
+            const remainingCount = totalCount > 10 ? totalCount - 10 : 0;
             await replyToLine(replyToken, [
               flex.getListCarousel(data, remainingCount, liffUrl, "all"),
             ]);
           }
         } else if (
-          [
-            "บันทึกคิวงาน",
-            "จองคิว",
-            "จองนัด",
-            "ลงนัด",
-            "เพิ่มคิวงาน",
-            "เพิ่มงาน",
-            "เพิ่มนัด",
-          ].includes(userMessage)
+          userMessage === "บันทึกคิวงาน" ||
+          userMessage === "จองคิว" ||
+          userMessage === "จองนัด" ||
+          userMessage === "ลงนัด" ||
+          userMessage === "เพิ่มคิวงาน" ||
+          userMessage === "เพิ่มงาน" ||
+          userMessage === "เพิ่มนัด"
         ) {
           await replyToLine(replyToken, [flex.getOpenForm(liffUrl)]);
         }
       }
 
+      // ==========================================
+      // 🌟 เพิ่มใหม่: รับค่าจากระบบปฏิทิน (Datetime Picker)
+      // ==========================================
       if (
         event.type === "postback" &&
         event.postback.data === "action=search_date"
       ) {
         const replyToken = event.replyToken;
         const userId = event.source.userId;
-        const selectedDate = event.postback.params.date;
+        const selectedDate = event.postback.params.date; // จะได้ฟอร์แมต YYYY-MM-DD
 
         await startLoading(userId);
+
+        // แยก ปี-เดือน-วัน เพื่อเอาไปจัดรูปแบบให้สวยงาม
         const [y, m, d] = selectedDate.split("-");
         const thaiYear = parseInt(y) + 543;
         const queryTitle = `คิวงานวันที่ ${d}/${m}/${thaiYear}`;
@@ -436,7 +348,8 @@ export async function POST(request: Request) {
           .eq("user_id", userId)
           .eq("status", "active")
           .eq("appointment_date", selectedDate);
-        const { data } = await supabase
+
+        const { data, error } = await supabase
           .from("appointments")
           .select("*")
           .eq("user_id", userId)
