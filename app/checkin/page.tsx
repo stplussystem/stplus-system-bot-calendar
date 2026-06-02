@@ -311,16 +311,10 @@ export default function CheckinPage() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
 
-    // 🌟 แก้ไข Timezone ของประวัติให้แม่นยำขึ้น
-    const getThaiDateStr = (date: Date) => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    };
-
     let start = new Date();
     let end = new Date();
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
 
     if (historyFilter === "week") {
       const day = start.getDay();
@@ -331,18 +325,18 @@ export default function CheckinPage() {
     } else if (historyFilter === "custom") {
       start = new Date(customDate);
       end = new Date(customDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
     }
 
-    // แปลงรูปแบบวันที่และยัด Timezone เข้าไปตอน Query Database
-    const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
-    const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
-
+    // 🚨 แก้ไข 1: ลบคอลัมน์ work_type ทิ้งไป
+    // 🚨 แก้ไข 2: ใช้ toISOString เพื่อให้ฐานข้อมูลเข้าใจตรงกับ Timezone ท้องถิ่นของเรา
     const { data } = await supabase
       .from("attendance_logs")
-      .select(`*, attendance_topics ( title, team_type, work_type )`)
+      .select(`*, attendance_topics ( title, team_type )`)
       .eq("user_id", userProfile?.userId)
-      .gte("check_in_time", startStr)
-      .lte("check_in_time", endStr)
+      .gte("check_in_time", start.toISOString())
+      .lte("check_in_time", end.toISOString())
       .order("check_in_time", { ascending: false });
 
     if (data) setLogs(data);

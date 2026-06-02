@@ -45,7 +45,7 @@ const getThaiDateStr = (offsetDays = 0) => {
   return `${y}-${m}-${day}`;
 };
 
-// 🎨 ฟังก์ชันปั้น Flex Message เช็คอิน/เช็คเอาต์ (ย้ายมาไว้ที่นี่เพื่อป้องกัน Error)
+// 🎨 ฟังก์ชันปั้น Flex Message เช็คอิน/เช็คเอาต์
 function buildAttendanceFlex(isCheckin: boolean, data: any, actionUrl: string) {
   const headerColor = isCheckin ? "#009900" : "#EF454D";
 
@@ -381,16 +381,15 @@ export async function POST(request: Request) {
           userMessage === "📍 เช็คอินเข้างาน" ||
           userMessage === "📍 เช็คเอาต์ออกงาน"
         ) {
-          // 🔥 เรียกแอนิเมชันจุด 3 จุดทันทีที่ได้รับคำสั่ง
+          // 🔥 เรียกแอนิเมชันจุด 3 จุดทันที
           await startLoading(userId);
 
           const isCheckin = userMessage === "📍 เช็คอินเข้างาน";
 
+          // 🚨 แก้ไข: ลบคอลัมน์ work_type ที่ไม่มีอยู่ออกไป
           const { data: log, error } = await supabase
             .from("attendance_logs")
-            .select(
-              `*, attendance_topics ( title, shift_type, team_type, work_type )`,
-            )
+            .select(`*, attendance_topics ( title, shift_type, team_type )`)
             .eq("user_id", userId)
             .order("check_in_time", { ascending: false })
             .limit(1)
@@ -418,7 +417,6 @@ export async function POST(request: Request) {
                   ? "กำหนดเอง"
                   : "เช้า";
 
-            // ใช้ teamLabels แปลงเป็นภาษาไทย ถ้าไม่มีให้แสดงคำเดิม
             let teamStr =
               teamLabels[log.attendance_topics.team_type] ||
               log.attendance_topics.team_type;
@@ -434,17 +432,17 @@ export async function POST(request: Request) {
                 })
               : "-";
 
+            // 🚨 แก้ไข: ใช้ team_type ตรวจสอบออฟฟิศแทน
             const inLocation =
-              log.attendance_topics.work_type === "office"
+              log.attendance_topics.team_type === "office"
                 ? "ประจำออฟฟิศ"
                 : log.attendance_topics.title || "ไซต์งาน";
             const outLocation = log.check_out_time
-              ? log.attendance_topics.work_type === "office"
+              ? log.attendance_topics.team_type === "office"
                 ? "ประจำออฟฟิศ"
                 : log.attendance_topics.title || "ไซต์งาน"
               : "-";
 
-            // เรียกใช้ฟังก์ชันภายในไฟล์นี้เลย
             const flexMessage = buildAttendanceFlex(
               isCheckin,
               {
@@ -470,7 +468,7 @@ export async function POST(request: Request) {
               },
             ]);
           }
-          continue; // จบการทำงานลูปนี้ ไม่ต้องไปเช็ค Calendar ต่อ
+          continue;
         }
 
         // ==========================================
