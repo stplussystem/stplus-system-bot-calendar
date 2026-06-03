@@ -17,6 +17,7 @@ import {
   ImagePlus,
   X,
   LogOut,
+  MapPinHouse, // 🌟 เพิ่มการ Import ไอคอนตัวนี้เข้ามาแล้วครับ! ระบบจะไม่พังแล้ว
 } from "lucide-react";
 
 const supabase = createClient(
@@ -44,6 +45,9 @@ export default function CheckinPage() {
 
   const [topics, setTopics] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
+
+  const [checkoutTopic, setCheckoutTopic] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const [todayLog, setTodayLog] = useState<any>(null);
@@ -106,12 +110,10 @@ export default function CheckinPage() {
   useEffect(() => {
     setPhotoFile(null);
     setPhotoPreview(null);
-  }, [selectedTopic, activeTab]);
+  }, [selectedTopic, checkoutTopic, activeTab]);
 
   const checkTodayStatus = async () => {
     setIsCheckingStatus(true);
-
-    // 🌟 เปลี่ยนมาใช้การระบุ Timezone +07:00 (เวลาไทย) เพื่อความแม่นยำ
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
@@ -131,6 +133,7 @@ export default function CheckinPage() {
 
     if (data && !data.check_out_time) {
       setTodayLog(data);
+      setCheckoutTopic(data.topic_id);
     } else {
       setTodayLog(null);
     }
@@ -222,9 +225,10 @@ export default function CheckinPage() {
 
           if (error) throw error;
           showToast("Check-in สำเร็จแล้ว!", "success");
+
+          setCheckoutTopic(selectedTopic);
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
 
-          // 🌟 ครอบ Try-catch ป้องกัน Error ทำให้ Liff ไม่ยอมปิด
           try {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
@@ -256,7 +260,12 @@ export default function CheckinPage() {
 
   const handleCheckOut = async () => {
     if (!todayLog) return;
-    if (todayLog.attendance_topics.photo_mode !== "none" && !photoFile)
+
+    const finalTopicId = checkoutTopic || todayLog.topic_id;
+    const finalTopicData =
+      topics.find((t) => t.id === finalTopicId) || todayLog.attendance_topics;
+
+    if (finalTopicData.photo_mode !== "none" && !photoFile)
       return showToast("กรุณาแนบรูปภาพเพื่อ Check-out ครับ", "error");
 
     setLoading(true);
@@ -268,6 +277,7 @@ export default function CheckinPage() {
           const { error } = await supabase
             .from("attendance_logs")
             .update({
+              topic_id: finalTopicId,
               check_out_time: new Date().toISOString(),
               check_out_lat: position.coords.latitude,
               check_out_lng: position.coords.longitude,
@@ -279,7 +289,6 @@ export default function CheckinPage() {
           if (error) throw error;
           showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
 
-          // 🌟 ครอบ Try-catch ป้องกัน Error
           try {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
@@ -311,10 +320,15 @@ export default function CheckinPage() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
 
+    const getThaiDateStr = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
     let start = new Date();
     let end = new Date();
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
 
     if (historyFilter === "week") {
       const day = start.getDay();
@@ -325,18 +339,17 @@ export default function CheckinPage() {
     } else if (historyFilter === "custom") {
       start = new Date(customDate);
       end = new Date(customDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
     }
 
-    // 🚨 แก้ไข 1: ลบคอลัมน์ work_type ทิ้งไป
-    // 🚨 แก้ไข 2: ใช้ toISOString เพื่อให้ฐานข้อมูลเข้าใจตรงกับ Timezone ท้องถิ่นของเรา
+    const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
+    const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
+
     const { data } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, team_type )`)
       .eq("user_id", userProfile?.userId)
-      .gte("check_in_time", start.toISOString())
-      .lte("check_in_time", end.toISOString())
+      .gte("check_in_time", startStr)
+      .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
 
     if (data) setLogs(data);
@@ -369,7 +382,7 @@ export default function CheckinPage() {
   }
 
   const currentTopic = todayLog
-    ? todayLog.attendance_topics
+    ? topics.find((t) => t.id === checkoutTopic) || todayLog.attendance_topics
     : topics.find((t) => t.id === selectedTopic);
 
   return (
@@ -431,7 +444,7 @@ export default function CheckinPage() {
               <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
           ) : todayLog ? (
-            // 🔴 โหมด: ลงเวลาออกงาน (Check-out)
+            // 🔴 โหมด: ลงเวลาออกงาน (Check-out) ที่สามารถเลือกไซต์งานได้!
             <div className="bg-white rounded-3xl shadow-sm border border-red-100 overflow-hidden ring-1 ring-red-50">
               <div className="bg-red-50 p-6 border-b border-red-100 flex flex-col items-center text-center">
                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-red-500">
@@ -440,14 +453,48 @@ export default function CheckinPage() {
                 <h2 className="text-red-800 font-bold text-lg">
                   กำลังปฏิบัติงาน
                 </h2>
-                <p className="text-red-600/80 text-sm mt-1">
-                  หัวข้อ: {todayLog.attendance_topics.title}
-                </p>
                 <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-red-100 text-sm font-bold text-gray-700 shadow-sm">
                   เข้างานเวลา:{" "}
                   <span className="text-red-600">
                     {formatTime(todayLog.check_in_time)}
                   </span>
+                </div>
+              </div>
+
+              {/* 🌟 1. เพิ่มกล่องให้พนักงาน "จิ้มเลือกไซต์งาน" ก่อนออกงานได้ */}
+              <div className="p-6 pb-2 border-b border-gray-100">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
+                  <MapPinHouse className="h-5 w-5 text-orange-500" />{" "}
+                  เลือกสถานที่จบงานวันนี้ (เผื่อออกไซต์)
+                </label>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {topics.map((topic) => (
+                    <label
+                      key={topic.id}
+                      className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${checkoutTopic === topic.id ? "border-red-500 bg-red-50" : "border-gray-100 hover:border-red-200 hover:bg-gray-50"}`}
+                    >
+                      <input
+                        type="radio"
+                        className="hidden"
+                        checked={checkoutTopic === topic.id}
+                        onChange={() => setCheckoutTopic(topic.id)}
+                      />
+                      <div
+                        className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${checkoutTopic === topic.id ? "border-red-500" : "border-gray-300"}`}
+                      >
+                        {checkoutTopic === topic.id && (
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        )}
+                      </div>
+                      <div className="flex-1 truncate">
+                        <p
+                          className={`text-sm font-bold truncate ${checkoutTopic === topic.id ? "text-red-900" : "text-gray-700"}`}
+                        >
+                          {topic.title}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
@@ -578,7 +625,6 @@ export default function CheckinPage() {
                               {topic.start_time.substring(0, 5)} -{" "}
                               {topic.end_time.substring(0, 5)} น.
                             </span>
-                            {/* 🌟 3. แสดงชื่อทีมภาษาไทยที่ถูกต้องแล้ว */}
                             {topic.team_type !== "office" && (
                               <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">
                                 ไซต์:{" "}
