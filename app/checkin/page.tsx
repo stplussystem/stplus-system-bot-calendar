@@ -481,13 +481,17 @@ export default function CheckinPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
       {toast.show && (
-        <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 bg-white border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300">
+        <div className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${
+          toast.type === "success" 
+            ? "bg-green-50 border-green-200 text-green-800" 
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
           {toast.type === "success" ? (
             <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" />
           ) : (
             <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
           )}
-          <p className="text-sm font-bold text-gray-800 leading-relaxed">
+          <p className="text-sm font-bold leading-relaxed">
             {toast.message}
           </p>
         </div>
