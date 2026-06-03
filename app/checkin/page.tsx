@@ -38,6 +38,28 @@ const teamLabels: { [key: string]: string } = {
   team_other: "อื่นๆ",
 };
 
+// 🌟 ฟังก์ชันคำนวณระยะทาง GPS (Haversine Formula) คืนค่าเป็น "เมตร"
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+) => {
+  const R = 6371e3; // รัศมีโลก (เมตร)
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const deltaP = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(deltaP / 2) * Math.sin(deltaP / 2) +
+    Math.cos(p1) *
+      Math.cos(p2) *
+      Math.sin(deltaLon / 2) *
+      Math.sin(deltaLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 export default function CheckinPage() {
   const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
   const [isLiffInit, setIsLiffInit] = useState(false);
@@ -188,7 +210,15 @@ export default function CheckinPage() {
         cacheControl: "3600",
         upsert: false,
       });
-    if (uploadError) throw new Error("อัปโหลดรูปภาพไม่สำเร็จ");
+
+    // 🌟 ดัก Error ให้ชัดเจนขึ้น
+    if (uploadError) {
+      console.error("Storage Upload Error:", uploadError);
+      throw new Error(
+        `อัพรูปล้มเหลว! กรุณาตั้งค่า Bucket "attendance_photos" แบบ Public ใน Supabase Storage ก่อนครับ`,
+      );
+    }
+
     const { data: publicUrlData } = supabase.storage
       .from("attendance_photos")
       .getPublicUrl(fileName);
@@ -207,6 +237,25 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          // 🌟 เช็คระยะพิกัด GPS ก่อนทำอย่างอื่น!
+          if (
+            selectedTopicData.radius_meters > 0 &&
+            selectedTopicData.lat &&
+            selectedTopicData.lng
+          ) {
+            const distance = calculateDistance(
+              position.coords.latitude,
+              position.coords.longitude,
+              selectedTopicData.lat,
+              selectedTopicData.lng,
+            );
+            if (distance > selectedTopicData.radius_meters) {
+              throw new Error(
+                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${selectedTopicData.radius_meters}ม.)`,
+              );
+            }
+          }
+
           const uploadedPhotoUrl = await uploadPhoto();
           const { data, error } = await supabase
             .from("attendance_logs")
@@ -224,7 +273,6 @@ export default function CheckinPage() {
             .single();
 
           if (error) throw error;
-          // showToast("Check-in สำเร็จแล้ว!", "success");
 
           setCheckoutTopic(selectedTopic);
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
@@ -238,7 +286,6 @@ export default function CheckinPage() {
               liff.closeWindow();
             }
           } catch (liffError) {
-            console.error("LIFF Send Message Error:", liffError);
             setTimeout(() => setActiveTab("history"), 1500);
           }
         } catch (err: any) {
@@ -248,10 +295,7 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast(
-          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิดใช้งานการเข้าถึงตำแหน่ง (Location) ในโทรศัพท์มือถือ",
-          "error",
-        );
+        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
@@ -272,6 +316,25 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          // 🌟 เช็คระยะพิกัด GPS ก่อนทำอย่างอื่น!
+          if (
+            finalTopicData.radius_meters > 0 &&
+            finalTopicData.lat &&
+            finalTopicData.lng
+          ) {
+            const distance = calculateDistance(
+              position.coords.latitude,
+              position.coords.longitude,
+              finalTopicData.lat,
+              finalTopicData.lng,
+            );
+            if (distance > finalTopicData.radius_meters) {
+              throw new Error(
+                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${finalTopicData.radius_meters}ม.)`,
+              );
+            }
+          }
+
           const uploadedPhotoUrl = await uploadPhoto();
 
           const { error } = await supabase
@@ -287,7 +350,6 @@ export default function CheckinPage() {
             .eq("id", todayLog.id);
 
           if (error) throw error;
-          // showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
 
           try {
             const liff = (await import("@line/liff")).default;
@@ -300,7 +362,6 @@ export default function CheckinPage() {
               setTimeout(() => setActiveTab("history"), 1500);
             }
           } catch (liffError) {
-            console.error("LIFF Send Message Error:", liffError);
             setTimeout(() => setActiveTab("history"), 1500);
           }
         } catch (err: any) {
