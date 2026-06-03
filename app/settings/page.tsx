@@ -116,17 +116,22 @@ export default function SettingsPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  // 🌟 เพิ่มฟังก์ชันตัดลิงก์ Google Maps อัตโนมัติ (ยกมาจากหน้า Admin)
-  const handleMapsUrlParse = (url: string) => {
-    setFormData((prev) => ({ ...prev, maps_url: url }));
-    if (!url) return;
-    const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)/;
-    const match = url.match(regex);
+  // 🌟 อัปเกรดให้รองรับทั้ง URL ยาวๆ และ ตัวเลขพิกัดตรงๆ (เช่น 13.7563, 100.5018)
+  const handleMapsUrlParse = (input: string) => {
+    setFormData((prev) => ({ ...prev, maps_url: input }));
+    if (!input) return;
+
+    // Regex ตัวใหม่: ตรวจจับลิงก์ที่มี @, ลิงก์ที่มี q=, หรือ ตัวเลขพิกัดที่คั่นด้วยลูกน้ำตรงๆ
+    const regex =
+      /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)|^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
+    const match = input.match(regex);
+
     if (match) {
-      const lat = match[1] || match[3];
-      const lng = match[2] || match[4];
+      // ดึงค่าตาม Group ที่ Regex จับได้ (ขึ้นอยู่กับว่าตรงกับรูปแบบไหน)
+      const lat = match[1] || match[3] || match[5];
+      const lng = match[2] || match[4] || match[6];
       setFormData((prev) => ({ ...prev, lat, lng }));
-      showToast("ดึงพิกัดจากลิงก์สำเร็จ!", "success");
+      showToast("ดึงพิกัดสำเร็จ!", "success");
     }
   };
 
@@ -317,13 +322,38 @@ export default function SettingsPage() {
 
                   {/* 🌟 กล่องวางลิงก์ Google Maps แบบเดียวกับหน้า Admin */}
                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
-                      <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps
-                      เพื่อดึงพิกัด
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+                      <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
+                      พิกัด
                     </label>
+                    {/* 🌟 เพิ่มคู่มือแบบพับเก็บได้ (Accordion) */}
+                    <details className="mb-3 group">
+                      <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
+                        <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
+                          ?
+                        </span>
+                        วิธีดูพิกัดจากมือถือ (คลิก)
+                      </summary>
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
+                        <p>
+                          1. เปิดแอป <b>Google Maps</b>
+                        </p>
+                        <p>
+                          2. <b>แตะค้าง</b> (Long Press)
+                          ตรงจุดที่ต้องการให้ขึ้นหมุดสีแดง (Dropped Pin)
+                        </p>
+                        <p>
+                          3. เลื่อนดูรายละเอียดด้านล่าง จะเห็นตัวเลขพิกัด (เช่น{" "}
+                          <code className="bg-white px-1.5 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm font-mono">
+                            13.7563, 100.5018
+                          </code>
+                          ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                        </p>
+                      </div>
+                    </details>
                     <input
                       type="text"
-                      placeholder="https://maps.google.com/..."
+                      placeholder="วางลิงก์ Maps แบบยาว หรือ วางพิกัด (เช่น 13.123, 100.456)"
                       className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50 mb-3"
                       value={formData.maps_url}
                       onChange={(e) => handleMapsUrlParse(e.target.value)}
