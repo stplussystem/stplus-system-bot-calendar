@@ -702,7 +702,7 @@ export const getAttendanceMessage = (
               size: "lg",
               flex: 4,
               weight: "bold",
-              margin: "sm",
+              margin: "md",
             },
             {
               type: "box",
