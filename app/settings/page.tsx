@@ -398,12 +398,10 @@ export default function SettingsPage() {
                         setFormData({ ...formData, photo_mode: e.target.value })
                       }
                     >
-                      <option value="none">❌ ไม่ต้องแนบรูป</option>
-                      <option value="camera">
-                        📸 บังคับถ่ายจากกล้องสดเท่านั้น
-                      </option>
+                      <option value="none">ไม่ต้องแนบรูป</option>
+                      <option value="camera">ต้องถ่ายจากกล้องเท่านั้น</option>
                       <option value="gallery">
-                        🖼️ เลือกจากอัลบั้ม หรือ ถ่ายสดก็ได้
+                        เลือกจากอัลบั้ม หรือ ถ่ายสดก็ได้
                       </option>
                     </select>
                   </div>
