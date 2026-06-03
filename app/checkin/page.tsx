@@ -193,12 +193,19 @@ export default function CheckinPage() {
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
-      // 🌟 กรองสิทธิ์การมองเห็น: เห็นได้เฉพาะ ออฟฟิศ, งานทุกคน, หรือมีชื่อตัวเองในระบบ
+      // 🌟 กรองสิทธิ์การมองเห็น
       const visibleTopics = data.filter((t) => {
+        // 1. ถ้าเป็นออฟฟิศ หรือ เลือกทีมเป็น "ทั้งหมดทุกคน" -> เห็นทุกคน
         if (t.team_type === "office" || t.team_type === "team_all") return true;
+
+        // 🌟 2. (เพิ่มใหม่แก้บั๊ก) ถ้าเว้นว่างไว้ (ไม่ได้เลือกใครเลย) -> ถือว่าอนุญาตให้ทุกคนเห็น
+        if (!t.allowed_users || t.allowed_users.length === 0) return true;
+
+        // 3. ถ้ามีการเลือกบุคคลไว้ -> เช็คว่ามีไอดีของตัวเองอยู่ในนั้นไหม
         if (t.allowed_users && Array.isArray(t.allowed_users)) {
           return t.allowed_users.includes(userProfile?.userId);
         }
+
         return false;
       });
 
@@ -213,6 +220,7 @@ export default function CheckinPage() {
       setTopics([]);
     }
   };
+
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
