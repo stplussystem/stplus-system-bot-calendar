@@ -879,7 +879,7 @@ export default function CheckinPage() {
               onClick={() => setHistoryFilter("month")}
               className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
             >
-              รอบเงินเดือนนี้
+              รอบเงินเดือน
             </button>
             {/* 🌟 เพิ่มปุ่ม "กำหนดเอง" ลงในแถบเมนู */}
             <button
