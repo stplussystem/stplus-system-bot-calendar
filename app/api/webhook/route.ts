@@ -82,9 +82,14 @@ export async function POST(request: Request) {
           const log = logs && logs.length > 0 ? logs[0] : null;
 
           if (log && log.attendance_topics) {
-            const dateObj = new Date(
+            // 🌟 1. ปรับ Timezone ของวันที่ให้เป็นเวลาไทย (+7) เพื่อป้องกันปัญหาวันที่ข้ามไปเมื่อวาน
+            const rawDate = new Date(
               isCheckin ? log.check_in_time : log.check_out_time || new Date(),
             );
+            const thaiDateObj = new Date(
+              rawDate.getTime() + 7 * 60 * 60 * 1000,
+            );
+
             const dayNames = [
               "อาทิตย์",
               "จันทร์",
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
               "ศุกร์",
               "เสาร์",
             ];
-            const dateStr = `${dayNames[dateObj.getDay()]}ที่ ${String(dateObj.getDate()).padStart(2, "0")}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${dateObj.getFullYear() + 543}`;
+            const dateStr = `${dayNames[thaiDateObj.getUTCDay()]}ที่ ${String(thaiDateObj.getUTCDate()).padStart(2, "0")}/${String(thaiDateObj.getUTCMonth() + 1).padStart(2, "0")}/${thaiDateObj.getUTCFullYear() + 543}`;
 
             const shiftStr =
               log.attendance_topics.shift_type === "afternoon"
@@ -102,19 +107,25 @@ export async function POST(request: Request) {
                 : log.attendance_topics.shift_type === "custom"
                   ? "กำหนดเอง"
                   : "เช้า";
+
             const teamStr =
               teamLabels[log.attendance_topics.team_type] ||
               log.attendance_topics.team_type;
 
-            const inTime = new Date(log.check_in_time).toLocaleTimeString(
-              "th-TH",
-              { hour: "2-digit", minute: "2-digit" },
-            );
+            // 🌟 2. บังคับ Timezone เวลาเข้า-ออกงาน เป็น Asia/Bangkok และเติม " น."
+            const inTime =
+              new Date(log.check_in_time).toLocaleTimeString("th-TH", {
+                timeZone: "Asia/Bangkok",
+                hour: "2-digit",
+                minute: "2-digit",
+              }) + " น.";
+
             const outTime = log.check_out_time
               ? new Date(log.check_out_time).toLocaleTimeString("th-TH", {
+                  timeZone: "Asia/Bangkok",
                   hour: "2-digit",
                   minute: "2-digit",
-                })
+                }) + " น."
               : "-";
 
             const inLocation =
