@@ -89,7 +89,10 @@ export default function CheckinPage() {
   const [historyFilter, setHistoryFilter] = useState<
     "today" | "week" | "month" | "custom"
   >("today");
-  const [customDate, setCustomDate] = useState(
+  const [customStartDate, setCustomStartDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [customEndDate, setCustomEndDate] = useState(
     new Date().toISOString().split("T")[0],
   );
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -138,7 +141,14 @@ export default function CheckinPage() {
         }
       } else fetchHistory();
     }
-  }, [activeTab, historyFilter, customDate, isLiffInit, userProfile]);
+  }, [
+    activeTab,
+    historyFilter,
+    customStartDate,
+    customEndDate,
+    isLiffInit,
+    userProfile,
+  ]);
 
   useEffect(() => {
     setPhotoFile(null);
@@ -455,8 +465,8 @@ export default function CheckinPage() {
         end.setDate(20);
       }
     } else if (historyFilter === "custom") {
-      start = new Date(customDate);
-      end = new Date(customDate);
+      start = new Date(customStartDate);
+      end = new Date(customEndDate);
     }
 
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
@@ -865,14 +875,48 @@ export default function CheckinPage() {
             >
               สัปดาห์นี้
             </button>
-            {/* 🌟 เปลี่ยนปุ่ม เดือนนี้ เป็น รอบเงินเดือน */}
             <button
               onClick={() => setHistoryFilter("month")}
               className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
             >
               รอบเงินเดือนนี้
             </button>
+            {/* 🌟 เพิ่มปุ่ม "กำหนดเอง" ลงในแถบเมนู */}
+            <button
+              onClick={() => setHistoryFilter("custom")}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+            >
+              กำหนดเอง
+            </button>
           </div>
+
+          {/* 🌟 กล่องเลือกวันที่ จะแสดงเมื่อกดปุ่ม "กำหนดเอง" */}
+          {historyFilter === "custom" && (
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-500 font-bold mb-1">
+                  ตั้งแต่วันที่
+                </p>
+                <input
+                  type="date"
+                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-500 font-bold mb-1">
+                  ถึงวันที่
+                </p>
+                <input
+                  type="date"
+                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
@@ -888,8 +932,8 @@ export default function CheckinPage() {
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  onClick={() => setSelectedLog(log)} // 🌟 กดปุ๊บ เรียก Modal ขึ้นมา
-                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors active:scale-95"
+                  onClick={() => setSelectedLog(log)}
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors active:scale-95 group"
                 >
                   <div className="flex items-center gap-3">
                     {log.photo_url ? (
@@ -913,16 +957,21 @@ export default function CheckinPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+
+                  {/* 🌟 เพิ่มปุ่ม "ดูรายละเอียด" ด้านขวาให้เห็นชัดเจนขึ้น */}
+                  <div className="text-right shrink-0 flex flex-col items-end justify-center">
                     <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-0.5">
                       เข้า: {formatTime(log.check_in_time)}
                     </p>
-                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-2">
                       ออก:{" "}
                       {log.check_out_time
                         ? formatTime(log.check_out_time)
                         : "ยังไม่ลงชื่อ"}
                     </p>
+                    <button className="text-[10px] bg-gray-50 text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-700 font-bold px-2.5 py-1 rounded-md border border-gray-200 group-hover:border-blue-200 transition-colors">
+                      ดูรายละเอียด
+                    </button>
                   </div>
                 </div>
               ))}
