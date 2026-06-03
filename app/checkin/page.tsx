@@ -224,7 +224,7 @@ export default function CheckinPage() {
             .single();
 
           if (error) throw error;
-          showToast("Check-in สำเร็จแล้ว!", "success");
+          // showToast("Check-in สำเร็จแล้ว!", "success");
 
           setCheckoutTopic(selectedTopic);
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
@@ -287,7 +287,7 @@ export default function CheckinPage() {
             .eq("id", todayLog.id);
 
           if (error) throw error;
-          showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
+          // showToast("Check-out ออกงานสำเร็จแล้ว!", "success");
 
           try {
             const liff = (await import("@line/liff")).default;

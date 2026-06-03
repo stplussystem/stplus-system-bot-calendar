@@ -72,13 +72,14 @@ export async function POST(request: Request) {
           await startLoading(userId);
           const isCheckin = userMessage === "🕘 เช็คอินเข้างาน";
 
-          const { data: log, error } = await supabase
+          const { data: logs, error } = await supabase
             .from("attendance_logs")
             .select(`*, attendance_topics ( title, shift_type, team_type )`)
             .eq("user_id", userId)
-            .order("check_in_time", { ascending: false })
-            .limit(1)
-            .single();
+            .order("created_at", { ascending: false }) // 🌟 เรียงจากเวลาที่สร้างล่าสุด
+            .limit(1);
+
+          const log = logs && logs.length > 0 ? logs[0] : null;
 
           if (log && log.attendance_topics) {
             const dateObj = new Date(
