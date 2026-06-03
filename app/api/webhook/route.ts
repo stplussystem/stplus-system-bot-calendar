@@ -66,11 +66,11 @@ export async function POST(request: Request) {
         // 1. ระบบลงเวลาทำงาน (Check-in / Check-out)
         // ==========================================
         if (
-          userMessage === "🕘 เช็คอินเข้างาน" ||
-          userMessage === "🕕 เช็คเอาต์ออกงาน"
+          userMessage === "🕘 ลงชื่อเข้างาน" ||
+          userMessage === "🕕 ลงชื่อออกงาน"
         ) {
           await startLoading(userId);
-          const isCheckin = userMessage === "🕘 เช็คอินเข้างาน";
+          const isCheckin = userMessage === "🕘 ลงชื่อเข้างาน";
 
           const { data: logs, error } = await supabase
             .from("attendance_logs")

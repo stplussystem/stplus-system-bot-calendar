@@ -233,7 +233,7 @@ export default function CheckinPage() {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
               await liff.sendMessages([
-                { type: "text", text: "📍 เช็คอินเข้างาน" },
+                { type: "text", text: "🕘 ลงชื่อเข้างาน" },
               ]);
               liff.closeWindow();
             }
@@ -293,7 +293,7 @@ export default function CheckinPage() {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
               await liff.sendMessages([
-                { type: "text", text: "📍 เช็คเอาต์ออกงาน" },
+                { type: "text", text: "🕕 ลงชื่อออกงาน" },
               ]);
               liff.closeWindow();
             } else {
