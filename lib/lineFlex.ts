@@ -634,7 +634,9 @@ export const getOpenForm = (liffUrl: string) => ({
   },
 });
 
-// 6. Flex แจ้งเตือนการ Check-in / Check-out (ฉบับอัปเกรด ดีไซน์กล่องเทา + ปุ่มแดง)
+// ==========================================
+// 6. Flex แจ้งเตือนการ Check-in / Check-out
+// ==========================================
 export const getAttendanceMessage = (
   isCheckin: boolean,
   data: {
@@ -651,9 +653,10 @@ export const getAttendanceMessage = (
 ) => {
   const headerColor = isCheckin ? "#009900" : "#EF454D";
 
-  // 🌟 ตั้งค่าตัวแปรสำหรับสถานะขาออก (Check-out)
+  // 🌟 ตั้งค่าสีและข้อความของกล่องขาออกให้เปลี่ยนตามสถานะ
   const outStatusColor = isCheckin ? "#b7b7b7" : "#EF454D";
   const outTimeText = isCheckin ? "ยังไม่..." : data.outTime;
+  const outTimeFontColor = isCheckin ? "#b7b7b7" : "#000000";
 
   const flexObj: any = {
     type: "bubble",
@@ -753,7 +756,7 @@ export const getAttendanceMessage = (
           ],
         },
 
-        // 🟢 กล่องเวลาเข้างาน (แสดงเสมอ)
+        // 🟢 กล่องเวลาเข้างาน (วงกลมเขียว)
         {
           type: "box",
           layout: "horizontal",
@@ -842,7 +845,7 @@ export const getAttendanceMessage = (
           ],
         },
 
-        // 🔴/⚪ กล่องเวลาออกงาน (เปลี่ยนสีตามสถานะ)
+        // 🔴/⚪ กล่องเวลาออกงาน (วงกลมเปลี่ยนสีตามสถานะ)
         {
           type: "box",
           layout: "horizontal",
@@ -859,7 +862,7 @@ export const getAttendanceMessage = (
                   text: outTimeText,
                   gravity: "center",
                   size: "sm",
-                  color: outStatusColor,
+                  color: outTimeFontColor,
                 },
               ],
             },
@@ -897,7 +900,7 @@ export const getAttendanceMessage = (
     },
   };
 
-  // 🔴 ถ้าเป็นการออกงาน (Check-out) ให้เพิ่มสถานที่ขาออกต่อท้าย
+  // 🔴 ถ้าเป็นการออกงานแล้ว (Check-out) ให้เพิ่มสถานที่ขาออกต่อท้ายสุด
   if (!isCheckin) {
     flexObj.body.contents.push({
       type: "box",

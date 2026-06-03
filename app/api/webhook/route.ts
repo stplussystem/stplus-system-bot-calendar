@@ -12,14 +12,12 @@ const channelAccessToken = (process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
 const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
 const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}`;
-// 🌟 เพิ่มลิงก์หน้า Checkin
 const checkinLiffUrl = `${liffUrl}/checkin`;
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
 
-// Dictionary แปลงชื่อทีม
 const teamLabels: { [key: string]: string } = {
   team_all: "ทั้งหมดทุกคน",
   team_n: "พี่นุ",
@@ -65,15 +63,13 @@ export async function POST(request: Request) {
         const userId = event.source.userId;
 
         // ==========================================
-        // 🌟 1. ดักจับคำสั่งลงเวลาทำงาน (Check-in / Check-out)
+        // 1. ระบบลงเวลาทำงาน (Check-in / Check-out)
         // ==========================================
         if (
           userMessage === "🕘 เช็คอินเข้างาน" ||
           userMessage === "🕕 เช็คเอาต์ออกงาน"
         ) {
-          // 🔥 เรียกแอนิเมชันจุด 3 จุดทันที
           await startLoading(userId);
-
           const isCheckin = userMessage === "🕘 เช็คอินเข้างาน";
 
           const { data: log, error } = await supabase
@@ -99,14 +95,13 @@ export async function POST(request: Request) {
             ];
             const dateStr = `${dayNames[dateObj.getDay()]}ที่ ${String(dateObj.getDate()).padStart(2, "0")}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${dateObj.getFullYear() + 543}`;
 
-            let shiftStr =
+            const shiftStr =
               log.attendance_topics.shift_type === "afternoon"
                 ? "บ่าย"
                 : log.attendance_topics.shift_type === "custom"
                   ? "กำหนดเอง"
                   : "เช้า";
-
-            let teamStr =
+            const teamStr =
               teamLabels[log.attendance_topics.team_type] ||
               log.attendance_topics.team_type;
 
@@ -131,7 +126,6 @@ export async function POST(request: Request) {
                 : log.attendance_topics.title || "ไซต์งาน"
               : "-";
 
-            // 🚀 เรียกใช้ฟังก์ชันจากไฟล์ lineFlex.ts
             const flexMessage = flex.getAttendanceMessage(
               isCheckin,
               {
@@ -161,20 +155,14 @@ export async function POST(request: Request) {
         }
 
         // ==========================================
-        // 📅 2. ระบบ Calendar เดิมทั้งหมด (ไม่พังแน่นอน!)
+        // 2. ระบบจัดการคิวงาน (Calendar)
         // ==========================================
-        let startDate = "";
-        let endDate = "";
-        let queryTitle = "";
-        let matchDateQuery = false;
-        let filterParam = "all";
-
         const todayStr = getThaiDateStr(0);
 
         if (
-          userMessage === "ดูตารางคิวงานด่วน" ||
-          userMessage === "ดูตารางนัดด่วน" ||
-          userMessage === "เมนูด่วน"
+          ["ดูตารางคิวงานด่วน", "ดูตารางนัดด่วน", "เมนูด่วน"].includes(
+            userMessage,
+          )
         ) {
           await replyToLine(replyToken, [
             {
@@ -230,6 +218,12 @@ export async function POST(request: Request) {
           continue;
         }
 
+        let startDate = "";
+        let endDate = "";
+        let queryTitle = "";
+        let matchDateQuery = false;
+        let filterParam = "all";
+
         const dateRegex =
           /^(?:ระบุวัน|วันที่|คิววันที่|คิวงานวันที่)?\s*(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
         const dateMatch = userMessage.match(dateRegex);
@@ -256,37 +250,27 @@ export async function POST(request: Request) {
             },
           ]);
           continue;
-        } else if (
-          userMessage === "คิววันนี้" ||
-          userMessage === "คิวงานวันนี้"
-        ) {
+        } else if (["คิววันนี้", "คิวงานวันนี้"].includes(userMessage)) {
           startDate = todayStr;
           endDate = todayStr;
           queryTitle = "คิวงานวันนี้";
           matchDateQuery = true;
           filterParam = "today";
-        } else if (
-          userMessage === "คิวพรุ่งนี้" ||
-          userMessage === "คิวงานพรุ่งนี้"
-        ) {
+        } else if (["คิวพรุ่งนี้", "คิวงานพรุ่งนี้"].includes(userMessage)) {
           startDate = getThaiDateStr(1);
           endDate = startDate;
           queryTitle = "คิวงานพรุ่งนี้";
           matchDateQuery = true;
           filterParam = "tomorrow";
         } else if (
-          userMessage === "คิวสัปดาห์นี้" ||
-          userMessage === "คิวงานสัปดาห์นี้"
+          ["คิวสัปดาห์นี้", "คิวงานสัปดาห์นี้"].includes(userMessage)
         ) {
           startDate = todayStr;
           endDate = getThaiDateStr(6);
           queryTitle = "คิวงานสัปดาห์นี้";
           matchDateQuery = true;
           filterParam = "week";
-        } else if (
-          userMessage === "คิวเดือนนี้" ||
-          userMessage === "คิวงานเดือนนี้"
-        ) {
+        } else if (["คิวเดือนนี้", "คิวงานเดือนนี้"].includes(userMessage)) {
           startDate = todayStr;
           const d = new Date();
           const thaiTime = new Date(d.getTime() + 7 * 60 * 60 * 1000);
@@ -369,9 +353,7 @@ export async function POST(request: Request) {
             ),
           ]);
         } else if (
-          userMessage === "รายการคิวงาน" ||
-          userMessage === "ดูตารางนัด" ||
-          userMessage === "ดูตารางคิวงาน"
+          ["รายการคิวงาน", "ดูตารางนัด", "ดูตารางคิวงาน"].includes(userMessage)
         ) {
           await startLoading(userId);
           const { count } = await supabase
@@ -403,7 +385,7 @@ export async function POST(request: Request) {
           } else {
             const remainingCount = (count || 0) > 10 ? (count || 0) - 10 : 0;
             await replyToLine(replyToken, [
-              flex.getListCarousel(data, remainingCount, liffUrl, "all"),
+              flex.getListCarousel(data, remainingCount, liffUrl),
             ]);
           }
         } else if (
@@ -421,6 +403,9 @@ export async function POST(request: Request) {
         }
       }
 
+      // ==========================================
+      // 3. Postback Events (การเลือกวันที่จาก Date Picker)
+      // ==========================================
       if (
         event.type === "postback" &&
         event.postback.data === "action=search_date"

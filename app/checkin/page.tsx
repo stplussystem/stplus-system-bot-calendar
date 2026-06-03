@@ -17,7 +17,7 @@ import {
   ImagePlus,
   X,
   LogOut,
-  MapPinHouse, // 🌟 เพิ่มการ Import ไอคอนตัวนี้เข้ามาแล้วครับ! ระบบจะไม่พังแล้ว
+  MapPinHouse,
 } from "lucide-react";
 
 const supabase = createClient(
