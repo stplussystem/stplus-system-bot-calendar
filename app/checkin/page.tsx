@@ -259,7 +259,7 @@ export default function CheckinPage() {
               const distanceText =
                 distance < 1000
                   ? `${Math.ceil(distance)} เมตร`
-                  : `${(distance / 1000).toFixed(2)} กิโลเมตร`;
+                  : `${Number((distance / 1000).toFixed(2))} กิโลเมตร`;
 
               throw new Error(
                 `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
