@@ -125,6 +125,15 @@ export default function CheckinPage() {
       if (activeTab === "checkin") {
         checkTodayStatus();
         fetchActiveTopics();
+
+        // 🌟 เพิ่มระบบ วอร์มอัป GPS แบบเงียบๆ ทันทีที่เปิดหน้าเว็บ
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            () => {}, // สำเร็จไม่ทำอะไร แค่ปลุกชิป
+            () => {}, // พลาดก็ไม่ทำอะไร
+            { enableHighAccuracy: true, maximumAge: 0 },
+          );
+        }
       } else fetchHistory();
     }
   }, [activeTab, historyFilter, customDate, isLiffInit, userProfile]);
@@ -237,7 +246,16 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          // 🌟 เช็คระยะพิกัด GPS ก่อนทำอย่างอื่น!
+          // 🌟 1. เช็คความแม่นยำ (Accuracy) ของสัญญาณ GPS ก่อน
+          const accuracy = position.coords.accuracy;
+          if (accuracy > 150) {
+            // ถ้าคลาดเคลื่อนเกิน 150 เมตร แปลว่าจับจากเสาสัญญาณมือถือ ไม่ใช่ดาวเทียม
+            throw new Error(
+              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาทีแล้วกดใหม่ครับ`,
+            );
+          }
+
+          // 🌟 2. เช็คระยะพิกัด (Radar)
           if (
             selectedTopicData.radius_meters > 0 &&
             selectedTopicData.lat &&
@@ -250,13 +268,8 @@ export default function CheckinPage() {
               selectedTopicData.lng,
             );
             if (distance > selectedTopicData.radius_meters) {
-              const distanceText =
-                distance < 1000
-                  ? `${Math.ceil(distance)} เมตร`
-                  : `${Number((distance / 1000).toFixed(2))} กิโลเมตร`;
-
               throw new Error(
-                `ไม่สามารถลงเวลาได้! คุณอยู่ห่างจากสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
+                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${selectedTopicData.radius_meters}ม.)`,
               );
             }
           }
@@ -300,10 +313,13 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location และอนุญาตการเข้าถึง",
+          "error",
+        );
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   };
 
@@ -321,7 +337,15 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          // 🌟 เช็คระยะพิกัด GPS ก่อนทำอย่างอื่น!
+          // 🌟 1. เช็คความแม่นยำ (Accuracy) ของสัญญาณ GPS ก่อน
+          const accuracy = position.coords.accuracy;
+          if (accuracy > 150) {
+            throw new Error(
+              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาทีแล้วกดใหม่ครับ`,
+            );
+          }
+
+          // 🌟 2. เช็คระยะพิกัด (Radar)
           if (
             finalTopicData.radius_meters > 0 &&
             finalTopicData.lat &&
@@ -376,10 +400,13 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location และอนุญาตการเข้าถึง",
+          "error",
+        );
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   };
 
