@@ -249,12 +249,6 @@ export default function CheckinPage() {
               selectedTopicData.lat,
               selectedTopicData.lng,
             );
-            // if (distance > selectedTopicData.radius_meters) {
-            //   throw new Error(
-            //     `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)/1000} เมตร (กำหนดไว้ ${selectedTopicData.radius_meters}ม.)`,
-            //   );
-            // }
-
             if (distance > selectedTopicData.radius_meters) {
               const distanceText =
                 distance < 1000
@@ -262,7 +256,7 @@ export default function CheckinPage() {
                   : `${Number((distance / 1000).toFixed(2))} กิโลเมตร`;
 
               throw new Error(
-                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
+                `ไม่สามารถลงเวลาได้! คุณอยู่ห่างจากสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
               );
             }
           }
