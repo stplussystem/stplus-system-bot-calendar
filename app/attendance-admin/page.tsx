@@ -128,8 +128,15 @@ export default function AttendanceAdminPage() {
       .order("created_at", { ascending: false });
 
     if (data) {
-      const active = data.filter((t) => t.is_active && t.end_date >= todayStr);
-      const past = data.filter((t) => !t.is_active || t.end_date < todayStr);
+      // 🌟 กรองเอาหัวข้อที่เป็น "office" ออกไปซ่อนไว้ก่อน (รอทำหน้า Setting แยก)
+      const filteredData = data.filter((t) => t.team_type !== "office");
+
+      const active = filteredData.filter(
+        (t) => t.is_active && t.end_date >= todayStr,
+      );
+      const past = filteredData.filter(
+        (t) => !t.is_active || t.end_date < todayStr,
+      );
       setActiveTopics(active);
       setPastTopics(past);
     }

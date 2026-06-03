@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ระบบบันทึกการนัดหมาย",
-  description: "บันทึกการนัดหมายลงระบบ และ Google Calendar",
+  title: "ระบบออฟฟิศ ST PLUS SYSTEM",
+  description: "ระบบออฟฟิศ ST PLUS SYSTEM ลงชื่อเข้า-ออก งาน ปฏิทิน และอื่นๆ",
 };
 
 export default function RootLayout({

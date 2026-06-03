@@ -93,6 +93,8 @@ export default function CheckinPage() {
     new Date().toISOString().split("T")[0],
   );
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // 🌟 เพิ่ม State สำหรับเปิด/ปิดหน้าต่างดูรายละเอียดประวัติ
+  const [selectedLog, setSelectedLog] = useState<any>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -179,15 +181,28 @@ export default function CheckinPage() {
       .eq("is_active", true)
       .gte("end_date", todayStr)
       .order("created_at", { ascending: false });
+
     if (data && data.length > 0) {
-      setTopics(data);
-      if (!selectedTopic || !data.find((t) => t.id === selectedTopic))
-        setSelectedTopic(data[0].id);
+      // 🌟 กรองสิทธิ์การมองเห็น: เห็นได้เฉพาะ ออฟฟิศ, งานทุกคน, หรือมีชื่อตัวเองในระบบ
+      const visibleTopics = data.filter((t) => {
+        if (t.team_type === "office" || t.team_type === "team_all") return true;
+        if (t.allowed_users && Array.isArray(t.allowed_users)) {
+          return t.allowed_users.includes(userProfile?.userId);
+        }
+        return false;
+      });
+
+      setTopics(visibleTopics);
+      if (
+        !selectedTopic ||
+        !visibleTopics.find((t) => t.id === selectedTopic)
+      ) {
+        if (visibleTopics.length > 0) setSelectedTopic(visibleTopics[0].id);
+      }
     } else {
       setTopics([]);
     }
   };
-
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
@@ -428,7 +443,17 @@ export default function CheckinPage() {
       const diff = start.getDate() - day + (day === 0 ? -6 : 1);
       start.setDate(diff);
     } else if (historyFilter === "month") {
-      start.setDate(1);
+      // 🌟 ลอจิกรอบเงินเดือน (ตัดวันที่ 20 ของทุกเดือน)
+      const todayDate = start.getDate();
+      if (todayDate <= 20) {
+        start.setMonth(start.getMonth() - 1);
+        start.setDate(21);
+        end.setDate(20);
+      } else {
+        start.setDate(21);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(20);
+      }
     } else if (historyFilter === "custom") {
       start = new Date(customDate);
       end = new Date(customDate);
@@ -481,19 +506,19 @@ export default function CheckinPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
       {toast.show && (
-        <div className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${
-          toast.type === "success" 
-            ? "bg-green-50 border-green-200 text-green-800" 
-            : "bg-red-50 border-red-200 text-red-800"
-        }`}>
+        <div
+          className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${
+            toast.type === "success"
+              ? "bg-green-50 border-green-200 text-green-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
           {toast.type === "success" ? (
             <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" />
           ) : (
             <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
           )}
-          <p className="text-sm font-bold leading-relaxed">
-            {toast.message}
-          </p>
+          <p className="text-sm font-bold leading-relaxed">{toast.message}</p>
         </div>
       )}
 
@@ -840,13 +865,15 @@ export default function CheckinPage() {
             >
               สัปดาห์นี้
             </button>
+            {/* 🌟 เปลี่ยนปุ่ม เดือนนี้ เป็น รอบเงินเดือน */}
             <button
               onClick={() => setHistoryFilter("month")}
               className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
             >
-              เดือนนี้
+              รอบเงินเดือนนี้
             </button>
           </div>
+
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
@@ -861,7 +888,8 @@ export default function CheckinPage() {
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3"
+                  onClick={() => setSelectedLog(log)} // 🌟 กดปุ๊บ เรียก Modal ขึ้นมา
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors active:scale-95"
                 >
                   <div className="flex items-center gap-3">
                     {log.photo_url ? (
@@ -900,6 +928,88 @@ export default function CheckinPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 🌟 โค้ดส่วน Modal (Pop-up) แสดงรายละเอียดการลงเวลา */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
+              <h3 className="font-bold flex items-center gap-2">
+                <History className="w-5 h-5" /> รายละเอียดการลงเวลา
+              </h3>
+              <button
+                onClick={() => setSelectedLog(null)}
+                className="bg-black/20 hover:bg-black/40 p-1.5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
+              {/* รูปภาพขาเข้า */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-500">
+                  📸 รูปถ่ายลงชื่อเข้างาน
+                </p>
+                {selectedLog.photo_url ? (
+                  <img
+                    src={selectedLog.photo_url}
+                    className="w-full rounded-2xl aspect-video object-cover border border-gray-200"
+                  />
+                ) : (
+                  <div className="w-full aspect-video bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-center text-gray-400 text-sm font-bold">
+                    ไม่มีรูปภาพ
+                  </div>
+                )}
+              </div>
+
+              {/* ข้อมูลเวลา */}
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-500 mb-1">
+                    📍 สถานที่ / หัวข้องาน
+                  </p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {selectedLog.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 mb-1">
+                      🟢 เวลาเข้า
+                    </p>
+                    <p className="text-sm font-bold text-green-600">
+                      {formatTime(selectedLog.check_in_time)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 mb-1">
+                      🔴 เวลาออก
+                    </p>
+                    <p className="text-sm font-bold text-red-500">
+                      {selectedLog.check_out_time
+                        ? formatTime(selectedLog.check_out_time)
+                        : "ยังไม่ลงชื่อออก"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ลิงก์แผนที่ (ถ้ามีพิกัด) */}
+              {selectedLog.check_in_lat && selectedLog.check_in_lng && (
+                <a
+                  href={`https://www.google.com/maps?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 px-4 rounded-xl transition-colors text-sm"
+                >
+                  <MapPinHouse className="w-4 h-4" /> ดูพิกัดตอนเข้างานบนแผนที่
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
