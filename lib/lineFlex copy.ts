@@ -1,7 +1,7 @@
 // ไฟล์: lib/lineFlex.ts
 
 // 🔥 ออบเจกต์เก็บชุดสี 7 วัน (Pastel สำหรับพื้นหลัง / Dark สำหรับตัวหนังสือ)
-export const getDayTheme = (dateStr: string) => {
+const getDayTheme = (dateStr: string) => {
   const themes: { [key: number]: { light: string; dark: string } } = {
     0: { light: "#FEE2E2", dark: "#991B1B" }, // อาทิตย์ (แดง)
     1: { light: "#FEF9C3", dark: "#A16207" }, // จันทร์ (เหลือง)
@@ -15,10 +15,6 @@ export const getDayTheme = (dateStr: string) => {
   const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
   return themes[dateObj.getDay()] || { light: "#F3F4F6", dark: "#374151" };
 };
-
-// ==========================================
-// ส่วนที่ 1: ระบบคิวงาน (Appointments)
-// ==========================================
 
 // 1. Flex กรณี "ไม่มีคิวงาน"
 export const getEmptyAppointment = (queryTitle: string, liffUrl: string) => ({
@@ -70,7 +66,7 @@ export const getEmptyAppointment = (queryTitle: string, liffUrl: string) => ({
   },
 });
 
-// 2. Flex สำหรับแสดง Carousel คิวงาน
+// 2. Flex สำหรับแสดง Carousel คิวงาน (ดีไซน์ Pop-up ถอดแบบจากเว็บ)
 export const getDateCarousel = (
   displayData: any[],
   queryTitle: string,
@@ -111,6 +107,7 @@ export const getDateCarousel = (
         alignItems: "center",
         contents: [
           { type: "text", text: "🧾", flex: 0, size: "md" },
+          // 🔥 เปลี่ยนมาใช้ queryTitle ที่ผู้ใช้พิมพ์ และใส่ wrap: true
           {
             type: "text",
             text: ` ${queryTitle}`,
@@ -142,6 +139,8 @@ export const getDateCarousel = (
             weight: "bold",
             wrap: true,
           },
+
+          // 🔥 กล่องวันที่และเวลา: ปรับสัดส่วน flex และใส่ wrap: true ป้องกันตกขอบ
           {
             type: "box",
             layout: "horizontal",
@@ -177,6 +176,7 @@ export const getDateCarousel = (
               { type: "text", text: "🕒", align: "end", size: "xl", flex: 1 },
             ],
           },
+
           {
             type: "box",
             layout: "horizontal",
@@ -228,6 +228,7 @@ export const getDateCarousel = (
               },
             ],
           },
+
           {
             type: "box",
             layout: "horizontal",
@@ -634,7 +635,7 @@ export const getOpenForm = (liffUrl: string) => ({
 });
 
 // ==========================================
-// ส่วนที่ 2: ระบบลงเวลาเข้า-ออกงาน (Attendance)
+// 6. Flex แจ้งเตือนการ Check-in / Check-out
 // ==========================================
 export const getAttendanceMessage = (
   isCheckin: boolean,
@@ -966,148 +967,4 @@ export const getAttendanceMessage = (
   }
 
   return flexObj;
-};
-
-// ==========================================
-// ส่วนที่ 3: ระบบลางาน (Leave Requests)
-// ==========================================
-
-// ลิงก์สำหรับให้หัวหน้ากดเข้ามาหน้าอนุมัติ (ต่อท้ายด้วย ?tab=approval)
-const APPROVAL_URL =
-  "https://liff.line.me/2010143328-wyg8T4P5/leave?tab=approval";
-
-export const generateLeaveRequestFlex = (
-  employeeName: string,
-  leaveTypeName: string,
-  timeText: string,
-  reason: string,
-) => {
-  return {
-    type: "flex",
-    altText: `มีคำขออนุมัติลางานจาก ${employeeName}`,
-    contents: {
-      type: "bubble",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: "#1e3a8a",
-        contents: [
-          {
-            type: "text",
-            text: "🔔 ขออนุมัติลางาน",
-            weight: "bold",
-            color: "#ffffff",
-            size: "lg",
-          },
-        ],
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "md",
-        contents: [
-          {
-            type: "text",
-            text: `พนักงาน: ${employeeName}`,
-            weight: "bold",
-            size: "md",
-          },
-          {
-            type: "text",
-            text: `ประเภท: ${leaveTypeName}`,
-            size: "sm",
-            color: "#666666",
-          },
-          {
-            type: "text",
-            text: `วันที่: ${timeText}`,
-            size: "sm",
-            color: "#666666",
-          },
-          {
-            type: "text",
-            text: `เหตุผล: ${reason}`,
-            size: "sm",
-            color: "#666666",
-            wrap: true,
-          },
-        ],
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "button",
-            style: "primary",
-            color: "#f97316",
-            action: { type: "uri", label: "พิจารณาอนุมัติ", uri: APPROVAL_URL },
-          },
-        ],
-      },
-    },
-  };
-};
-
-export const generateLeaveResultFlex = (
-  employeeName: string,
-  leaveTypeName: string,
-  dateText: string,
-  isApproved: boolean,
-  rejectReason: string,
-) => {
-  const statusText = isApproved
-    ? "✅ อนุมัติการลางาน"
-    : "❌ ไม่อนุมัติการลางาน";
-  const headerColor = isApproved ? "#16a34a" : "#dc2626";
-
-  return {
-    type: "flex",
-    altText: `แจ้งผลการอนุมัติลางาน: ${statusText}`,
-    contents: {
-      type: "bubble",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: headerColor,
-        contents: [
-          {
-            type: "text",
-            text: statusText,
-            weight: "bold",
-            color: "#ffffff",
-            size: "md",
-          },
-        ],
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          {
-            type: "text",
-            text: `เรียนคุณ: ${employeeName}`,
-            weight: "bold",
-            size: "sm",
-          },
-          {
-            type: "text",
-            text: `รายการ: ${leaveTypeName} (${dateText})`,
-            size: "xs",
-            color: "#666666",
-          },
-          {
-            type: "text",
-            text: isApproved
-              ? "คำขอของคุณได้รับการอนุมัติเรียบร้อยแล้ว"
-              : `เหตุผล: ${rejectReason || "ไม่ได้ระบุ"}`,
-            size: "sm",
-            wrap: true,
-            margin: "md",
-          },
-        ],
-      },
-    },
-  };
 };
