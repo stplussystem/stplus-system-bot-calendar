@@ -627,43 +627,54 @@ export default function AttendanceAdminPage() {
             <hr className="border-gray-100" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ระยะบังคับ GPS (เมตร)
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <label className="flex justify-between items-center text-sm font-semibold text-gray-700 mb-3">
+                  <span className="flex items-center gap-2">
+                    <Radar className="w-4 h-4 text-blue-600" /> ระยะบังคับ GPS
+                    (เมตร)
+                  </span>
+                  <span className="text-blue-700 font-bold bg-white px-3 py-1 rounded-md shadow-sm text-xs border border-blue-100">
+                    {formData.radius_meters === 0
+                      ? "❌ ปิดใช้งาน"
+                      : `${formData.radius_meters} ม.`}
+                  </span>
                 </label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none"
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  step="50"
+                  className="w-full accent-blue-600"
                   value={formData.radius_meters}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      radius_meters: Number(e.target.value),
+                      radius_meters: parseInt(e.target.value),
                     })
                   }
-                >
-                  <option value={50}>50 เมตร (เข้มงวด)</option>
-                  <option value={100}>100 เมตร (มาตรฐาน)</option>
-                  <option value={200}>200 เมตร (ยืดหยุ่น)</option>
-                  <option value={300}>300 เมตร (ไซต์กว้าง)</option>
-                  <option value={500}>500 เมตร (ไซต์กว้างมาก)</option>
-                  <option value={1000}>1 กิโลเมตร (ไซต์กว้างมากที่สุด)</option>
-                  <option value={0}>ไม่กำหนดระยะบังคับ</option>
-                </select>
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
+                  <span>ปิดใช้งาน (0)</span>
+                  <span>ยืดหยุ่น (1000)</span>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  การแนบรูปภาพ
+              <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                <label className="flex items-center gap-2 text-sm font-semibold text-emerald-900 mb-3">
+                  <Camera className="w-4 h-4 text-emerald-600" /> การยืนยันตัวตน
+                  (รูปถ่าย)
                 </label>
                 <select
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none"
+                  className="w-full border border-emerald-200 rounded-lg p-3 text-sm outline-none bg-white focus:ring-2 focus:ring-emerald-500 appearance-none font-bold text-gray-700 cursor-pointer"
                   value={formData.photo_mode}
                   onChange={(e) =>
                     setFormData({ ...formData, photo_mode: e.target.value })
                   }
                 >
-                  <option value="none">ไม่บังคับถ่ายรูป</option>
-                  <option value="upload">เลือกรูปได้</option>
-                  <option value="camera">บังคับเปิดกล้องถ่ายสด</option>
+                  <option value="none">ไม่ต้องแนบรูป</option>
+                  <option value="camera">บังคับถ่ายจากกล้องสดเท่านั้น</option>
+                  <option value="upload">
+                    เลือกจากอัลบั้ม หรือ ถ่ายสดก็ได้
+                  </option>
                 </select>
               </div>
             </div>
@@ -718,21 +729,22 @@ export default function AttendanceAdminPage() {
                 activeTopics.map((topic) => (
                   <div
                     key={topic.id}
-                    className="p-5 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50 transition-colors gap-4"
+                    className="p-4 flex flex-row items-center justify-between hover:bg-gray-50 transition-colors gap-3"
                   >
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-base">
+                    {/* ข้อมูลด้านซ้าย */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 text-base truncate">
                         {topic.title}
                       </h3>
-                      <div className="text-xs text-gray-500 flex flex-col gap-y-1 mt-2">
-                        <p>
-                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold text-[11px]">
-                            หัวหน้าทีม:{" "}
+                      <div className="text-xs text-gray-500 flex flex-col gap-y-1.5 mt-2">
+                        <div className="flex items-center">
+                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            หัวหน้า:{" "}
                             {teamLabels[topic.team_type] || topic.team_type}
                           </span>
-                        </p>
+                        </div>
                         {topic.team_type !== "office" && (
-                          <p className="text-[11px] text-gray-500 font-medium pl-1 mt-1">
+                          <p className="text-[10px] text-gray-500 font-medium truncate">
                             👥 ผู้เข้าร่วม:{" "}
                             <span className="text-orange-600 font-bold">
                               {getEmployeeNames(topic.allowed_users)}
@@ -741,10 +753,12 @@ export default function AttendanceAdminPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2 self-start sm:self-center">
+
+                    {/* ปุ่มแก้ไข/ลบ ด้านขวา */}
+                    <div className="flex flex-row items-center gap-2 shrink-0">
                       <button
                         onClick={() => handleEditClick(topic)}
-                        className="bg-white border border-gray-200 hover:border-blue-500 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-bold"
+                        className="bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-600 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
                       >
                         แก้ไข
                       </button>
@@ -756,7 +770,7 @@ export default function AttendanceAdminPage() {
                             topic.team_type === "office",
                           )
                         }
-                        className="bg-white border border-gray-200 hover:border-red-500 text-red-500 p-2 rounded-lg"
+                        className="bg-white border border-red-100 hover:bg-red-50 hover:border-red-500 text-red-500 p-2 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

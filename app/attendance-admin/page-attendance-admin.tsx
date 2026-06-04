@@ -128,8 +128,15 @@ export default function AttendanceAdminPage() {
       .order("created_at", { ascending: false });
 
     if (data) {
-      const active = data.filter((t) => t.is_active && t.end_date >= todayStr);
-      const past = data.filter((t) => !t.is_active || t.end_date < todayStr);
+      // 🌟 กรองเอาหัวข้อที่เป็น "office" ออกไปซ่อนไว้ก่อน (รอทำหน้า Setting แยก)
+      const filteredData = data.filter((t) => t.team_type !== "office");
+
+      const active = filteredData.filter(
+        (t) => t.is_active && t.end_date >= todayStr,
+      );
+      const past = filteredData.filter(
+        (t) => !t.is_active || t.end_date < todayStr,
+      );
       setActiveTopics(active);
       setPastTopics(past);
     }
@@ -143,16 +150,20 @@ export default function AttendanceAdminPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
   };
 
-  const handleMapsUrlParse = (url: string) => {
-    setFormData((prev) => ({ ...prev, maps_url: url }));
-    if (!url) return;
-    const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)/;
-    const match = url.match(regex);
+  const handleMapsUrlParse = (input: string) => {
+    setFormData((prev) => ({ ...prev, maps_url: input }));
+    if (!input) return;
+
+    // 🌟 อัปเกรด Regex ให้รองรับทั้ง URL และ ตัวเลขพิกัดตรงๆ
+    const regex =
+      /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)|^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
+    const match = input.match(regex);
+
     if (match) {
-      const lat = match[1] || match[3];
-      const lng = match[2] || match[4];
+      const lat = match[1] || match[3] || match[5];
+      const lng = match[2] || match[4] || match[6];
       setFormData((prev) => ({ ...prev, lat, lng }));
-      showToast("ดึงพิกัดจากลิงก์สำเร็จ!", "success");
+      showToast("ดึงพิกัดสำเร็จ!", "success");
     }
   };
 
@@ -519,12 +530,37 @@ export default function AttendanceAdminPage() {
 
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
-                      <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps
-                      เพื่อดึงพิกัด
+                      <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
+                      พิกัด
                     </label>
+                    {/* 🌟 เพิ่มคู่มือแบบพับเก็บได้ (Accordion) */}
+                    <details className="mb-3 group">
+                      <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
+                        <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
+                          ?
+                        </span>
+                        วิธีดูพิกัดจากมือถือ (คลิก)
+                      </summary>
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
+                        <p>
+                          1. เปิดแอป <b>Google Maps</b>
+                        </p>
+                        <p>
+                          2. <b>แตะค้าง</b> (Long Press)
+                          ตรงจุดที่ต้องการให้ขึ้นหมุดสีแดง (Dropped Pin)
+                        </p>
+                        <p>
+                          3. เลื่อนดูรายละเอียดด้านล่าง จะเห็นตัวเลขพิกัด (เช่น{" "}
+                          <code className="bg-white px-1.5 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm font-mono">
+                            13.7563, 100.5018
+                          </code>
+                          ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                        </p>
+                      </div>
+                    </details>
                     <input
                       type="text"
-                      placeholder="https://maps.google.com/..."
+                      placeholder="วางลิงก์ Maps แบบยาว หรือ วางพิกัด (เช่น 13.123, 100.456)"
                       className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white mb-2"
                       value={formData.maps_url}
                       onChange={(e) => handleMapsUrlParse(e.target.value)}
