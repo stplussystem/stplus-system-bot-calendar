@@ -16,6 +16,9 @@ import {
   LayoutDashboard,
   ClipboardCheck,
   ChevronLeft,
+  CalendarX2,
+  CheckSquare,
+  Share2,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -30,7 +33,6 @@ export default function LeavePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // === State การนำทาง ===
   const [activeTab, setActiveTab] = useState<"my_leave" | "approval">(
     "my_leave",
   );
@@ -41,7 +43,6 @@ export default function LeavePage() {
     type: "success",
   });
 
-  // === State ข้อมูลพนักงาน ===
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [leaveStats, setLeaveStats] = useState({
     personal: 0,
@@ -49,7 +50,6 @@ export default function LeavePage() {
     absent: 0,
   });
 
-  // === State ข้อมูลหัวหน้า/HR ===
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [allLeaves, setAllLeaves] = useState<any[]>([]);
   const [rejectModal, setRejectModal] = useState({
@@ -58,7 +58,6 @@ export default function LeavePage() {
     reason: "",
   });
 
-  // === State ฟอร์มลางาน ===
   const [formData, setFormData] = useState({
     leaveType: "personal",
     startDate: new Date().toISOString().split("T")[0],
@@ -69,16 +68,20 @@ export default function LeavePage() {
     reason: "",
   });
 
+  const currentYear = new Date().getFullYear().toString();
+  const currentYearThai = (new Date().getFullYear() + 543).toString();
+
   useEffect(() => {
     const initLiff = async () => {
       try {
         const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId: "2010143328-wyg8T4P5" }); // เช็ค LIFF ID หน้านี้อีกทีนะครับ
+        await liff.init({
+          liffId: process.env.NEXT_PUBLIC_LIFF_ID || "2010143328-wyg8T4P5",
+        });
         if (liff.isLoggedIn()) {
           const userProfile = await liff.getProfile();
           setProfile(userProfile);
 
-          // ดึง Role ของ User
           const { data: user } = await supabase
             .from("users")
             .select("*")
@@ -120,22 +123,17 @@ export default function LeavePage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  // ==========================================
-  // ส่วนของพนักงาน (พนักงานทั่วไป)
-  // ==========================================
   const fetchMyLeaves = async () => {
     setLoading(true);
-    const yearPrefix = new Date().getFullYear().toString(); // ดึงของปีปัจจุบัน
     const { data } = await supabase
       .from("leave_requests")
       .select("*")
       .eq("line_user_id", profile.userId)
-      .gte("start_date", `${yearPrefix}-01-01`)
+      .gte("start_date", `${currentYear}-01-01`)
       .order("created_at", { ascending: false });
 
     if (data) {
       setMyLeaves(data);
-      // คำนวณสถิติ (เฉพาะที่อนุมัติแล้ว)
       let p = 0,
         s = 0,
         a = 0;
@@ -153,7 +151,6 @@ export default function LeavePage() {
 
   const calculateDuration = () => {
     if (formData.isHourly) {
-      // คำนวณชั่วโมงคร่าวๆ
       const start = new Date(`2000-01-01T${formData.startTime}`);
       const end = new Date(`2000-01-01T${formData.endTime}`);
       let diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
@@ -172,39 +169,31 @@ export default function LeavePage() {
     setSubmitting(true);
     try {
       const duration = calculateDuration();
-
-      // 1. บันทึกลง Supabase (สถานะ pending)
-      const { data: insertData, error } = await supabase
-        .from("leave_requests")
-        .insert([
-          {
-            line_user_id: profile.userId,
-            leave_type: formData.leaveType,
-            start_date: formData.startDate,
-            end_date: formData.endDate,
-            start_time: formData.isHourly ? formData.startTime : null,
-            end_time: formData.isHourly ? formData.endTime : null,
-            duration_days: duration.days,
-            duration_hours: duration.hours,
-            reason: formData.reason,
-            status: "pending",
-          },
-        ])
-        .select()
-        .single();
+      const { error } = await supabase.from("leave_requests").insert([
+        {
+          line_user_id: profile.userId,
+          leave_type: formData.leaveType,
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          start_time: formData.isHourly ? formData.startTime : null,
+          end_time: formData.isHourly ? formData.endTime : null,
+          duration_days: duration.days,
+          duration_hours: duration.hours,
+          reason: formData.reason,
+          status: "pending",
+        },
+      ]);
 
       if (error) throw error;
 
-      // 2. ลอจิกส่งข้อความ (COMBO: ส่งให้ตัวเอง + เปิด Share Target Picker ให้หัวหน้า)
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         const leaveTypeName =
           formData.leaveType === "personal" ? "ลากิจ" : "ลาป่วย";
         const timeText = formData.isHourly
-          ? `${formData.startDate} (${formData.startTime}-${formData.endTime})`
-          : `${formData.startDate} ถึง ${formData.endDate}`;
+          ? `${formatThaiDate(formData.startDate)} (${formData.startTime}-${formData.endTime})`
+          : `${formatThaiDate(formData.startDate)} ถึง ${formatThaiDate(formData.endDate)}`;
 
-        // ข้อความสรุปส่งให้ตัวเอง
         await liff.sendMessages([
           {
             type: "text",
@@ -212,10 +201,9 @@ export default function LeavePage() {
           },
         ]);
 
-        // Flex Message ส่งให้หัวหน้า (Share Target Picker)
         const flexMessage = {
           type: "flex",
-          altText: `แจ้งเตือน: ${dbUser.full_name} ขออนุมัติลางาน`,
+          altText: `มีคำขออนุมัติลางานจาก ${dbUser?.full_name || profile.displayName}`,
           contents: {
             type: "bubble",
             header: {
@@ -239,7 +227,7 @@ export default function LeavePage() {
               contents: [
                 {
                   type: "text",
-                  text: `พนักงาน: ${dbUser.full_name}`,
+                  text: `พนักงาน: ${dbUser?.full_name || profile.displayName}`,
                   weight: "bold",
                   size: "md",
                 },
@@ -284,28 +272,35 @@ export default function LeavePage() {
         };
 
         if (liff.isApiAvailable("shareTargetPicker")) {
-          await liff.shareTargetPicker([flexMessage as any]);
+          const shareRes = await liff.shareTargetPicker([flexMessage as any]);
+          if (shareRes) {
+            showToast("ส่งคำขอเรียบร้อย ระบบจะปิดหน้าต่าง", "success");
+            setTimeout(() => liff.closeWindow(), 1500);
+          } else {
+            showToast("คุณยกเลิกการแชร์ (คำขอถูกบันทึกแล้ว)", "success");
+            setShowForm(false);
+            fetchMyLeaves();
+          }
+        } else {
+          alert(
+            "กรุณาเปิดตั้งค่า 'Share Target Picker' ใน LINE Developers Console",
+          );
+          setShowForm(false);
+          fetchMyLeaves();
         }
-
-        showToast("ส่งคำขอเรียบร้อย ระบบจะปิดหน้าต่าง", "success");
-        setTimeout(() => liff.closeWindow(), 1500);
       } else {
-        showToast("ส่งคำขอเรียบร้อย (คุณไม่ได้เปิดใน LINE)", "success");
+        showToast("บันทึกคำขอเรียบร้อย", "success");
         setShowForm(false);
         fetchMyLeaves();
       }
     } catch (err: any) {
-      showToast("เกิดข้อผิดพลาด: " + err.message, "error");
+      showToast("ผิดพลาด: " + err.message, "error");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ==========================================
-  // ส่วนของหัวหน้า / HR (In-App Approval)
-  // ==========================================
   const fetchManagerData = async () => {
-    // โหลดรายการรออนุมัติทั้งหมด (ดึงชื่อจากตาราง users มาแสดงด้วย)
     const { data: pending } = await supabase
       .from("leave_requests")
       .select("*, users(full_name, nickname)")
@@ -313,12 +308,10 @@ export default function LeavePage() {
       .order("created_at", { ascending: false });
     setPendingRequests(pending || []);
 
-    // โหลดประวัติการลาทั้งหมดของปีนี้ (เพื่อดูสรุป)
-    const yearPrefix = new Date().getFullYear().toString();
     const { data: all } = await supabase
       .from("leave_requests")
       .select("*, users(full_name)")
-      .gte("start_date", `${yearPrefix}-01-01`)
+      .gte("start_date", `${currentYear}-01-01`)
       .order("created_at", { ascending: false });
     setAllLeaves(all || []);
   };
@@ -356,10 +349,92 @@ export default function LeavePage() {
     }
   };
 
+  // 🌟 ฟังก์ชันใหม่: ให้หัวหน้าแชร์ผลการอนุมัติกลับไปหาพนักงาน
+  const shareApprovalResult = async (req: any, isApproved: boolean) => {
+    const liff = (await import("@line/liff")).default;
+    if (!liff.isApiAvailable("shareTargetPicker")) {
+      return alert(
+        "กรุณาเปิดตั้งค่า 'Share Target Picker' ใน LINE Developers Console ก่อนครับ",
+      );
+    }
+
+    const statusText = isApproved
+      ? "✅ อนุมัติการลางาน"
+      : "❌ ไม่อนุมัติการลางาน";
+    const headerColor = isApproved ? "#16a34a" : "#dc2626";
+    const leaveTypeName = req.leave_type === "personal" ? "ลากิจ" : "ลาป่วย";
+
+    const flexMessage = {
+      type: "flex",
+      altText: `แจ้งผลการอนุมัติลางาน: ${statusText}`,
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: headerColor,
+          contents: [
+            {
+              type: "text",
+              text: statusText,
+              weight: "bold",
+              color: "#ffffff",
+              size: "md",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: `เรียนคุณ: ${req.users?.full_name || "พนักงาน"}`,
+              weight: "bold",
+              size: "sm",
+            },
+            {
+              type: "text",
+              text: `รายการ: ${leaveTypeName} (${formatThaiDate(req.start_date)})`,
+              size: "xs",
+              color: "#666666",
+            },
+            {
+              type: "text",
+              text: isApproved
+                ? "คำขอของคุณได้รับการอนุมัติเรียบร้อยแล้ว"
+                : `เหตุผล: ${req.reject_reason || "ไม่ได้ระบุ"}`,
+              size: "sm",
+              wrap: true,
+              margin: "md",
+            },
+          ],
+        },
+      },
+    };
+
+    await liff.shareTargetPicker([flexMessage as any]);
+  };
+
   const formatThaiDate = (dateStr: string) => {
     if (!dateStr) return "";
     const [y, m, d] = dateStr.split("-");
-    return `${parseInt(d)}/${parseInt(m)}/${parseInt(y) + 543}`;
+    const months = [
+      "ม.ค.",
+      "ก.พ.",
+      "มี.ค.",
+      "เม.ย.",
+      "พ.ค.",
+      "มิ.ย.",
+      "ก.ค.",
+      "ส.ค.",
+      "ก.ย.",
+      "ต.ค.",
+      "พ.ย.",
+      "ธ.ค.",
+    ];
+    return `${parseInt(d)} ${months[parseInt(m) - 1]} ${parseInt(y) + 543}`;
   };
 
   const getStatusBadge = (status: string) => {
@@ -404,10 +479,9 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* Modal ปฏิเสธการลา */}
       {rejectModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
             <h3 className="text-lg font-bold text-red-600 mb-2">
               ไม่อนุมัติการลางาน
             </h3>
@@ -434,7 +508,7 @@ export default function LeavePage() {
               </button>
               <button
                 onClick={handleRejectSubmit}
-                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm"
+                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm"
               >
                 ยืนยัน
               </button>
@@ -443,62 +517,63 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* 🌟 Header */}
-      <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-10 pb-6 px-6 text-white text-center rounded-b-[30px] shadow-lg relative overflow-hidden">
+      {/* 🌟 Header โทนสีเดียวกันกับระบบ */}
+      <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-12 pb-16 px-6 text-white text-center rounded-b-[40px] shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <h1 className="text-xl font-black mb-1 flex justify-center items-center gap-2">
-          <CalendarRange className="w-6 h-6" /> ระบบลางาน (Leave)
-        </h1>
-        <p className="text-blue-100 text-xs font-medium">ST PLUS SYSTEM</p>
+        <CalendarRange className="w-12 h-12 mx-auto mb-3 opacity-90" />
+        <h1 className="text-2xl font-black mb-1">ระบบลางาน (Leave)</h1>
+        <p className="text-blue-100 text-sm font-medium">
+          ST PLUS SYSTEM ปี {currentYearThai}
+        </p>
       </div>
 
-      {/* 🌟 Tab Menu (ถ้าเป็น Admin/Manager ถึงจะเห็น Tab 2) */}
-      {(dbUser?.role === "admin" ||
-        dbUser?.role === "manager" ||
-        dbUser?.role === "hr") &&
-        !showForm && (
-          <div className="flex justify-center mt-4 px-4">
-            <div className="flex bg-white rounded-full p-1 shadow-sm border border-gray-200 w-full max-w-sm">
+      <div className="px-4 md:px-6 -mt-8 max-w-2xl w-full mx-auto relative z-10 space-y-4">
+        {/* 🌟 Tab Menu แบบลอยตัว */}
+        {(dbUser?.role === "admin" ||
+          dbUser?.role === "manager" ||
+          dbUser?.role === "hr") &&
+          !showForm && (
+            <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
               <button
                 onClick={() => setActiveTab("my_leave")}
-                className={`flex-1 py-2 rounded-full text-xs font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
               >
                 การลาของฉัน
               </button>
               <button
-                onClick={() => setActiveView("approval")}
-                className={`flex-1 py-2 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-md" : "text-gray-500 hover:bg-gray-50"}`}
+                onClick={() => setActiveTab("approval")}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
               >
-                อนุมัติวันลา{" "}
+                อนุมัติวันลา
+                {/* 🌟 Notification Badge ของ Manager ใหญ่และชัดขึ้น */}
                 {pendingRequests.length > 0 && (
-                  <span className="bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center">
+                  <span className="bg-red-500 text-white w-5 h-5 rounded-full text-[11px] flex items-center justify-center shadow-sm animate-pulse">
                     {pendingRequests.length}
                   </span>
                 )}
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-      <div className="px-4 md:px-6 mt-4 max-w-2xl w-full mx-auto relative z-10 space-y-4">
         {/* ========================================== */}
         {/* VIEW 1: ฟอร์มยื่นลางาน */}
         {/* ========================================== */}
         {showForm && (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 animate-in slide-in-from-right-4">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 animate-in fade-in slide-in-from-right-4">
             <button
               onClick={() => setShowForm(false)}
-              className="mb-4 flex items-center gap-1 text-sm font-bold text-gray-500 bg-white px-3 py-1.5 rounded-full border shadow-sm"
+              className="mb-5 flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm w-fit transition-colors"
             >
               <ChevronLeft className="w-4 h-4" /> กลับ
             </button>
-            <h2 className="text-lg font-black text-gray-800 mb-4 border-b pb-3">
+            <h2 className="text-lg font-black text-gray-800 mb-5 flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-blue-600" />{" "}
               ฟอร์มขออนุมัติลางาน
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-2">
+                <label className="text-xs font-bold text-gray-500 block mb-2 uppercase tracking-wider">
                   ประเภทการลา
                 </label>
                 <div className="flex gap-2">
@@ -506,7 +581,7 @@ export default function LeavePage() {
                     onClick={() =>
                       setFormData({ ...formData, leaveType: "personal" })
                     }
-                    className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "personal" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500"}`}
+                    className={`flex-1 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "personal" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
                     ลากิจ
                   </button>
@@ -514,14 +589,14 @@ export default function LeavePage() {
                     onClick={() =>
                       setFormData({ ...formData, leaveType: "sick" })
                     }
-                    className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "sick" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-500"}`}
+                    className={`flex-1 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "sick" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
                     ลาป่วย
                   </button>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
                 <label className="flex items-center justify-between text-sm font-bold text-gray-800 cursor-pointer mb-4">
                   <span className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-blue-600" /> ระบุเป็นเวลา
@@ -538,9 +613,9 @@ export default function LeavePage() {
                 </label>
 
                 {formData.isHourly ? (
-                  <div className="space-y-3 animate-in fade-in">
+                  <div className="space-y-4 animate-in fade-in">
                     <div>
-                      <label className="text-xs font-bold text-gray-500 block mb-1">
+                      <label className="text-xs font-bold text-gray-500 block mb-1.5">
                         วันที่ต้องการลา
                       </label>
                       <input
@@ -553,12 +628,12 @@ export default function LeavePage() {
                             endDate: e.target.value,
                           })
                         }
-                        className="w-full border p-2.5 rounded-lg text-sm"
+                        className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-500 block mb-1">
+                        <label className="text-xs font-bold text-gray-500 block mb-1.5">
                           ตั้งแต่เวลา
                         </label>
                         <input
@@ -570,11 +645,11 @@ export default function LeavePage() {
                               startTime: e.target.value,
                             })
                           }
-                          className="w-full border p-2.5 rounded-lg text-sm"
+                          className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-500 block mb-1">
+                        <label className="text-xs font-bold text-gray-500 block mb-1.5">
                           ถึงเวลา
                         </label>
                         <input
@@ -586,15 +661,15 @@ export default function LeavePage() {
                               endTime: e.target.value,
                             })
                           }
-                          className="w-full border p-2.5 rounded-lg text-sm"
+                          className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 animate-in fade-in">
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in">
                     <div>
-                      <label className="text-xs font-bold text-gray-500 block mb-1">
+                      <label className="text-xs font-bold text-gray-500 block mb-1.5">
                         ตั้งแต่วันที่
                       </label>
                       <input
@@ -606,11 +681,11 @@ export default function LeavePage() {
                             startDate: e.target.value,
                           })
                         }
-                        className="w-full border p-2.5 rounded-lg text-sm"
+                        className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-gray-500 block mb-1">
+                      <label className="text-xs font-bold text-gray-500 block mb-1.5">
                         ถึงวันที่
                       </label>
                       <input
@@ -620,12 +695,12 @@ export default function LeavePage() {
                         onChange={(e) =>
                           setFormData({ ...formData, endDate: e.target.value })
                         }
-                        className="w-full border p-2.5 rounded-lg text-sm"
+                        className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
                   </div>
                 )}
-                <div className="mt-3 text-[11px] font-bold text-blue-600 bg-blue-100 p-2 rounded-lg text-center">
+                <div className="mt-4 text-xs font-bold text-blue-700 bg-blue-100 p-3 rounded-xl text-center shadow-sm">
                   💡 ระบบคำนวณ:{" "}
                   {formData.isHourly
                     ? `${calculateDuration().hours.toFixed(1)} ชั่วโมง`
@@ -634,7 +709,7 @@ export default function LeavePage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 block mb-2">
+                <label className="text-xs font-bold text-gray-500 block mb-2 uppercase tracking-wider">
                   เหตุผลการลา
                 </label>
                 <textarea
@@ -642,7 +717,7 @@ export default function LeavePage() {
                   onChange={(e) =>
                     setFormData({ ...formData, reason: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-xl p-3 text-sm outline-none focus:border-blue-500"
+                  className="w-full border border-gray-300 rounded-xl p-4 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   rows={3}
                   placeholder="เช่น ติดธุระครอบครัว, ไปหาหมอ..."
                 ></textarea>
@@ -651,13 +726,13 @@ export default function LeavePage() {
               <button
                 onClick={handleSubmitLeave}
                 disabled={submitting}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl flex justify-center items-center gap-2 shadow-md"
+                className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg transition-transform active:scale-95"
               >
                 {submitting ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" /> บันทึกและส่งให้หัวหน้า
+                    <Send className="w-5 h-5" /> บันทึกและแชร์ให้หัวหน้า
                   </>
                 )}
               </button>
@@ -669,81 +744,93 @@ export default function LeavePage() {
         {/* VIEW 2: แดชบอร์ดของพนักงาน (My Leave) */}
         {/* ========================================== */}
         {activeTab === "my_leave" && !showForm && (
-          <div className="space-y-4 animate-in fade-in">
-            {/* สรุปโควต้า */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-white border border-blue-100 rounded-2xl p-3 text-center shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 mb-1">
-                  ลากิจ
-                </p>
-                <p className="text-xl font-black text-blue-600">
+          <div className="space-y-5 animate-in fade-in">
+            {/* สรุปโควต้าแบบ Card Modern */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-gray-500 mb-1">ลากิจ</p>
+                <p className="text-2xl font-black text-blue-600">
                   {leaveStats.personal}
                 </p>
-                <p className="text-[9px] text-gray-400 mt-1">ใช้ไป (วัน)</p>
-              </div>
-              <div className="bg-white border border-orange-100 rounded-2xl p-3 text-center shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 mb-1">
-                  ลาป่วย
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  ใช้ไป (วัน)
                 </p>
-                <p className="text-xl font-black text-orange-600">
+              </div>
+              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-gray-500 mb-1">ลาป่วย</p>
+                <p className="text-2xl font-black text-orange-600">
                   {leaveStats.sick}
                 </p>
-                <p className="text-[9px] text-gray-400 mt-1">ใช้ไป (วัน)</p>
-              </div>
-              <div className="bg-white border border-red-100 rounded-2xl p-3 text-center shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 mb-1">
-                  ขาดงาน
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  ใช้ไป (วัน)
                 </p>
-                <p className="text-xl font-black text-red-600">
+              </div>
+              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-gray-500 mb-1">ขาดงาน</p>
+                <p className="text-2xl font-black text-red-600">
                   {leaveStats.absent}
                 </p>
-                <p className="text-[9px] text-gray-400 mt-1">ครั้ง</p>
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  ครั้ง
+                </p>
               </div>
             </div>
 
             <button
               onClick={() => setShowForm(true)}
-              className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg hover:bg-black transition-transform active:scale-95"
+              className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-md hover:bg-blue-700 transition-transform active:scale-95"
             >
               <PlusCircle className="w-5 h-5" /> ยื่นขออนุมัติลางาน
             </button>
 
             {/* ประวัติการลา */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-4 bg-slate-50 border-b border-gray-100">
+              <div className="p-5 bg-slate-50 border-b border-gray-100">
                 <h3 className="font-bold text-sm text-gray-800">
                   ประวัติการลาของฉัน
                 </h3>
               </div>
               <div className="divide-y divide-gray-100">
                 {myLeaves.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-gray-400">
-                    ยังไม่มีประวัติการลาในปีนี้
+                  <div className="p-10 flex flex-col items-center justify-center text-gray-400">
+                    <CalendarX2 className="w-10 h-10 mb-2 opacity-50" />
+                    <p className="text-xs font-bold">
+                      ยังไม่มีประวัติการลาในปีนี้
+                    </p>
                   </div>
                 ) : (
                   myLeaves.map((l) => (
-                    <div key={l.id} className="p-4 hover:bg-gray-50">
+                    <div
+                      key={l.id}
+                      className="p-5 hover:bg-gray-50 transition-colors"
+                    >
                       <div className="flex justify-between items-start mb-2">
                         <div className="font-bold text-sm text-gray-900">
                           {l.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"}{" "}
-                          {l.duration_hours > 0
-                            ? `(${l.duration_hours} ชม.)`
-                            : `(${l.duration_days} วัน)`}
+                          {l.duration_hours > 0 ? (
+                            <span className="text-blue-600">
+                              ({l.duration_hours} ชม.)
+                            </span>
+                          ) : (
+                            <span className="text-blue-600">
+                              ({l.duration_days} วัน)
+                            </span>
+                          )}
                         </div>
                         {getStatusBadge(l.status)}
                       </div>
-                      <div className="text-xs text-gray-500 mb-1">
+                      <div className="text-xs text-gray-500 font-medium mb-1.5">
                         📅 {formatThaiDate(l.start_date)}{" "}
                         {l.start_date !== l.end_date &&
                           `- ${formatThaiDate(l.end_date)}`}{" "}
                         {l.duration_hours > 0 &&
                           `| ${l.start_time.substring(0, 5)} - ${l.end_time.substring(0, 5)}`}
                       </div>
-                      <div className="text-[11px] text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100 mt-2">
+                      <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100 mt-2 italic">
                         "{l.reason}"
                       </div>
                       {l.status === "rejected" && l.reject_reason && (
-                        <div className="text-[10px] text-red-600 bg-red-50 p-2 rounded-lg border border-red-100 mt-1">
+                        <div className="text-[11px] text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100 mt-2 font-medium">
                           <b>เหตุผลไม่อนุมัติ:</b> {l.reject_reason}
                         </div>
                       )}
@@ -759,24 +846,32 @@ export default function LeavePage() {
         {/* VIEW 3: แดชบอร์ดของหัวหน้า (Approval Center) */}
         {/* ========================================== */}
         {activeTab === "approval" && !showForm && (
-          <div className="space-y-4 animate-in fade-in">
+          <div className="space-y-5 animate-in fade-in">
             {/* รายการรออนุมัติ */}
-            <div className="bg-white rounded-3xl shadow-sm border border-blue-100 overflow-hidden">
-              <div className="p-4 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
-                <ClipboardCheck className="w-4 h-4 text-blue-600" />
-                <h3 className="font-bold text-sm text-blue-900">
-                  รอการพิจารณา ({pendingRequests.length})
-                </h3>
+            <div className="bg-white rounded-3xl shadow-sm border border-blue-200 overflow-hidden">
+              <div className="p-5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold text-sm text-blue-900">
+                    รอการพิจารณา
+                  </h3>
+                </div>
+                <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {pendingRequests.length} รายการ
+                </span>
               </div>
               <div className="divide-y divide-gray-100">
                 {pendingRequests.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-gray-400">
-                    ไม่มีรายการรออนุมัติ
+                  <div className="p-10 text-center text-sm text-gray-400 font-medium">
+                    🎉 ไม่มีรายการรออนุมัติ
                   </div>
                 ) : (
                   pendingRequests.map((r) => (
-                    <div key={r.id} className="p-4">
-                      <div className="flex justify-between items-start mb-2">
+                    <div
+                      key={r.id}
+                      className="p-5 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-start mb-3">
                         <div className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
                           <User className="w-4 h-4 text-gray-400" />{" "}
                           {r.users?.full_name ||
@@ -784,36 +879,42 @@ export default function LeavePage() {
                             "ไม่ทราบชื่อ"}
                         </div>
                         <span
-                          className={`text-[10px] font-bold px-2 py-1 rounded-md ${r.leave_type === "personal" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-md ${r.leave_type === "personal" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
                         >
                           {r.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-600 mb-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                        <p className="font-bold mb-1">
+                      <div className="text-xs text-gray-600 mb-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                        <p className="font-bold mb-1.5 text-gray-800">
                           📅 {formatThaiDate(r.start_date)}{" "}
                           {r.start_date !== r.end_date &&
                             `- ${formatThaiDate(r.end_date)}`}{" "}
-                          {r.duration_hours > 0
-                            ? `(${r.duration_hours} ชม.)`
-                            : `(${r.duration_days} วัน)`}
+                          {r.duration_hours > 0 ? (
+                            <span className="text-blue-600">
+                              ({r.duration_hours} ชม.)
+                            </span>
+                          ) : (
+                            <span className="text-blue-600">
+                              ({r.duration_days} วัน)
+                            </span>
+                          )}
                         </p>
                         <p className="text-gray-500 italic">"{r.reason}"</p>
                       </div>
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex gap-2">
                         <button
                           onClick={() =>
                             setRejectModal({ show: true, id: r.id, reason: "" })
                           }
-                          className="flex-1 bg-white border border-red-200 text-red-600 font-bold py-2 rounded-xl text-xs hover:bg-red-50"
+                          className="flex-1 bg-white border border-red-200 text-red-600 font-bold py-2.5 rounded-xl text-xs hover:bg-red-50 transition-colors"
                         >
                           ไม่อนุมัติ
                         </button>
                         <button
                           onClick={() => handleApprove(r.id)}
-                          className="flex-1 bg-blue-600 text-white font-bold py-2 rounded-xl text-xs hover:bg-blue-700 shadow-sm"
+                          className="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-blue-700 shadow-sm transition-colors"
                         >
-                          อนุมัติการลา
+                          ✅ อนุมัติการลา
                         </button>
                       </div>
                     </div>
@@ -823,28 +924,43 @@ export default function LeavePage() {
             </div>
 
             {/* รายการประวัติพนักงานทั้งหมด */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden opacity-80">
-              <div className="p-4 bg-slate-50 border-b border-gray-100">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5 bg-slate-50 border-b border-gray-100">
                 <h3 className="font-bold text-sm text-gray-800">
-                  ประวัติการลาทั้งหมด (ปีนี้)
+                  ประวัติการลาทั้งหมด (พนักงานทุกคน)
                 </h3>
               </div>
               <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto custom-scrollbar">
                 {allLeaves.map((l) => (
                   <div
                     key={l.id}
-                    className="p-3 text-xs flex justify-between items-center hover:bg-gray-50"
+                    className="p-4 flex flex-col gap-2 hover:bg-gray-50 transition-colors"
                   >
-                    <div>
-                      <p className="font-bold text-gray-800">
+                    <div className="flex justify-between items-center">
+                      <p className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                        <CheckSquare className="w-3.5 h-3.5 text-gray-400" />{" "}
                         {l.users?.full_name}
                       </p>
-                      <p className="text-gray-500">
-                        {l.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"}{" "}
-                        {formatThaiDate(l.start_date)}
-                      </p>
+                      {getStatusBadge(l.status)}
                     </div>
-                    {getStatusBadge(l.status)}
+                    <div className="flex justify-between items-center pl-5">
+                      <p className="text-xs text-gray-500 font-medium">
+                        {l.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"} (
+                        {formatThaiDate(l.start_date)})
+                      </p>
+
+                      {/* 🌟 ปุ่มให้หัวหน้ากดแชร์ผลกลับไปหาพนักงาน */}
+                      {l.status !== "pending" && (
+                        <button
+                          onClick={() =>
+                            shareApprovalResult(l, l.status === "approved")
+                          }
+                          className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md hover:bg-blue-100 border border-blue-100"
+                        >
+                          <Share2 className="w-3 h-3" /> แชร์แจ้งพนักงาน
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
