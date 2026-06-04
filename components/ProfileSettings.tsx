@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Loader2,
   X,
+  Briefcase, // 🌟 เพิ่มไอคอนกระเป๋าทำงาน
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ export default function ProfileSettings({
 }: ProfileSettingsProps) {
   const [regFullName, setRegFullName] = useState(dbUser?.full_name || "");
   const [regNickname, setRegNickname] = useState(dbUser?.nickname || "");
+  const [regDepartment, setRegDepartment] = useState(dbUser?.department || ""); // 🌟 เพิ่ม State สำหรับแผนก
   const [regGmail, setRegGmail] = useState(dbUser?.gmail || "");
   const [regCalendarId, setRegCalendarId] = useState(
     dbUser?.personal_calendar_id || "",
@@ -38,9 +40,13 @@ export default function ProfileSettings({
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const handleSaveProfile = async () => {
-    if (!regFullName || !regNickname) {
-      return toast.warning("กรุณากรอก ชื่อ-สกุล และ ชื่อเล่นให้ครบถ้วนครับ");
+    // 🌟 บังคับให้กรอก แผนก/ตำแหน่ง ด้วย
+    if (!regFullName || !regNickname || !regDepartment) {
+      return toast.warning(
+        "กรุณากรอก ชื่อ-สกุล, ชื่อเล่น และ แผนก/ตำแหน่ง ให้ครบถ้วนครับ",
+      );
     }
+
     setIsSavingProfile(true);
     try {
       const { error } = await supabase
@@ -48,6 +54,7 @@ export default function ProfileSettings({
         .update({
           full_name: regFullName,
           nickname: regNickname,
+          department: regDepartment, // 🌟 ส่งข้อมูลแผนกไปบันทึก
           gmail: regGmail,
           personal_calendar_id: regCalendarId,
         })
@@ -60,6 +67,7 @@ export default function ProfileSettings({
         ...dbUser,
         full_name: regFullName,
         nickname: regNickname,
+        department: regDepartment, // 🌟 อัปเดตข้อมูลก้อนใหม่
         gmail: regGmail,
         personal_calendar_id: regCalendarId,
       });
@@ -77,7 +85,7 @@ export default function ProfileSettings({
             {isNewUser ? "ลงทะเบียนผู้ใช้งาน" : "ตั้งค่าโปรไฟล์"}
           </h2>
           <p className="text-slate-300 text-sm mt-1">
-            กรุณากรอกข้อมูลเพื่อใช้งานระบบ STPLUS
+            กรุณากรอกข้อมูลเพื่อใช้งานระบบ ST PLUS
           </p>
         </div>
         {!isNewUser && (
@@ -89,6 +97,7 @@ export default function ProfileSettings({
           </button>
         )}
       </div>
+
       <div className="p-8 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -99,9 +108,8 @@ export default function ProfileSettings({
               type="text"
               value={regFullName}
               onChange={(e) => setRegFullName(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               placeholder="เช่น สมชาย ใจดี"
-              required
             />
           </div>
           <div>
@@ -112,23 +120,38 @@ export default function ProfileSettings({
               type="text"
               value={regNickname}
               onChange={(e) => setRegNickname(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               placeholder="เช่น ชาย"
-              required
             />
           </div>
         </div>
-        <div>
-          <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <Mail size={16} /> Gmail
-          </label>
-          <input
-            type="email"
-            value={regGmail}
-            onChange={(e) => setRegGmail(e.target.value)}
-            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-            placeholder="แนะนำให้ระบุ xxx@gmail.com เพื่อรับ Calendar"
-          />
+
+        {/* 🌟 เพิ่มช่องกรอก แผนก/ตำแหน่ง แบบ Grid คู่กับ Gmail */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <Briefcase size={16} /> แผนก / ตำแหน่ง
+            </label>
+            <input
+              type="text"
+              value={regDepartment}
+              onChange={(e) => setRegDepartment(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              placeholder="เช่น IT Support, ช่างติดตั้ง"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <Mail size={16} /> Gmail
+            </label>
+            <input
+              type="email"
+              value={regGmail}
+              onChange={(e) => setRegGmail(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              placeholder="xxx@gmail.com (รับคิวงาน)"
+            />
+          </div>
         </div>
 
         <div className="pt-4 border-t border-slate-100">
@@ -140,7 +163,7 @@ export default function ProfileSettings({
             type="text"
             value={regCalendarId}
             onChange={(e) => setRegCalendarId(e.target.value)}
-            className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl outline-none text-sm"
+            className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             placeholder="abc@gmail.com หรือ abcdef123...@group.calendar.google.com"
           />
 
