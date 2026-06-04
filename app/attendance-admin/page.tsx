@@ -65,7 +65,7 @@ export default function AttendanceAdminPage() {
     work_type: "onsite",
     team_type: "team_all", // ค่าเริ่มต้นเป็นทั้งหมดทุกคน
     radius_meters: 100,
-    photo_mode: "camera",
+    photo_mode: "none",
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date().toISOString().split("T")[0],
     is_active: true,
@@ -555,6 +555,10 @@ export default function AttendanceAdminPage() {
                             13.7563, 100.5018
                           </code>
                           ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                        </p>
+                        <p>
+                          4. *** ห้ามใส่วงเล็บในกรณีก็อบเฉพาะตัวเลขมา
+                          ให้เอาวงเล็บออก <b>13.7563, 100.5018</b>
                         </p>
                       </div>
                     </details>
