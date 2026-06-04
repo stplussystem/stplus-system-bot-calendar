@@ -101,6 +101,7 @@ export default function ProfileSettings({
               onChange={(e) => setRegFullName(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
               placeholder="เช่น สมชาย ใจดี"
+              required
             />
           </div>
           <div>
@@ -113,6 +114,7 @@ export default function ProfileSettings({
               onChange={(e) => setRegNickname(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
               placeholder="เช่น ชาย"
+              required
             />
           </div>
         </div>

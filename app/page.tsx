@@ -57,52 +57,66 @@ export default function Home() {
           const userProfile = await liff.getProfile();
           setProfile(userProfile);
 
+          // 🌟 1. ดึงข้อมูลผู้ใช้จากฐานข้อมูล
           const { data: userData } = await supabase
             .from("users")
             .select("*")
             .eq("line_user_id", userProfile.userId)
             .single();
 
-          if (userData && userData.full_name && userData.nickname) {
-            setDbUser(userData);
+          let currentUser = userData;
+
+          // 🌟 2. ถ้าไม่พบข้อมูลเลย (เพิ่งเข้าครั้งแรก) ให้สร้างใหม่
+          if (!currentUser) {
+            const { data: newUser } = await supabase
+              .from("users")
+              .insert([
+                {
+                  line_user_id: userProfile.userId,
+                  display_name: userProfile.displayName,
+                  picture_url: userProfile.pictureUrl,
+                },
+              ])
+              .select() // ต้อง .select() เพื่อดึงก้อนข้อมูลที่เพิ่งสร้างกลับมา
+              .single();
+
+            currentUser = newUser;
+          }
+
+          // 🌟 3. อัปเดตข้อมูลลง State เสมอ (ป้องกัน dbUser เป็น null ตอนเข้าหน้า Profile)
+          setDbUser(currentUser || {});
+
+          // 🌟 4. เช็คเงื่อนไข "บังคับกรอกข้อมูล"
+          if (currentUser && currentUser.full_name && currentUser.nickname) {
+            // ถ้ามี ชื่อ-สกุล และ ชื่อเล่น ครบแล้ว -> เข้าใช้งานระบบ ST PLUS ตามปกติ
             setIsNewUser(false);
             fetchAllUsers();
 
-            if (userData.personal_calendar_id) {
+            if (currentUser.personal_calendar_id) {
               setCalendarType("personal");
               setHasAttendees(false);
             }
 
-            // 🔥 เช็ค URL Parameters จาก Rich Menu
             if (typeof window !== "undefined") {
               const urlParams = new URLSearchParams(window.location.search);
-
               if (urlParams.get("tab") === "list") {
                 setActiveTab("list");
                 fetchMyAppointments(userProfile.userId);
               } else if (urlParams.get("tab") === "book") {
                 setActiveTab("book");
               } else if (urlParams.get("action") === "profile") {
-                // 🔥 ถ้ามาจากปุ่มแก้ไขข้อมูลส่วนตัว ให้เปิด Modal เลย
                 setShowProfileSettings(true);
               }
             }
           } else {
-            // โค้ดสร้าง User ใหม่...
-            if (!userData) {
-              await supabase.from("users").insert([
-                {
-                  line_user_id: userProfile.userId,
-                  display_name: userProfile.displayName,
-                  picture_url: userProfile.pictureUrl,
-                },
-              ]);
-            }
+            // 🔥 ถ้ายังไม่กรอก ชื่อ-สกุล หรือ ชื่อเล่น -> บังคับเด้งหน้า Profile ทันที!
             setIsNewUser(true);
           }
-        } else liff.login();
+        } else {
+          liff.login();
+        }
       } catch (err) {
-        console.error(err);
+        console.error("LIFF Init Error:", err);
       } finally {
         setIsLoading(false);
       }
