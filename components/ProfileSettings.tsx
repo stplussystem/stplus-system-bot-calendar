@@ -102,7 +102,7 @@ export default function ProfileSettings({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <User size={16} /> ชื่อ-สกุล (จริง)
+              <User size={16} /> ชื่อ-สกุล (จริง) (บังคับ)
             </label>
             <input
               type="text"
@@ -110,11 +110,12 @@ export default function ProfileSettings({
               onChange={(e) => setRegFullName(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               placeholder="เช่น สมชาย ใจดี"
+              required
             />
           </div>
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <User size={16} /> ชื่อเล่น
+              <User size={16} /> ชื่อเล่น (บังคับ)
             </label>
             <input
               type="text"
@@ -122,6 +123,7 @@ export default function ProfileSettings({
               onChange={(e) => setRegNickname(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               placeholder="เช่น ชาย"
+              required
             />
           </div>
         </div>
