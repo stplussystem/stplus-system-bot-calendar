@@ -630,6 +630,127 @@ export default function AttendanceAdminPage() {
 
             <hr className="border-gray-100" />
 
+            {/* 🌟 ส่วนเลือกกะเวลาทำงาน (ที่เติมกลับเข้ามาให้) */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                <Clock className="h-4 w-4" /> ระบุกะเวลาทำงาน
+              </label>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "morning" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift_type"
+                    className="hidden"
+                    checked={formData.shift_type === "morning"}
+                    onChange={() =>
+                      setFormData({
+                        ...formData,
+                        shift_type: "morning",
+                        start_time: "09:00",
+                        end_time: "18:00",
+                      })
+                    }
+                  />
+                  <span className="block text-sm font-bold text-gray-900 mb-1">
+                    กะเช้า
+                  </span>
+                  <span className="block text-[10px] text-gray-500">
+                    09:00 - 18:00
+                  </span>
+                </label>
+
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "afternoon" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift_type"
+                    className="hidden"
+                    checked={formData.shift_type === "afternoon"}
+                    onChange={() =>
+                      setFormData({
+                        ...formData,
+                        shift_type: "afternoon",
+                        start_time: "13:00",
+                        end_time: "22:00",
+                      })
+                    }
+                  />
+                  <span className="block text-sm font-bold text-gray-900 mb-1">
+                    กะบ่าย
+                  </span>
+                  <span className="block text-[10px] text-gray-500">
+                    13:00 - 22:00
+                  </span>
+                </label>
+
+                <label
+                  className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "custom" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
+                >
+                  <input
+                    type="radio"
+                    name="shift_type"
+                    className="hidden"
+                    checked={formData.shift_type === "custom"}
+                    onChange={() =>
+                      setFormData({ ...formData, shift_type: "custom" })
+                    }
+                  />
+                  <span className="block text-sm font-bold text-gray-900 mb-1">
+                    ระบุเอง
+                  </span>
+                  <span className="block text-[10px] text-gray-500">
+                    กำหนดอิสระ
+                  </span>
+                </label>
+              </div>
+
+              {/* 🌟 แสดงช่องกรอกเวลา เมื่อกดเลือกแท็บ "ระบุเอง" */}
+              {formData.shift_type === "custom" && (
+                <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                      เวลาเข้างาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.start_time}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            start_time: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                      เวลาออกงาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.end_time}
+                        onChange={(e) =>
+                          setFormData({ ...formData, end_time: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <hr className="border-gray-100" />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
                 <label className="flex justify-between items-center text-sm font-semibold text-gray-700 mb-3">
