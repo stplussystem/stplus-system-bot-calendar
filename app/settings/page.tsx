@@ -23,6 +23,7 @@ import {
   ArrowRightLeft,
   Eye,
   PlusCircle,
+  Edit,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -110,13 +111,11 @@ export default function SettingsPage() {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [announcementUrl, setAnnouncementUrl] = useState("");
 
-  // รองรับการเลือกปี (ตั้งค่า Default เป็นปีปัจจุบัน พ.ศ.)
   const currentYearNum = new Date().getFullYear() + 543;
   const [holidayYear, setHolidayYear] = useState<string>(
     currentYearNum.toString(),
   );
 
-  // ตัวเลือกปี: ปีที่แล้ว, ปีนี้, ปีหน้า
   const yearOptions = [
     (currentYearNum - 1).toString(),
     currentYearNum.toString(),
@@ -124,7 +123,11 @@ export default function SettingsPage() {
   ];
 
   const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null);
-  const [moveHolidayData, setMoveHolidayData] = useState({
+
+  // 🌟 State ใหม่: รองรับการแก้ไข วันที่เดิม ชื่อ และการเลื่อน
+  const [editHolidayData, setEditHolidayData] = useState({
+    date: "",
+    title: "",
     is_changed: false,
     changed_date: "",
   });
@@ -166,7 +169,6 @@ export default function SettingsPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  // === ฟังก์ชัน Office ===
   const fetchOfficeSettings = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -244,7 +246,6 @@ export default function SettingsPage() {
     }
   };
 
-  // === ฟังก์ชัน Holidays ===
   const fetchHolidays = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -368,14 +369,12 @@ export default function SettingsPage() {
           .update({ setting_value: publicUrl })
           .eq("setting_key", "holiday_announcement_url");
       else
-        await supabase
-          .from("company_settings")
-          .insert([
-            {
-              setting_key: "holiday_announcement_url",
-              setting_value: publicUrl,
-            },
-          ]);
+        await supabase.from("company_settings").insert([
+          {
+            setting_key: "holiday_announcement_url",
+            setting_value: publicUrl,
+          },
+        ]);
       setAnnouncementUrl(publicUrl);
       showToast("อัปโหลดประกาศสำเร็จ", "success");
     } catch (err: any) {
@@ -406,18 +405,24 @@ export default function SettingsPage() {
     }
   };
 
-  const saveMoveHoliday = async (id: string) => {
+  // 🌟 ฟังก์ชันบันทึกการแก้ไขวันหยุด
+  const saveEditHoliday = async (id: string) => {
+    if (!editHolidayData.date || !editHolidayData.title) {
+      return showToast("กรุณากรอกวันที่และชื่อวันหยุดให้ครบถ้วน", "error");
+    }
     try {
       await supabase
         .from("company_holidays")
         .update({
-          is_changed: moveHolidayData.is_changed,
-          changed_date: moveHolidayData.is_changed
-            ? moveHolidayData.changed_date
+          date: editHolidayData.date,
+          title: editHolidayData.title,
+          is_changed: editHolidayData.is_changed,
+          changed_date: editHolidayData.is_changed
+            ? editHolidayData.changed_date
             : null,
         })
         .eq("id", id);
-      showToast("บันทึกการเปลี่ยนแปลงสำเร็จ", "success");
+      showToast("บันทึกการแก้ไขสำเร็จ", "success");
       setEditingHolidayId(null);
       fetchHolidays();
     } catch (err: any) {
@@ -471,7 +476,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 🌟 View 1: Menu Hub */}
       {activeView === "menu" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="mb-6 flex items-center gap-2">
@@ -523,7 +527,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 🌟 View 2: Office Form (ฟอร์มตัวเต็ม) */}
       {activeView === "office_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <button
@@ -739,7 +742,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 🌟 View 3: Holiday Form (ฟอร์มจัดเต็มเรื่องวันหยุด) */}
+      {/* 🌟 View 3: Holiday Form */}
       {activeView === "holiday_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
           <button
@@ -749,7 +752,7 @@ export default function SettingsPage() {
             <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
           </button>
 
-          {/* แท็บเลือกปี (สไลด์ซ้ายขวาได้) */}
+          {/* แท็บเลือกปี */}
           <div className="flex gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
             {yearOptions.map((y) => (
               <button
@@ -818,7 +821,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="p-0 bg-white">
-              {/* ฟอร์มเพิ่มวันหยุดเอง (จะโชว์เมื่อกดปุ่ม "เพิ่มใหม่") */}
+              {/* ฟอร์มเพิ่มวันหยุดเอง */}
               {showAddForm && (
                 <div className="bg-blue-50/50 p-4 m-4 rounded-xl border border-blue-100 animate-in fade-in slide-in-from-top-2">
                   <div className="flex flex-col gap-3 mb-4">
@@ -871,7 +874,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* 🌟 รายการวันหยุด (กลับมาใช้ดีไซน์ Expanded แบบโปร่งสวยงามเหมือนเดิม) */}
+              {/* รายการวันหยุด */}
               <div className="divide-y divide-gray-100">
                 {holidays.length === 0 && !showAddForm ? (
                   <div className="p-8 text-center text-sm text-gray-400 font-medium">
@@ -938,14 +941,16 @@ export default function SettingsPage() {
                             <button
                               onClick={() => {
                                 setEditingHolidayId(h.id);
-                                setMoveHolidayData({
+                                setEditHolidayData({
+                                  date: h.date,
+                                  title: h.title,
                                   is_changed: h.is_changed || false,
                                   changed_date: h.changed_date || h.date,
                                 });
                               }}
                               className="p-2 text-gray-400 hover:text-orange-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
                             >
-                              <ArrowRightLeft className="w-4 h-4" />
+                              <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => deleteHoliday(h.id)}
@@ -956,16 +961,49 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       ) : (
-                        /* โหมดแก้ไข (เลื่อนวันหยุด) */
+                        /* โหมดแก้ไข (เลื่อน/แก้ไขวันหยุด) */
                         <div className="bg-orange-50/80 p-4 rounded-xl border border-orange-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                          <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5">
+                              วันที่หยุด (ดั้งเดิม)
+                            </label>
+                            <input
+                              type="date"
+                              value={editHolidayData.date}
+                              onChange={(e) =>
+                                setEditHolidayData({
+                                  ...editHolidayData,
+                                  date: e.target.value,
+                                })
+                              }
+                              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5">
+                              ชื่อเรียกวันหยุด
+                            </label>
+                            <input
+                              type="text"
+                              value={editHolidayData.title}
+                              onChange={(e) =>
+                                setEditHolidayData({
+                                  ...editHolidayData,
+                                  title: e.target.value,
+                                })
+                              }
+                              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-orange-200/50">
                             <label className="text-sm font-bold text-gray-800 flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={moveHolidayData.is_changed}
+                                checked={editHolidayData.is_changed}
                                 onChange={(e) =>
-                                  setMoveHolidayData({
-                                    ...moveHolidayData,
+                                  setEditHolidayData({
+                                    ...editHolidayData,
                                     is_changed: e.target.checked,
                                   })
                                 }
@@ -974,17 +1012,17 @@ export default function SettingsPage() {
                               มีการเลื่อนวันหยุดนี้
                             </label>
                           </div>
-                          {moveHolidayData.is_changed && (
+                          {editHolidayData.is_changed && (
                             <div>
                               <label className="block text-xs font-bold text-gray-500 mb-1.5">
                                 วันที่ต้องการย้ายไปหยุดแทน
                               </label>
                               <input
                                 type="date"
-                                value={moveHolidayData.changed_date}
+                                value={editHolidayData.changed_date}
                                 onChange={(e) =>
-                                  setMoveHolidayData({
-                                    ...moveHolidayData,
+                                  setEditHolidayData({
+                                    ...editHolidayData,
                                     changed_date: e.target.value,
                                   })
                                 }
@@ -1000,7 +1038,7 @@ export default function SettingsPage() {
                               ยกเลิก
                             </button>
                             <button
-                              onClick={() => saveMoveHoliday(h.id)}
+                              onClick={() => saveEditHoliday(h.id)}
                               className="flex-1 bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm hover:bg-orange-700 transition-colors"
                             >
                               บันทึกข้อมูล
