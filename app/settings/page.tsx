@@ -29,6 +29,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Filter,
+  ShieldAlert,
+  UserMinus,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -135,6 +137,17 @@ export default function SettingsPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState<any>(null);
 
+  // 🌟 State: Modal ยืนยันการเปลี่ยน Role และลบพนักงาน
+  const [confirmRoleModal, setConfirmRoleModal] = useState({
+    show: false,
+    user: null as any,
+    newRole: "",
+  });
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState({
+    show: false,
+    user: null as any,
+  });
+
   // === State: Cron Job ===
   const [cronTime, setCronTime] = useState("07:00");
   const [cronTargetRoles, setCronTargetRoles] = useState<string[]>([
@@ -199,7 +212,7 @@ export default function SettingsPage() {
   const canManageHolidays = isAdminOrManager || isHR;
 
   // ==========================================
-  // ฟังก์ชัน Roles & Users (🌟 เปลี่ยนมาใช้ line_user_id แทน id)
+  // ฟังก์ชัน Roles & Users
   // ==========================================
   const fetchUsers = async () => {
     setLoading(true);
@@ -211,17 +224,27 @@ export default function SettingsPage() {
     setLoading(false);
   };
 
-  const handleUpdateRole = async (lineUserId: string, newRole: string) => {
+  // 🌟 ฟังก์ชันเรียก Popup ยืนยันเปลี่ยนสิทธิ์
+  const triggerRoleChange = (user: any, newRole: string) => {
+    if (user.role === newRole) return;
+    setConfirmRoleModal({ show: true, user, newRole });
+  };
+
+  const executeRoleUpdate = async () => {
+    const { user, newRole } = confirmRoleModal;
+    if (!user) return;
     try {
       const { error } = await supabase
         .from("users")
         .update({ role: newRole })
-        .eq("line_user_id", lineUserId);
+        .eq("line_user_id", user.line_user_id);
       if (error) throw error;
       showToast("อัปเดตสิทธิ์สำเร็จ", "success");
       fetchUsers();
     } catch (err: any) {
       showToast(err.message, "error");
+    } finally {
+      setConfirmRoleModal({ show: false, user: null, newRole: "" });
     }
   };
 
@@ -245,23 +268,26 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteUser = async (lineUserId: string, name: string) => {
-    if (
-      !window.confirm(
-        `ยืนยันการลบผู้ใช้งาน ${name} ออกจากระบบ? (การลบจะลบข้อมูลที่เกี่ยวข้องด้วย)`,
-      )
-    )
-      return;
+  // 🌟 ฟังก์ชันเรียก Popup ยืนยันการลบ
+  const triggerDeleteUser = (user: any) => {
+    setConfirmDeleteModal({ show: true, user });
+  };
+
+  const executeDeleteUser = async () => {
+    const { user } = confirmDeleteModal;
+    if (!user) return;
     try {
       const { error } = await supabase
         .from("users")
         .delete()
-        .eq("line_user_id", lineUserId);
+        .eq("line_user_id", user.line_user_id);
       if (error) throw error;
       showToast("ลบผู้ใช้งานสำเร็จ", "success");
       fetchUsers();
     } catch (err: any) {
       showToast(err.message, "error");
+    } finally {
+      setConfirmDeleteModal({ show: false, user: null });
     }
   };
 
@@ -275,7 +301,7 @@ export default function SettingsPage() {
           department: editingUser.department,
           gmail: editingUser.gmail,
         })
-        .eq("line_user_id", editingUser.line_user_id); // 🌟 เปลี่ยนมาใช้ line_user_id
+        .eq("line_user_id", editingUser.line_user_id);
       if (error) throw error;
       showToast("อัปเดตข้อมูลพนักงานสำเร็จ", "success");
       setEditingUser(null);
@@ -625,7 +651,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
-      {/* Toast Notification */}
+      {/* 🌟 Toast Notification */}
       {toast.show && (
         <div
           className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-2xl px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
@@ -639,7 +665,89 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Modal แก้ไขข้อมูลผู้ใช้งาน */}
+      {/* 🌟 Modal ยืนยันการเปลี่ยน Role */}
+      {confirmRoleModal.show && confirmRoleModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 text-center mb-2">
+              ยืนยันการเปลี่ยนสิทธิ์?
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              คุณต้องการเปลี่ยนสิทธิ์ของ{" "}
+              <span className="font-bold text-gray-800">
+                {confirmRoleModal.user.full_name || "พนักงาน"}
+              </span>{" "}
+              เป็น{" "}
+              <span className="font-bold text-purple-600 uppercase">
+                {confirmRoleModal.newRole}
+              </span>{" "}
+              ใช่หรือไม่?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setConfirmRoleModal({ show: false, user: null, newRole: "" })
+                }
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeRoleUpdate}
+                className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-purple-700 transition-colors"
+              >
+                ยืนยันการเปลี่ยน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Modal ยืนยันการลบผู้ใช้งาน */}
+      {confirmDeleteModal.show && confirmDeleteModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <UserMinus className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 text-center mb-2">
+              ยืนยันการลบผู้ใช้งาน?
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              คุณต้องการลบ{" "}
+              <span className="font-bold text-red-600">
+                {confirmDeleteModal.user.full_name || "พนักงาน"}
+              </span>{" "}
+              ออกจากระบบถาวรใช่หรือไม่?
+              <br />
+              <span className="text-xs text-red-400">
+                การลบนี้จะลบข้อมูลที่เกี่ยวข้องทั้งหมด
+              </span>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setConfirmDeleteModal({ show: false, user: null })
+                }
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeDeleteUser}
+                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-red-700 transition-colors"
+              >
+                ลบถาวร
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Modal แก้ไขข้อมูลผู้ใช้งาน */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
@@ -747,7 +855,6 @@ export default function SettingsPage() {
             <LayoutDashboard className="w-6 h-6 text-gray-800" />
             <h2 className="text-xl font-black text-gray-900">เมนูการตั้งค่า</h2>
           </div>
-
           <div className="grid grid-cols-1 gap-4">
             {isAdminOrManager && (
               <button
@@ -770,7 +877,6 @@ export default function SettingsPage() {
                 </div>
               </button>
             )}
-
             {canManageHolidays && (
               <button
                 onClick={() => setActiveView("holiday_form")}
@@ -792,7 +898,6 @@ export default function SettingsPage() {
                 </div>
               </button>
             )}
-
             {isAdminOrManager && (
               <button
                 onClick={() => setActiveView("roles_form")}
@@ -814,7 +919,6 @@ export default function SettingsPage() {
                 </div>
               </button>
             )}
-
             {isAdminOrManager && (
               <button
                 onClick={() => setActiveView("cron_form")}
@@ -930,7 +1034,7 @@ export default function SettingsPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="วางลิงก์ Maps หรือ วางพิกัด (เช่น 13.123, 100.456)"
+                    placeholder="วางลิงก์ Maps หรือ วางพิกัด"
                     className="w-full border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50 mb-4"
                     value={formData.maps_url}
                     onChange={(e) => handleMapsUrlParse(e.target.value)}
@@ -1380,11 +1484,10 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 mt-1">
+                      {/* 🌟 เปลี่ยนมาใช้การเรียก Popup ยืนยันสิทธิ์แทน */}
                       <select
                         value={u.role || "user"}
-                        onChange={(e) =>
-                          handleUpdateRole(u.line_user_id, e.target.value)
-                        }
+                        onChange={(e) => triggerRoleChange(u, e.target.value)}
                         disabled={u.is_active === false}
                         className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500 shadow-sm cursor-pointer"
                       >
@@ -1396,9 +1499,7 @@ export default function SettingsPage() {
                       </select>
 
                       <button
-                        onClick={() =>
-                          handleDeleteUser(u.line_user_id, u.full_name)
-                        }
+                        onClick={() => triggerDeleteUser(u)}
                         className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1451,7 +1552,6 @@ export default function SettingsPage() {
               className="w-full max-w-[200px] text-center text-3xl font-black text-emerald-700 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-2xl outline-none focus:border-emerald-500 mx-auto block mb-6 shadow-inner"
             />
 
-            {/* 🌟 1. ส่วนเลือกเป้าหมายแบบ Role */}
             <div className="mb-6 border-t border-gray-100 pt-6">
               <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
                 1. ส่งสรุปให้กลุ่มสิทธิ์ (Role)
@@ -1481,7 +1581,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* 🌟 2. ส่วนเลือกเป้าหมายแบบ รายบุคคล */}
             <div className="mb-8 border-t border-gray-100 pt-6">
               <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
                 2. ส่งสรุปให้รายบุคคล (เจาะจงคน)
