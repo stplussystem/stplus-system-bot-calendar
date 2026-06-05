@@ -1032,6 +1032,35 @@ export default function SettingsPage() {
                     <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
                     พิกัด
                   </label>
+                  {/* 🌟 เพิ่มคู่มือแบบพับเก็บได้ (Accordion) */}
+                  <details className="mb-3 group">
+                    <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
+                      <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
+                        ?
+                      </span>
+                      วิธีดูพิกัดจากมือถือ (คลิก)
+                    </summary>
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
+                      <p>
+                        1. เปิดแอป <b>Google Maps</b>
+                      </p>
+                      <p>
+                        2. <b>แตะค้าง</b> (Long Press)
+                        ตรงจุดที่ต้องการให้ขึ้นหมุดสีแดง (Dropped Pin)
+                      </p>
+                      <p>
+                        3. เลื่อนดูรายละเอียดด้านล่าง จะเห็นตัวเลขพิกัด (เช่น{" "}
+                        <code className="bg-white px-1.5 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm font-mono">
+                          13.7563, 100.5018
+                        </code>
+                        ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                      </p>
+                      <p>
+                        4. *** ห้ามใส่วงเล็บในกรณีก็อบเฉพาะตัวเลขมา
+                        ให้เอาวงเล็บออก <b>13.7563, 100.5018</b>
+                      </p>
+                    </div>
+                  </details>
                   <input
                     type="text"
                     placeholder="วางลิงก์ Maps หรือ วางพิกัด"

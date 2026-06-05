@@ -74,9 +74,9 @@ export default function LeavePage() {
 
   const currentYear = new Date().getFullYear().toString();
   const currentYearThai = (new Date().getFullYear() + 543).toString();
+
   // 🌟 เพิ่มตัวแปรเช็คสิทธิ์ (เฉพาะ admin, manager, hr เท่านั้นที่มีสิทธิ์อนุมัติ)
-  const canApproveLeave =
-    dbUser?.role === "admin" || dbUser?.role === "manager";
+  // const canApproveLeave = dbUser?.role === "admin" || dbUser?.role === "manager";
 
   useEffect(() => {
     const initLiff = async () => {
@@ -120,11 +120,7 @@ export default function LeavePage() {
   useEffect(() => {
     if (isLiffInit && profile) {
       fetchMyLeaves();
-      if (
-        dbUser?.role === "admin" ||
-        dbUser?.role === "manager" ||
-        dbUser?.role === "hr"
-      ) {
+      if (dbUser?.role === "admin" || dbUser?.role === "manager") {
         fetchManagerData();
       }
     }
@@ -504,8 +500,33 @@ export default function LeavePage() {
       </div>
 
       <div className="px-4 md:px-6 -mt-8 max-w-2xl w-full mx-auto relative z-10 space-y-4">
+        {(dbUser?.role === "admin" ||
+          dbUser?.role === "manager" ||
+          dbUser?.role === "hr") &&
+          !showForm && (
+            <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
+              <button
+                onClick={() => setActiveTab("my_leave")}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+              >
+                การลาของฉัน
+              </button>
+              <button
+                onClick={() => setActiveTab("approval")}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+              >
+                อนุมัติวันลา
+                {pendingRequests.length > 0 && (
+                  <span className="bg-red-500 text-white w-5 h-5 rounded-full text-[11px] flex items-center justify-center shadow-sm animate-pulse">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
         {/* 🌟 แสดงปุ่มสลับ Tab เฉพาะผู้ที่มีสิทธิ์ (canApproveLeave) เท่านั้น */}
-        {canApproveLeave && !showForm && (
+        {/* {canApproveLeave && !showForm && (
           <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
             <button
               onClick={() => setActiveTab("my_leave")}
@@ -525,7 +546,7 @@ export default function LeavePage() {
               )}
             </button>
           </div>
-        )}
+        )} */}
 
         {showForm && (
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 animate-in fade-in slide-in-from-right-4">
