@@ -199,7 +199,7 @@ export default function SettingsPage() {
   const canManageHolidays = isAdminOrManager || isHR;
 
   // ==========================================
-  // ฟังก์ชัน Roles & Users (อัปเกรดจับ Error เด็ดขาด)
+  // ฟังก์ชัน Roles & Users (🌟 เปลี่ยนมาใช้ line_user_id แทน id)
   // ==========================================
   const fetchUsers = async () => {
     setLoading(true);
@@ -211,13 +211,13 @@ export default function SettingsPage() {
     setLoading(false);
   };
 
-  const handleUpdateRole = async (userId: string, newRole: string) => {
+  const handleUpdateRole = async (lineUserId: string, newRole: string) => {
     try {
       const { error } = await supabase
         .from("users")
         .update({ role: newRole })
-        .eq("id", userId);
-      if (error) throw error; // 🌟 เด้ง Error แจ้งเตือนถ้า RLS บล็อค
+        .eq("line_user_id", lineUserId);
+      if (error) throw error;
       showToast("อัปเดตสิทธิ์สำเร็จ", "success");
       fetchUsers();
     } catch (err: any) {
@@ -225,12 +225,15 @@ export default function SettingsPage() {
     }
   };
 
-  const handleToggleActive = async (userId: string, currentStatus: boolean) => {
+  const handleToggleActive = async (
+    lineUserId: string,
+    currentStatus: boolean,
+  ) => {
     try {
       const { error } = await supabase
         .from("users")
         .update({ is_active: !currentStatus })
-        .eq("id", userId);
+        .eq("line_user_id", lineUserId);
       if (error) throw error;
       showToast(
         currentStatus ? "ระงับการใช้งานสำเร็จ" : "เปิดการใช้งานสำเร็จ",
@@ -242,7 +245,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteUser = async (userId: string, name: string) => {
+  const handleDeleteUser = async (lineUserId: string, name: string) => {
     if (
       !window.confirm(
         `ยืนยันการลบผู้ใช้งาน ${name} ออกจากระบบ? (การลบจะลบข้อมูลที่เกี่ยวข้องด้วย)`,
@@ -250,7 +253,10 @@ export default function SettingsPage() {
     )
       return;
     try {
-      const { error } = await supabase.from("users").delete().eq("id", userId);
+      const { error } = await supabase
+        .from("users")
+        .delete()
+        .eq("line_user_id", lineUserId);
       if (error) throw error;
       showToast("ลบผู้ใช้งานสำเร็จ", "success");
       fetchUsers();
@@ -269,7 +275,7 @@ export default function SettingsPage() {
           department: editingUser.department,
           gmail: editingUser.gmail,
         })
-        .eq("id", editingUser.id);
+        .eq("line_user_id", editingUser.line_user_id); // 🌟 เปลี่ยนมาใช้ line_user_id
       if (error) throw error;
       showToast("อัปเดตข้อมูลพนักงานสำเร็จ", "success");
       setEditingUser(null);
@@ -1358,7 +1364,10 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() =>
-                          handleToggleActive(u.id, u.is_active !== false)
+                          handleToggleActive(
+                            u.line_user_id,
+                            u.is_active !== false,
+                          )
                         }
                         className="p-2"
                       >
@@ -1373,7 +1382,9 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-2 mt-1">
                       <select
                         value={u.role || "user"}
-                        onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                        onChange={(e) =>
+                          handleUpdateRole(u.line_user_id, e.target.value)
+                        }
                         disabled={u.is_active === false}
                         className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500 shadow-sm cursor-pointer"
                       >
@@ -1385,7 +1396,9 @@ export default function SettingsPage() {
                       </select>
 
                       <button
-                        onClick={() => handleDeleteUser(u.id, u.full_name)}
+                        onClick={() =>
+                          handleDeleteUser(u.line_user_id, u.full_name)
+                        }
                         className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
