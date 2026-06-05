@@ -1356,10 +1356,11 @@ export default function SettingsPage() {
                         disabled={u.is_active === false}
                         className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500 shadow-sm cursor-pointer"
                       >
-                        <option value="user">USER (พนักงานทั่วไป)</option>
-                        <option value="hr">HR (ฝ่ายบุคคล)</option>
-                        <option value="manager">MANAGER (หัวหน้างาน)</option>
-                        <option value="admin">ADMIN (ผู้ดูแลระบบสูงสุด)</option>
+                        <option value="user">พนักงานทั่วไป (USER)</option>
+                        <option value="hr">ฝ่ายบุคคล (HR)</option>
+                        <option value="it">SUPPORT (ฝ่ายสนับสนุน)</option>
+                        <option value="manager">หัวหน้างาน (MANAGER)</option>
+                        <option value="admin">ผู้ดูแลระบบ (ADMIN)</option>
                       </select>
 
                       <button
