@@ -28,6 +28,7 @@ import {
   Bot,
   ToggleLeft,
   ToggleRight,
+  Filter,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -131,9 +132,16 @@ export default function SettingsPage() {
 
   // === State: Roles & Users ===
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [editingUser, setEditingUser] = useState<any>(null);
 
-  // === State: Cron Job ===
+  // === State: Cron Job (อัปเกรดแยก Role กับ รายคน) ===
   const [cronTime, setCronTime] = useState("07:00");
+  const [cronTargetRoles, setCronTargetRoles] = useState<string[]>([
+    "manager",
+    "admin",
+  ]);
+  const [cronTargetUsers, setCronTargetUsers] = useState<string[]>([]);
 
   useEffect(() => {
     const initLiff = async () => {
@@ -150,12 +158,11 @@ export default function SettingsPage() {
             .select("*")
             .eq("line_user_id", profile.userId)
             .single();
-          // ถ้าไม่มี Role กำหนดให้เป็น user (เผื่อไว้ทดสอบระบบ Admin ให้ใส่ admin ลงใน DB ด้วยนะครับ)
           setDbUser(data || { role: "user", full_name: profile.displayName });
         } else liff.login();
       } catch (error) {
         setUserProfile({ userId: "U_LOCAL", displayName: "Admin Mode" });
-        setDbUser({ role: "admin", full_name: "Local Admin" }); // สำหรับเทสในคอม
+        setDbUser({ role: "admin", full_name: "Local Admin" });
       } finally {
         setIsLiffInit(true);
       }
@@ -171,7 +178,10 @@ export default function SettingsPage() {
         fetchAnnouncementUrl();
       }
       if (activeView === "roles_form") fetchUsers();
-      if (activeView === "cron_form") fetchCronTime();
+      if (activeView === "cron_form") {
+        fetchCronSettings();
+        fetchUsers(); // 🌟 โหลดรายชื่อพนักงานมารอไว้เลือกรายคน
+      }
     }
   }, [isLiffInit, activeView, holidayYear, dbUser]);
 
@@ -183,9 +193,6 @@ export default function SettingsPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  // ==========================================
-  // การเช็คสิทธิ์ (Role Checking)
-  // ==========================================
   const isAdminOrManager =
     dbUser?.role === "admin" || dbUser?.role === "manager";
   const isHR = dbUser?.role === "hr";
@@ -246,38 +253,75 @@ export default function SettingsPage() {
     }
   };
 
+  const saveUserEdit = async () => {
+    try {
+      await supabase
+        .from("users")
+        .update({
+          full_name: editingUser.full_name,
+          nickname: editingUser.nickname,
+          department: editingUser.department,
+          gmail: editingUser.gmail,
+        })
+        .eq("id", editingUser.id);
+      showToast("อัปเดตข้อมูลพนักงานสำเร็จ", "success");
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
   // ==========================================
-  // ฟังก์ชัน Cron Job
+  // ฟังก์ชัน Cron Job (อัปเกรดให้รองรับรายคน)
   // ==========================================
-  const fetchCronTime = async () => {
+  const fetchCronSettings = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("company_settings")
-      .select("setting_value")
-      .eq("setting_key", "cron_bot_time")
-      .single();
-    if (data) setCronTime(data.setting_value);
+      .select("*")
+      .in("setting_key", ["cron_bot_time", "cron_bot_target"]);
+    if (data) {
+      const timeObj = data.find((d) => d.setting_key === "cron_bot_time");
+      const targetObj = data.find((d) => d.setting_key === "cron_bot_target");
+      if (timeObj) setCronTime(timeObj.setting_value);
+      if (targetObj) {
+        try {
+          const parsed = JSON.parse(targetObj.setting_value);
+          // เช็คเผื่อเป็นข้อมูลเก่าที่เป็น Array ธรรมดา
+          if (Array.isArray(parsed)) {
+            setCronTargetRoles(parsed);
+            setCronTargetUsers([]);
+          } else {
+            setCronTargetRoles(parsed.roles || []);
+            setCronTargetUsers(parsed.users || []);
+          }
+        } catch (e) {
+          setCronTargetRoles(["manager", "admin"]);
+          setCronTargetUsers([]);
+        }
+      }
+    }
     setLoading(false);
   };
 
-  const handleSaveCronTime = async () => {
+  const handleSaveCronSettings = async () => {
     setSaving(true);
     try {
-      const { data: exist } = await supabase
+      const targetData = { roles: cronTargetRoles, users: cronTargetUsers };
+      const upsertData = [
+        { setting_key: "cron_bot_time", setting_value: cronTime },
+        {
+          setting_key: "cron_bot_target",
+          setting_value: JSON.stringify(targetData),
+        },
+      ];
+      const { error } = await supabase
         .from("company_settings")
-        .select("id")
-        .eq("setting_key", "cron_bot_time")
-        .single();
-      if (exist)
-        await supabase
-          .from("company_settings")
-          .update({ setting_value: cronTime })
-          .eq("setting_key", "cron_bot_time");
-      else
-        await supabase
-          .from("company_settings")
-          .insert([{ setting_key: "cron_bot_time", setting_value: cronTime }]);
-      showToast("บันทึกเวลาทำงานของบอทสำเร็จ", "success");
+        .upsert(upsertData, { onConflict: "setting_key" });
+      if (error) throw error;
+      showToast("บันทึกการตั้งค่าบอทสำเร็จ", "success");
+      setTimeout(() => setActiveView("menu"), 1500);
     } catch (err: any) {
       showToast(err.message, "error");
     } finally {
@@ -285,7 +329,9 @@ export default function SettingsPage() {
     }
   };
 
-  // === ฟังก์ชัน Office ===
+  // ==========================================
+  // ฟังก์ชัน Office
+  // ==========================================
   const fetchOfficeSettings = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -354,7 +400,9 @@ export default function SettingsPage() {
     }
   };
 
-  // === ฟังก์ชัน Holidays ===
+  // ==========================================
+  // ฟังก์ชัน Holidays
+  // ==========================================
   const fetchHolidays = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -434,25 +482,12 @@ export default function SettingsPage() {
     setUploading(true);
     try {
       const publicUrl = await uploadImageToStorage(e.target.files[0]);
-      const { data: exist } = await supabase
+      const upsertData = [
+        { setting_key: "holiday_announcement_url", setting_value: publicUrl },
+      ];
+      await supabase
         .from("company_settings")
-        .select("id")
-        .eq("setting_key", "holiday_announcement_url")
-        .single();
-      if (exist)
-        await supabase
-          .from("company_settings")
-          .update({ setting_value: publicUrl })
-          .eq("setting_key", "holiday_announcement_url");
-      else
-        await supabase
-          .from("company_settings")
-          .insert([
-            {
-              setting_key: "holiday_announcement_url",
-              setting_value: publicUrl,
-            },
-          ]);
+        .upsert(upsertData, { onConflict: "setting_key" });
       setAnnouncementUrl(publicUrl);
       showToast("อัปโหลดสำเร็จ", "success");
     } catch (err: any) {
@@ -542,7 +577,6 @@ export default function SettingsPage() {
       </div>
     );
 
-  // ถ้าเข้ามาแล้วไม่มีสิทธิ์อะไรเลย (ไม่ใช่ admin, manager, hr)
   if (!isAdminOrManager && !isHR) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
@@ -557,9 +591,14 @@ export default function SettingsPage() {
     );
   }
 
+  const filteredUsersList =
+    roleFilter === "all"
+      ? usersList
+      : usersList.filter((u) => u.role === roleFilter);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
-      {/* Toast */}
+      {/* Toast Notification */}
       {toast.show && (
         <div
           className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-2xl px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
@@ -570,6 +609,91 @@ export default function SettingsPage() {
             <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
           )}
           <p className="text-sm font-bold leading-relaxed">{toast.message}</p>
+        </div>
+      )}
+
+      {/* Modal แก้ไขข้อมูลผู้ใช้งาน */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
+              <Edit className="w-5 h-5 text-purple-600" /> แก้ไขข้อมูลพนักงาน
+            </h3>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">
+                  ชื่อ-สกุล (จริง)
+                </label>
+                <input
+                  type="text"
+                  value={editingUser.full_name || ""}
+                  onChange={(e) =>
+                    setEditingUser({
+                      ...editingUser,
+                      full_name: e.target.value,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">
+                  ชื่อเล่น
+                </label>
+                <input
+                  type="text"
+                  value={editingUser.nickname || ""}
+                  onChange={(e) =>
+                    setEditingUser({ ...editingUser, nickname: e.target.value })
+                  }
+                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">
+                  แผนก/ตำแหน่ง
+                </label>
+                <input
+                  type="text"
+                  value={editingUser.department || ""}
+                  onChange={(e) =>
+                    setEditingUser({
+                      ...editingUser,
+                      department: e.target.value,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">
+                  อีเมล (Gmail)
+                </label>
+                <input
+                  type="email"
+                  value={editingUser.gmail || ""}
+                  onChange={(e) =>
+                    setEditingUser({ ...editingUser, gmail: e.target.value })
+                  }
+                  className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditingUser(null)}
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={saveUserEdit}
+                className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-purple-700 transition-colors"
+              >
+                บันทึกข้อมูล
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -598,11 +722,10 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            {/* เมนู 1: Office (Admin/Manager) */}
             {isAdminOrManager && (
               <button
                 onClick={() => setActiveView("office_form")}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
               >
                 <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
                   <Building2 className="w-7 h-7 text-blue-600" />
@@ -621,11 +744,10 @@ export default function SettingsPage() {
               </button>
             )}
 
-            {/* เมนู 2: Holidays (Admin/Manager/HR) */}
             {canManageHolidays && (
               <button
                 onClick={() => setActiveView("holiday_form")}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:border-orange-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-orange-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
               >
                 <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:bg-orange-100 transition-colors">
                   <CalendarDays className="w-7 h-7 text-orange-600" />
@@ -644,11 +766,10 @@ export default function SettingsPage() {
               </button>
             )}
 
-            {/* เมนู 3: Roles & Users (Admin/Manager) */}
             {isAdminOrManager && (
               <button
                 onClick={() => setActiveView("roles_form")}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:border-purple-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-purple-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
               >
                 <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0 group-hover:bg-purple-100 transition-colors">
                   <Users className="w-7 h-7 text-purple-600" />
@@ -667,11 +788,10 @@ export default function SettingsPage() {
               </button>
             )}
 
-            {/* เมนู 4: Cron Job Bot (Admin/Manager) */}
             {isAdminOrManager && (
               <button
                 onClick={() => setActiveView("cron_form")}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
               >
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition-colors">
                   <Bot className="w-7 h-7 text-emerald-600" />
@@ -681,7 +801,7 @@ export default function SettingsPage() {
                     ตั้งค่าบอทปฏิทิน (Cron)
                   </h3>
                   <p className="text-xs text-gray-500">
-                    กำหนดเวลาให้บอทกวาดแจ้งเตือนคิวงาน
+                    กำหนดเวลาและผู้รับสรุปคิวงาน
                   </p>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
@@ -702,74 +822,184 @@ export default function SettingsPage() {
           >
             <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
           </button>
-          {/* ข้ามรายละเอียด Office (ใช้โค้ดดั้งเดิมทำงานปกติ) */}
+
           <div className="mb-6">
             <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
               <Building2 className="w-6 h-6 text-blue-600" />{" "}
               ตั้งค่าสถานที่ประจำ
             </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              ปรับแต่งพิกัด GPS รัศมี และเวลาทำงาน สำหรับออฟฟิศ
+            </p>
           </div>
+
           {selectedTopic && (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden space-y-0">
-              {/* -------------------- Office UI (ย่อไว้เพื่อให้โค้ดกระชับ) -------------------- */}
-              <div className="p-5 border-b border-gray-100 space-y-4">
-                <input
-                  type="text"
-                  className="w-full p-3 bg-gray-50 border rounded-xl font-bold"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
-                />
-                <div className="grid grid-cols-2 gap-6">
+              <div className="p-6 border-b border-gray-100 space-y-5 bg-white">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                    ชื่อสถานที่ (แสดงในแอป)
+                  </label>
                   <input
-                    type="time"
-                    className="w-full p-3 bg-gray-50 border rounded-xl font-bold"
-                    value={formData.start_time}
+                    type="text"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    value={formData.title}
                     onChange={(e) =>
-                      setFormData({ ...formData, start_time: e.target.value })
-                    }
-                  />
-                  <input
-                    type="time"
-                    className="w-full p-3 bg-gray-50 border rounded-xl font-bold"
-                    value={formData.end_time}
-                    onChange={(e) =>
-                      setFormData({ ...formData, end_time: e.target.value })
+                      setFormData({ ...formData, title: e.target.value })
                     }
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                      เวลาเข้างาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.start_time}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            start_time: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                      เวลาออกงาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.end_time}
+                        onChange={(e) =>
+                          setFormData({ ...formData, end_time: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="p-5 border-b border-gray-100 bg-slate-50 space-y-4">
-                <input
-                  type="text"
-                  placeholder="วางลิงก์ Maps"
-                  className="w-full border rounded-lg p-3 text-sm bg-white"
-                  value={formData.maps_url}
-                  onChange={(e) => handleMapsUrlParse(e.target.value)}
-                />
-                <input
-                  type="range"
-                  min="50"
-                  max="1000"
-                  step="50"
-                  className="w-full accent-indigo-600"
-                  value={formData.radius_meters}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      radius_meters: parseInt(e.target.value),
-                    })
-                  }
-                />
+
+              <div className="p-6 border-b border-gray-100 bg-slate-50 space-y-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPinHouse className="w-5 h-5 text-indigo-500" />
+                  <h3 className="font-bold text-gray-900">
+                    การตั้งค่า GPS & รัศมี
+                  </h3>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+                    <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
+                    พิกัด
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="วางลิงก์ Maps หรือ วางพิกัด (เช่น 13.123, 100.456)"
+                    className="w-full border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50 mb-4"
+                    value={formData.maps_url}
+                    onChange={(e) => handleMapsUrlParse(e.target.value)}
+                  />
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">
+                        ละติจูด (Lat)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 bg-gray-100 border border-gray-200 rounded-lg font-mono text-xs text-gray-500 cursor-not-allowed"
+                        value={formData.lat}
+                        readOnly
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">
+                        ลองจิจูด (Lng)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 bg-gray-100 border border-gray-200 rounded-lg font-mono text-xs text-gray-500 cursor-not-allowed"
+                        value={formData.lng}
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex justify-between">
+                    <span>รัศมีที่อนุญาตให้ลงเวลา (เมตร)</span>
+                    <span className="text-indigo-600">
+                      {formData.radius_meters} ม.
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="1000"
+                    step="50"
+                    className="w-full accent-indigo-600"
+                    value={formData.radius_meters}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        radius_meters: parseInt(e.target.value),
+                      })
+                    }
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
+                    <span>เข้มงวด (50m)</span>
+                    <span>ยืดหยุ่น (1000m)</span>
+                  </div>
+                </div>
               </div>
-              <div className="p-5 bg-gray-50">
+
+              <div className="p-6 border-b border-gray-100 space-y-4 bg-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <Camera className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-bold text-gray-900">การยืนยันตัวตน</h3>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                    โหมดรูปถ่าย
+                  </label>
+                  <select
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none"
+                    value={formData.photo_mode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, photo_mode: e.target.value })
+                    }
+                  >
+                    <option value="none">ไม่ต้องแนบรูป</option>
+                    <option value="camera">ต้องถ่ายจากกล้องเท่านั้น</option>
+                    <option value="gallery">
+                      เลือกจากอัลบั้ม หรือ ถ่ายสดก็ได้
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50">
                 <button
                   onClick={handleSaveOffice}
                   disabled={saving}
-                  className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg"
+                  className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg transition-transform active:scale-95 disabled:opacity-50"
                 >
-                  บันทึกออฟฟิศ
+                  {saving ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5" /> บันทึกการตั้งค่าออฟฟิศ
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -792,7 +1022,7 @@ export default function SettingsPage() {
               <button
                 key={y}
                 onClick={() => setHolidayYear(y)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all shrink-0 ${holidayYear === y ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-100 bg-white text-gray-500"}`}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all shrink-0 ${holidayYear === y ? "border-orange-500 bg-orange-50 text-orange-700 shadow-sm" : "border-gray-100 bg-white text-gray-500"}`}
               >
                 วันหยุดปี {y}
               </button>
@@ -856,7 +1086,7 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setNewHoliday({ ...newHoliday, date: e.target.value })
                     }
-                    className="w-full p-2.5 border rounded-lg text-sm mb-3"
+                    className="w-full p-2.5 border rounded-lg text-sm mb-3 outline-none focus:border-blue-500"
                   />
                   <input
                     type="text"
@@ -865,7 +1095,7 @@ export default function SettingsPage() {
                       setNewHoliday({ ...newHoliday, title: e.target.value })
                     }
                     placeholder="ชื่อวันหยุด"
-                    className="w-full p-2.5 border rounded-lg text-sm mb-3"
+                    className="w-full p-2.5 border rounded-lg text-sm mb-3 outline-none focus:border-blue-500"
                   />
                   <div className="flex justify-end gap-2">
                     <button
@@ -964,7 +1194,7 @@ export default function SettingsPage() {
                               date: e.target.value,
                             })
                           }
-                          className="w-full border rounded-lg p-2.5 text-sm"
+                          className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
                         />
                         <input
                           type="text"
@@ -975,7 +1205,7 @@ export default function SettingsPage() {
                               title: e.target.value,
                             })
                           }
-                          className="w-full border rounded-lg p-2.5 text-sm"
+                          className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
                         />
                         <label className="text-sm font-bold flex gap-2 cursor-pointer">
                           <input
@@ -1001,7 +1231,7 @@ export default function SettingsPage() {
                                 changed_date: e.target.value,
                               })
                             }
-                            className="w-full border rounded-lg p-2.5 text-sm"
+                            className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
                           />
                         )}
                         <div className="flex gap-2">
@@ -1028,7 +1258,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 🌟 View 4: Roles & Users (เมนูใหม่) */}
+      {/* 🌟 View 4: Roles & Users */}
       {activeView === "roles_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
           <button
@@ -1044,90 +1274,115 @@ export default function SettingsPage() {
               จัดการสิทธิ์ผู้ใช้งาน
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              เปลี่ยนสิทธิ์ เปิด/ปิดระงับไอดี และลบผู้ใช้
+              เปลี่ยนสิทธิ์ เปิด/ปิดระงับไอดี และแก้ไขข้อมูล
             </p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-gray-100">
+            <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="font-bold text-sm text-gray-800">
-                รายชื่อพนักงานทั้งหมด ({usersList.length})
+                พนักงานทั้งหมด ({filteredUsersList.length})
               </h3>
-            </div>
-            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-              {usersList.map((u) => (
-                <div
-                  key={u.id}
-                  className={`p-4 flex flex-col gap-3 transition-colors ${u.is_active === false ? "bg-red-50/30 grayscale opacity-70" : "hover:bg-gray-50"}`}
+              <div className="relative">
+                <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="w-full sm:w-40 bg-white border border-gray-200 text-xs font-bold text-gray-600 rounded-lg py-2 pl-8 pr-3 outline-none focus:border-purple-500 appearance-none shadow-sm cursor-pointer"
                 >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={
-                        u.picture_url ||
-                        "https://cdn-icons-png.flaticon.com/512/847/847969.png"
-                      }
-                      alt="profile"
-                      className="w-10 h-10 rounded-full border border-gray-200 object-cover"
-                    />
-                    <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 text-sm">
-                        {u.full_name || "ไม่ได้ตั้งชื่อ"}{" "}
-                        <span className="text-xs text-gray-500">
-                          ({u.nickname || "-"})
-                        </span>
-                      </h4>
-                      <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate max-w-[150px]">
-                        {u.line_user_id}
-                      </p>
-                    </div>
-                    {/* ปุ่มระงับการใช้งาน */}
-                    <button
-                      onClick={() =>
-                        handleToggleActive(u.id, u.is_active !== false)
-                      }
-                      className="p-2"
-                    >
-                      {u.is_active !== false ? (
-                        <ToggleRight className="w-8 h-8 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="w-8 h-8 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
+                  <option value="all">ดูทุกสิทธิ์ (All)</option>
+                  <option value="user">พนักงานทั่วไป (USER)</option>
+                  <option value="hr">ฝ่ายบุคคล (HR)</option>
+                  <option value="it">SUPPORT (ฝ่ายสนับสนุน)</option>
+                  <option value="manager">หัวหน้างาน (MANAGER)</option>
+                  <option value="admin">ผู้ดูแลระบบ (ADMIN)</option>
+                </select>
+              </div>
+            </div>
 
-                  <div className="flex items-center gap-2 mt-1">
-                    <select
-                      value={u.role || "user"}
-                      onChange={(e) => handleUpdateRole(u.id, e.target.value)}
-                      disabled={u.is_active === false}
-                      className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500"
-                    >
-                      <option value="user">USER (พนักงานทั่วไป)</option>
-                      <option value="hr">HR (ฝ่ายบุคคล)</option>
-                      <option value="manager">MANAGER (หัวหน้างาน)</option>
-                      <option value="admin">ADMIN (ผู้ดูแลระบบสูงสุด)</option>
-                    </select>
-
-                    <button
-                      onClick={() => handleDeleteUser(u.id, u.full_name)}
-                      className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {u.is_active === false && (
-                    <p className="text-[10px] font-bold text-red-500 text-center bg-red-100 py-1 rounded-md">
-                      บัญชีนี้ถูกระงับการใช้งาน
-                    </p>
-                  )}
+            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto custom-scrollbar">
+              {filteredUsersList.length === 0 ? (
+                <div className="p-10 text-center text-gray-400 font-bold text-sm">
+                  ไม่พบข้อมูลผู้ใช้งาน
                 </div>
-              ))}
+              ) : (
+                filteredUsersList.map((u) => (
+                  <div
+                    key={u.id}
+                    className={`p-4 flex flex-col gap-3 transition-colors ${u.is_active === false ? "bg-red-50/30 grayscale opacity-70" : "hover:bg-gray-50"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={
+                          u.picture_url ||
+                          "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                        }
+                        alt="profile"
+                        className="w-10 h-10 rounded-full border border-gray-200 object-cover"
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                          {u.full_name || "ไม่ได้ตั้งชื่อ"}
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="text-purple-600 bg-purple-50 p-1 rounded-md hover:bg-purple-100"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {u.department || "ไม่ระบุตำแหน่ง"}{" "}
+                          {u.nickname && `(${u.nickname})`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleToggleActive(u.id, u.is_active !== false)
+                        }
+                        className="p-2"
+                      >
+                        {u.is_active !== false ? (
+                          <ToggleRight className="w-8 h-8 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="w-8 h-8 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={u.role || "user"}
+                        onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                        disabled={u.is_active === false}
+                        className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500 shadow-sm cursor-pointer"
+                      >
+                        <option value="user">USER (พนักงานทั่วไป)</option>
+                        <option value="hr">HR (ฝ่ายบุคคล)</option>
+                        <option value="manager">MANAGER (หัวหน้างาน)</option>
+                        <option value="admin">ADMIN (ผู้ดูแลระบบสูงสุด)</option>
+                      </select>
+
+                      <button
+                        onClick={() => handleDeleteUser(u.id, u.full_name)}
+                        className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {u.is_active === false && (
+                      <p className="text-[10px] font-bold text-red-500 text-center bg-red-100 py-1 rounded-md">
+                        บัญชีนี้ถูกระงับการใช้งาน
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 View 5: Cron Job Bot (เมนูใหม่) */}
+      {/* 🌟 View 5: Cron Job Bot (แยกสิทธิ์ราย Role และ รายบุคคล) */}
       {activeView === "cron_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
           <button
@@ -1142,21 +1397,17 @@ export default function SettingsPage() {
               <Bot className="w-6 h-6 text-emerald-600" /> ตั้งค่าบอทปฏิทิน
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              กำหนดเวลาให้บอทกวาดแจ้งเตือนคิวงานของวันนี้ส่งเข้ากลุ่ม
+              กำหนดเวลาและผู้ที่จะได้รับสรุปคิวงานประจำวัน
             </p>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden p-6 text-center">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-emerald-100">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden p-6">
+            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100">
               <Clock className="w-10 h-10 text-emerald-600" />
             </div>
-            <h3 className="font-bold text-gray-800 mb-2">
+            <h3 className="font-bold text-gray-800 mb-2 text-center">
               เวลาแจ้งเตือนประจำวัน
             </h3>
-            <p className="text-xs text-gray-500 mb-6 px-4">
-              ระบบจะทำการดึงข้อมูลคิวงานทั้งหมดของวันที่กำหนด แล้วส่งสรุปเข้า
-              LINE กลุ่ม หรือแชทบอทอัตโนมัติตามเวลานี้ครับ
-            </p>
 
             <input
               type="time"
@@ -1165,16 +1416,106 @@ export default function SettingsPage() {
               className="w-full max-w-[200px] text-center text-3xl font-black text-emerald-700 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-2xl outline-none focus:border-emerald-500 mx-auto block mb-6 shadow-inner"
             />
 
+            {/* 🌟 1. ส่วนเลือกเป้าหมายแบบ Role */}
+            <div className="mb-6 border-t border-gray-100 pt-6">
+              <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
+                1. ส่งสรุปให้กลุ่มสิทธิ์ (Role)
+              </h3>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {["admin", "manager", "hr", "user"].map((role) => (
+                  <label
+                    key={role}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer border-2 transition-all select-none ${cronTargetRoles.includes(role) ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={cronTargetRoles.includes(role)}
+                      onChange={(e) => {
+                        if (e.target.checked)
+                          setCronTargetRoles([...cronTargetRoles, role]);
+                        else
+                          setCronTargetRoles(
+                            cronTargetRoles.filter((r) => r !== role),
+                          );
+                      }}
+                    />
+                    {role.toUpperCase()}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 🌟 2. ส่วนเลือกเป้าหมายแบบ รายบุคคล */}
+            <div className="mb-8 border-t border-gray-100 pt-6">
+              <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
+                2. ส่งสรุปให้รายบุคคล (เจาะจงคน)
+              </h3>
+              <div className="max-h-56 overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl p-2 bg-gray-50">
+                {usersList.length === 0 ? (
+                  <p className="text-center text-xs text-gray-400 py-6">
+                    กำลังโหลดรายชื่อ...
+                  </p>
+                ) : (
+                  usersList.map((u) => (
+                    <label
+                      key={u.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${cronTargetUsers.includes(u.line_user_id) ? "bg-emerald-100/50" : "hover:bg-white"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500"
+                        checked={cronTargetUsers.includes(u.line_user_id)}
+                        onChange={(e) => {
+                          if (e.target.checked)
+                            setCronTargetUsers([
+                              ...cronTargetUsers,
+                              u.line_user_id,
+                            ]);
+                          else
+                            setCronTargetUsers(
+                              cronTargetUsers.filter(
+                                (id) => id !== u.line_user_id,
+                              ),
+                            );
+                        }}
+                      />
+                      <img
+                        src={
+                          u.picture_url ||
+                          "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                        }
+                        alt="profile"
+                        className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-800">
+                          {u.full_name || "ไม่ได้ตั้งชื่อ"}
+                        </span>
+                        <span className="text-[10px] text-gray-500 uppercase">
+                          {u.role}
+                        </span>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-3 text-center bg-gray-100 p-2 rounded-lg">
+                💡 หากเลือกทั้ง Role และรายบุคคล
+                ระบบจะส่งให้ทั้งสองกลุ่มโดยไม่ซ้ำซ้อนกันครับ
+              </p>
+            </div>
+
             <button
-              onClick={handleSaveCronTime}
+              onClick={handleSaveCronSettings}
               disabled={saving}
-              className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg transition-transform active:scale-95"
+              className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg transition-transform active:scale-95 disabled:opacity-50"
             >
               {saving ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <Save className="w-5 h-5" /> บันทึกเวลาบอท
+                  <Save className="w-5 h-5" /> บันทึกการตั้งค่าบอท
                 </>
               )}
             </button>
