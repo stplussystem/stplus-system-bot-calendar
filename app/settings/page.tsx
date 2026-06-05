@@ -135,7 +135,7 @@ export default function SettingsPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState<any>(null);
 
-  // === State: Cron Job (อัปเกรดแยก Role กับ รายคน) ===
+  // === State: Cron Job ===
   const [cronTime, setCronTime] = useState("07:00");
   const [cronTargetRoles, setCronTargetRoles] = useState<string[]>([
     "manager",
@@ -180,7 +180,7 @@ export default function SettingsPage() {
       if (activeView === "roles_form") fetchUsers();
       if (activeView === "cron_form") {
         fetchCronSettings();
-        fetchUsers(); // 🌟 โหลดรายชื่อพนักงานมารอไว้เลือกรายคน
+        fetchUsers();
       }
     }
   }, [isLiffInit, activeView, holidayYear, dbUser]);
@@ -199,7 +199,7 @@ export default function SettingsPage() {
   const canManageHolidays = isAdminOrManager || isHR;
 
   // ==========================================
-  // ฟังก์ชัน Roles & Users
+  // ฟังก์ชัน Roles & Users (อัปเกรดจับ Error เด็ดขาด)
   // ==========================================
   const fetchUsers = async () => {
     setLoading(true);
@@ -213,7 +213,11 @@ export default function SettingsPage() {
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
-      await supabase.from("users").update({ role: newRole }).eq("id", userId);
+      const { error } = await supabase
+        .from("users")
+        .update({ role: newRole })
+        .eq("id", userId);
+      if (error) throw error; // 🌟 เด้ง Error แจ้งเตือนถ้า RLS บล็อค
       showToast("อัปเดตสิทธิ์สำเร็จ", "success");
       fetchUsers();
     } catch (err: any) {
@@ -223,10 +227,11 @@ export default function SettingsPage() {
 
   const handleToggleActive = async (userId: string, currentStatus: boolean) => {
     try {
-      await supabase
+      const { error } = await supabase
         .from("users")
         .update({ is_active: !currentStatus })
         .eq("id", userId);
+      if (error) throw error;
       showToast(
         currentStatus ? "ระงับการใช้งานสำเร็จ" : "เปิดการใช้งานสำเร็จ",
         "success",
@@ -245,7 +250,8 @@ export default function SettingsPage() {
     )
       return;
     try {
-      await supabase.from("users").delete().eq("id", userId);
+      const { error } = await supabase.from("users").delete().eq("id", userId);
+      if (error) throw error;
       showToast("ลบผู้ใช้งานสำเร็จ", "success");
       fetchUsers();
     } catch (err: any) {
@@ -255,7 +261,7 @@ export default function SettingsPage() {
 
   const saveUserEdit = async () => {
     try {
-      await supabase
+      const { error } = await supabase
         .from("users")
         .update({
           full_name: editingUser.full_name,
@@ -264,6 +270,7 @@ export default function SettingsPage() {
           gmail: editingUser.gmail,
         })
         .eq("id", editingUser.id);
+      if (error) throw error;
       showToast("อัปเดตข้อมูลพนักงานสำเร็จ", "success");
       setEditingUser(null);
       fetchUsers();
@@ -273,7 +280,7 @@ export default function SettingsPage() {
   };
 
   // ==========================================
-  // ฟังก์ชัน Cron Job (อัปเกรดให้รองรับรายคน)
+  // ฟังก์ชัน Cron Job
   // ==========================================
   const fetchCronSettings = async () => {
     setLoading(true);
@@ -288,7 +295,6 @@ export default function SettingsPage() {
       if (targetObj) {
         try {
           const parsed = JSON.parse(targetObj.setting_value);
-          // เช็คเผื่อเป็นข้อมูลเก่าที่เป็น Array ธรรมดา
           if (Array.isArray(parsed)) {
             setCronTargetRoles(parsed);
             setCronTargetUsers([]);
@@ -378,7 +384,7 @@ export default function SettingsPage() {
     if (!selectedTopic) return;
     setSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from("attendance_topics")
         .update({
           title: formData.title,
@@ -391,6 +397,7 @@ export default function SettingsPage() {
           photo_mode: formData.photo_mode,
         })
         .eq("id", selectedTopic.id);
+      if (error) throw error;
       showToast("บันทึกข้อมูลเรียบร้อย!", "success");
       setTimeout(() => setActiveView("menu"), 1500);
     } catch (err: any) {
@@ -437,7 +444,10 @@ export default function SettingsPage() {
         date: `${gregorianYear}-${h.month}-${h.day}`,
         title: h.title,
       }));
-      await supabase.from("company_holidays").insert(insertData);
+      const { error } = await supabase
+        .from("company_holidays")
+        .insert(insertData);
+      if (error) throw error;
       showToast("โหลดแม่แบบสำเร็จ!", "success");
       fetchHolidays();
     } catch (err: any) {
@@ -452,11 +462,12 @@ export default function SettingsPage() {
       return showToast("กรุณากรอกวันที่และชื่อ", "error");
     setSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from("company_holidays")
         .insert([
           { year: holidayYear, date: newHoliday.date, title: newHoliday.title },
         ]);
+      if (error) throw error;
       showToast("เพิ่มวันหยุดเรียบร้อย", "success");
       setNewHoliday({ date: "", title: "" });
       setShowAddForm(false);
@@ -470,7 +481,10 @@ export default function SettingsPage() {
 
   const uploadImageToStorage = async (file: File) => {
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${file.name.split(".").pop()}`;
-    await supabase.storage.from("holidays").upload(fileName, file);
+    const { error } = await supabase.storage
+      .from("holidays")
+      .upload(fileName, file);
+    if (error) throw error;
     return supabase.storage.from("holidays").getPublicUrl(fileName).data
       .publicUrl;
   };
@@ -485,9 +499,10 @@ export default function SettingsPage() {
       const upsertData = [
         { setting_key: "holiday_announcement_url", setting_value: publicUrl },
       ];
-      await supabase
+      const { error } = await supabase
         .from("company_settings")
         .upsert(upsertData, { onConflict: "setting_key" });
+      if (error) throw error;
       setAnnouncementUrl(publicUrl);
       showToast("อัปโหลดสำเร็จ", "success");
     } catch (err: any) {
@@ -505,10 +520,11 @@ export default function SettingsPage() {
     setUploading(true);
     try {
       const publicUrl = await uploadImageToStorage(e.target.files[0]);
-      await supabase
+      const { error } = await supabase
         .from("company_holidays")
         .update({ change_document_url: publicUrl })
         .eq("id", holidayId);
+      if (error) throw error;
       showToast("แนบเอกสารสำเร็จ", "success");
       fetchHolidays();
     } catch (err: any) {
@@ -522,7 +538,7 @@ export default function SettingsPage() {
     if (!editHolidayData.date || !editHolidayData.title)
       return showToast("กรุณากรอกข้อมูลให้ครบ", "error");
     try {
-      await supabase
+      const { error } = await supabase
         .from("company_holidays")
         .update({
           date: editHolidayData.date,
@@ -533,6 +549,7 @@ export default function SettingsPage() {
             : null,
         })
         .eq("id", id);
+      if (error) throw error;
       showToast("บันทึกสำเร็จ", "success");
       setEditingHolidayId(null);
       fetchHolidays();
@@ -543,8 +560,12 @@ export default function SettingsPage() {
 
   const deleteHoliday = async (id: string) => {
     if (!window.confirm("ยืนยันลบวันหยุดนี้?")) return;
-    await supabase.from("company_holidays").delete().eq("id", id);
-    fetchHolidays();
+    const { error } = await supabase
+      .from("company_holidays")
+      .delete()
+      .eq("id", id);
+    if (error) showToast(error.message, "error");
+    else fetchHolidays();
   };
 
   const formatThaiDate = (dateString: string) => {
@@ -1383,7 +1404,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 🌟 View 5: Cron Job Bot (แยกสิทธิ์ราย Role และ รายบุคคล) */}
+      {/* 🌟 View 5: Cron Job Bot */}
       {activeView === "cron_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
           <button
@@ -1423,7 +1444,7 @@ export default function SettingsPage() {
                 1. ส่งสรุปให้กลุ่มสิทธิ์ (Role)
               </h3>
               <div className="flex flex-wrap gap-2 justify-center">
-                {["admin", "manager", "hr", "user"].map((role) => (
+                {["admin", "manager", "hr", "it", "user"].map((role) => (
                   <label
                     key={role}
                     className={`px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer border-2 transition-all select-none ${cronTargetRoles.includes(role) ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"}`}
@@ -1441,7 +1462,7 @@ export default function SettingsPage() {
                           );
                       }}
                     />
-                    {role.toUpperCase()}
+                    {role === "it" ? "SUPPORT" : role.toUpperCase()}
                   </label>
                 ))}
               </div>
