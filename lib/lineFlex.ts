@@ -972,16 +972,22 @@ export const getAttendanceMessage = (
 // ส่วนที่ 3: ระบบลางาน (Leave Requests)
 // ==========================================
 
-// ลิงก์สำหรับให้หัวหน้ากดเข้ามาหน้าอนุมัติ (ต่อท้ายด้วย ?tab=approval)
+// ลิงก์สำหรับให้หัวหน้ากดเข้ามาหน้าอนุมัติ
 const APPROVAL_URL =
   "https://liff.line.me/2010143328-wyg8T4P5/leave?tab=approval";
 
+// 🌟 1. Flex Message ขออนุมัติ (อัปเกรดตามดีไซน์ใหม่ มีรูปโปรไฟล์)
 export const generateLeaveRequestFlex = (
   employeeName: string,
+  nickname: string,
+  profileUrl: string,
   leaveTypeName: string,
-  timeText: string,
+  dateText: string,
   reason: string,
 ) => {
+  const defaultProfile =
+    "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+
   return {
     type: "flex",
     altText: `มีคำขออนุมัติลางานจาก ${employeeName}`,
@@ -990,45 +996,71 @@ export const generateLeaveRequestFlex = (
       header: {
         type: "box",
         layout: "vertical",
-        backgroundColor: "#1e3a8a",
+        backgroundColor: "#0033a0",
+        paddingAll: "20px",
         contents: [
           {
             type: "text",
-            text: "🔔 ขออนุมัติลางาน",
-            weight: "bold",
+            text: "ขออนุมัติการลา",
             color: "#ffffff",
-            size: "lg",
+            size: "xl",
+            weight: "bold",
+            align: "center",
           },
         ],
       },
       body: {
         type: "box",
         layout: "vertical",
-        spacing: "md",
+        paddingAll: "20px",
+        alignItems: "center",
         contents: [
           {
+            type: "box",
+            layout: "vertical",
+            width: "120px",
+            height: "120px",
+            cornerRadius: "100px",
+            contents: [
+              {
+                type: "image",
+                url: profileUrl || defaultProfile,
+                size: "full",
+                aspectMode: "cover",
+                aspectRatio: "1:1",
+              },
+            ],
+          },
+          {
             type: "text",
-            text: `พนักงาน: ${employeeName}`,
+            text: `พนักงาน : ${employeeName} (${nickname || "-"})`,
             weight: "bold",
+            size: "lg",
+            align: "center",
+            margin: "xl",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: `ประเภท : ${leaveTypeName}`,
             size: "md",
+            align: "center",
+            margin: "md",
           },
           {
             type: "text",
-            text: `ประเภท: ${leaveTypeName}`,
-            size: "sm",
-            color: "#666666",
+            text: `วันที่ : ${dateText}`,
+            size: "md",
+            align: "center",
+            margin: "sm",
+            wrap: true,
           },
           {
             type: "text",
-            text: `วันที่: ${timeText}`,
-            size: "sm",
-            color: "#666666",
-          },
-          {
-            type: "text",
-            text: `เหตุผล: ${reason}`,
-            size: "sm",
-            color: "#666666",
+            text: `เหตุผล : ${reason}`,
+            size: "md",
+            align: "center",
+            margin: "sm",
             wrap: true,
           },
         ],
@@ -1036,11 +1068,13 @@ export const generateLeaveRequestFlex = (
       footer: {
         type: "box",
         layout: "vertical",
+        paddingAll: "20px",
+        paddingTop: "0px",
         contents: [
           {
             type: "button",
             style: "primary",
-            color: "#f97316",
+            color: "#0033a0",
             action: { type: "uri", label: "พิจารณาอนุมัติ", uri: APPROVAL_URL },
           },
         ],
@@ -1049,6 +1083,7 @@ export const generateLeaveRequestFlex = (
   };
 };
 
+// 🌟 2. Flex แจ้งผลอนุมัติกลับหาพนักงาน (สวยงามขึ้น)
 export const generateLeaveResultFlex = (
   employeeName: string,
   leaveTypeName: string,
@@ -1057,8 +1092,8 @@ export const generateLeaveResultFlex = (
   rejectReason: string,
 ) => {
   const statusText = isApproved
-    ? "✅ อนุมัติการลางาน"
-    : "❌ ไม่อนุมัติการลางาน";
+    ? "✅ อนุมัติการลางาน 🎉"
+    : "❌ ไม่อนุมัติการลางาน ❕";
   const headerColor = isApproved ? "#16a34a" : "#dc2626";
 
   return {
@@ -1070,41 +1105,50 @@ export const generateLeaveResultFlex = (
         type: "box",
         layout: "vertical",
         backgroundColor: headerColor,
+        paddingAll: "20px",
         contents: [
           {
             type: "text",
             text: statusText,
             weight: "bold",
             color: "#ffffff",
-            size: "md",
+            size: "lg",
+            align: "center",
           },
         ],
       },
       body: {
         type: "box",
         layout: "vertical",
-        spacing: "sm",
+        spacing: "md",
+        paddingAll: "20px",
         contents: [
           {
             type: "text",
-            text: `เรียนคุณ: ${employeeName}`,
+            text: `ถึงคุณ : ${employeeName}`,
             weight: "bold",
-            size: "sm",
+            size: "md",
+            align: "center",
           },
           {
             type: "text",
-            text: `รายการ: ${leaveTypeName} (${dateText})`,
-            size: "xs",
+            text: `รายการ: ${leaveTypeName}\nวันที่: ${dateText}`,
+            size: "sm",
             color: "#666666",
+            align: "center",
+            wrap: true,
           },
           {
             type: "text",
             text: isApproved
               ? "คำขอของคุณได้รับการอนุมัติเรียบร้อยแล้ว"
               : `เหตุผล: ${rejectReason || "ไม่ได้ระบุ"}`,
-            size: "sm",
+            size: "md",
+            weight: "bold",
+            color: isApproved ? "#16a34a" : "#dc2626",
+            align: "center",
             wrap: true,
-            margin: "md",
+            margin: "xl",
           },
         ],
       },
