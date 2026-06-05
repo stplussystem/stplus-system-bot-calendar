@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import imageCompression from "browser-image-compression";
+import ProfileSettings from "@/components/ProfileSettings";
 import {
   MapPin,
   Clock,
@@ -65,6 +66,11 @@ export default function CheckinPage() {
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  const [dbUser, setDbUser] = useState<any>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
+
   const [topics, setTopics] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
 
@@ -108,7 +114,50 @@ export default function CheckinPage() {
         const liff = (await import("@line/liff")).default;
         await liff.init({ liffId: "2010143328-wyg8T4P5" });
         if (liff.isLoggedIn()) {
-          setUserProfile(await liff.getProfile());
+          const profile = await liff.getProfile();
+          setUserProfile(profile);
+
+          // 🌟 1. ดึงข้อมูลผู้ใช้จากฐานข้อมูล
+          const { data: userData } = await supabase
+            .from("users")
+            .select("*")
+            .eq("line_user_id", profile.userId)
+            .single();
+          let currentUser = userData;
+
+          // 🌟 2. ถ้าไม่พบข้อมูลให้สร้างใหม่ (บังคับรออนุมัติ)
+          if (!currentUser) {
+            const { data: newUser } = await supabase
+              .from("users")
+              .insert([
+                {
+                  line_user_id: profile.userId,
+                  display_name: profile.displayName,
+                  picture_url: profile.pictureUrl,
+                  is_active: false,
+                },
+              ])
+              .select()
+              .single();
+            currentUser = newUser;
+          }
+
+          setDbUser(currentUser || {});
+
+          // 🌟 3. เช็คด่าน 1: บังคับกรอกชื่อ
+          if (!currentUser?.full_name || !currentUser?.nickname) {
+            setIsNewUser(true);
+            return;
+          }
+
+          // 🌟 4. เช็คด่าน 2: รอการอนุมัติ
+          if (currentUser.is_active === false) {
+            setIsPendingApproval(true);
+            return;
+          }
+
+          setIsNewUser(false);
+          setIsPendingApproval(false);
         } else {
           liff.login();
         }
@@ -507,6 +556,67 @@ export default function CheckinPage() {
     });
 
   if (!isLiffInit) {
+    // 🌟 ด่านสกัดที่ 1: บังคับกรอก Profile
+    if (isNewUser || showProfileSettings) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
+          <ProfileSettings
+            profile={userProfile}
+            dbUser={dbUser}
+            isNewUser={isNewUser}
+            setShowProfileSettings={setShowProfileSettings}
+            supabase={supabase}
+            onSaveSuccess={(updated: any) => {
+              setDbUser(updated);
+              setIsNewUser(false);
+              setShowProfileSettings(false);
+              if (updated.is_active === false) {
+                setIsPendingApproval(true);
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
+    // 🌟 ด่านสกัดที่ 2: หน้าจอรอแอดมินอนุมัติ
+    if (isPendingApproval) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
+          <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
+            <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-orange-100 shadow-sm">
+              <Clock className="w-12 h-12 text-orange-500 animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-3">
+              รอการอนุมัติ
+            </h2>
+            <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto mb-8">
+              ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว
+              กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การเข้าใช้งานระบบลงเวลาครับ
+            </p>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <p className="text-xs font-bold text-slate-600 mb-1">
+                ข้อมูลของคุณ:
+              </p>
+              <p className="text-sm text-slate-800">
+                {dbUser?.full_name} ({dbUser?.nickname})
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                import("@line/liff").then((liff) => {
+                  if (liff.default.isInClient()) liff.default.closeWindow();
+                  else window.history.back();
+                });
+              }}
+              className="mt-8 w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-black transition-colors"
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
         <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>

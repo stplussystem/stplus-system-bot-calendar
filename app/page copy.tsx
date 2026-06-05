@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
-import {
-  CalendarPlus,
-  LayoutList,
-  Settings,
-  LockKeyhole,
-  Clock,
-} from "lucide-react";
+import { CalendarPlus, LayoutList, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 // 🔥 นำเข้าชิ้นส่วนต่างๆ ที่เราแยกไฟล์ไว้
@@ -24,7 +18,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
-  const [isPendingApproval, setIsPendingApproval] = useState(false); // 🌟 State เช็คการรออนุมัติ
 
   const [activeTab, setActiveTab] = useState<"book" | "list">("book");
   const [myAppointments, setMyAppointments] = useState<any[]>([]);
@@ -73,7 +66,7 @@ export default function Home() {
 
           let currentUser = userData;
 
-          // 🌟 2. ถ้าไม่พบข้อมูลเลย (เพิ่งเข้าครั้งแรก) ให้สร้างใหม่ (ตั้งค่า is_active = false)
+          // 🌟 2. ถ้าไม่พบข้อมูลเลย (เพิ่งเข้าครั้งแรก) ให้สร้างใหม่
           if (!currentUser) {
             const { data: newUser } = await supabase
               .from("users")
@@ -82,51 +75,42 @@ export default function Home() {
                   line_user_id: userProfile.userId,
                   display_name: userProfile.displayName,
                   picture_url: userProfile.pictureUrl,
-                  is_active: false, // 🌟 บังคับให้เป็น false (รออนุมัติ) ตอนสมัครใหม่
                 },
               ])
-              .select()
+              .select() // ต้อง .select() เพื่อดึงก้อนข้อมูลที่เพิ่งสร้างกลับมา
               .single();
 
             currentUser = newUser;
           }
 
+          // 🌟 3. อัปเดตข้อมูลลง State เสมอ (ป้องกัน dbUser เป็น null ตอนเข้าหน้า Profile)
           setDbUser(currentUser || {});
 
-          // 🌟 3. เช็คเงื่อนไข "บังคับกรอกข้อมูล" (ด่าน 1)
-          if (!currentUser?.full_name || !currentUser?.nickname) {
-            setIsNewUser(true);
-            setIsLoading(false);
-            return; // หยุดการทำงานส่วนอื่นไปเลย บังคับกรอกก่อน
-          }
+          // 🌟 4. เช็คเงื่อนไข "บังคับกรอกข้อมูล"
+          if (currentUser && currentUser.full_name && currentUser.nickname) {
+            // ถ้ามี ชื่อ-สกุล และ ชื่อเล่น ครบแล้ว -> เข้าใช้งานระบบ ST PLUS ตามปกติ
+            setIsNewUser(false);
+            fetchAllUsers();
 
-          // 🌟 4. เช็คเงื่อนไข "รอการอนุมัติ" (ด่าน 2)
-          if (currentUser.is_active === false) {
-            setIsPendingApproval(true);
-            setIsLoading(false);
-            return; // หยุดการทำงาน บังคับรออนุมัติ
-          }
-
-          // 🌟 ผ่านทุกด่าน เข้าใช้งานระบบปกติ
-          setIsNewUser(false);
-          setIsPendingApproval(false);
-          fetchAllUsers();
-
-          if (currentUser.personal_calendar_id) {
-            setCalendarType("personal");
-            setHasAttendees(false);
-          }
-
-          if (typeof window !== "undefined") {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get("tab") === "list") {
-              setActiveTab("list");
-              fetchMyAppointments(userProfile.userId);
-            } else if (urlParams.get("tab") === "book") {
-              setActiveTab("book");
-            } else if (urlParams.get("action") === "profile") {
-              setShowProfileSettings(true);
+            if (currentUser.personal_calendar_id) {
+              setCalendarType("personal");
+              setHasAttendees(false);
             }
+
+            if (typeof window !== "undefined") {
+              const urlParams = new URLSearchParams(window.location.search);
+              if (urlParams.get("tab") === "list") {
+                setActiveTab("list");
+                fetchMyAppointments(userProfile.userId);
+              } else if (urlParams.get("tab") === "book") {
+                setActiveTab("book");
+              } else if (urlParams.get("action") === "profile") {
+                setShowProfileSettings(true);
+              }
+            }
+          } else {
+            // 🔥 ถ้ายังไม่กรอก ชื่อ-สกุล หรือ ชื่อเล่น -> บังคับเด้งหน้า Profile ทันที!
+            setIsNewUser(true);
           }
         } else {
           liff.login();
@@ -409,10 +393,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-8 font-sans pb-10">
       {isLoading ? (
+        // 🔥 เปลี่ยนหน้าโหลดเป็นรูปวงกลมที่มีคำว่า Loading... ตรงกลางสีน้ำเงิน
         <div className="mt-[25vh] flex flex-col items-center justify-center animate-in fade-in duration-500">
           <div className="relative flex items-center justify-center w-36 h-36">
+            {/* วงแหวนพื้นหลังสีอ่อน */}
             <div className="absolute inset-0 border-[6px] border-blue-100 rounded-full"></div>
+            {/* วงแหวนสีน้ำเงินเข้มที่กำลังหมุน */}
             <div className="absolute inset-0 border-[6px] border-transparent border-t-blue-600 rounded-full animate-spin"></div>
+            {/* ข้อความตรงกลาง */}
             <span className="text-blue-700 font-bold text-lg tracking-wide">
               Loading...
             </span>
@@ -432,47 +420,10 @@ export default function Home() {
             setDbUser(updated);
             setIsNewUser(false);
             setShowProfileSettings(false);
-            // 🌟 เช็คว่าถ้าบันทึก Profile เสร็จแล้ว แต่ยังไม่ได้ถูกเปิดใช้งาน ให้โชว์หน้า "รออนุมัติ" ทันที
-            if (updated.is_active === false) {
-              setIsPendingApproval(true);
-            } else {
-              fetchAllUsers();
-            }
+            fetchAllUsers();
           }}
         />
-      ) : isPendingApproval ? (
-        // 🌟 ด่านที่ 2: หน้าจอแสดงผลระหว่างรอแอดมินอนุมัติ (Pending Approval)
-        <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
-          <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-orange-100 shadow-sm">
-            <Clock className="w-12 h-12 text-orange-500 animate-pulse" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-800 mb-3">
-            รอการอนุมัติ
-          </h2>
-          <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto mb-8">
-            ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว
-            กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การใช้งานให้คุณครับ
-          </p>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-600 mb-1">
-              ข้อมูลของคุณ:
-            </p>
-            <p className="text-sm text-slate-800">
-              {dbUser?.full_name} ({dbUser?.nickname})
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              if (liff.isInClient()) liff.closeWindow();
-              else window.history.back();
-            }}
-            className="mt-8 w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-black transition-colors"
-          >
-            ปิดหน้าต่าง
-          </button>
-        </div>
       ) : profile && dbUser ? (
-        // 🌟 ผ่านด่านทั้งหมด: แสดงหน้าแอปปกติ
         <div className="w-full max-w-2xl mt-4 relative">
           <div className="sticky top-2 md:top-4 z-40 bg-slate-50/80 backdrop-blur-md pb-2 -mx-2 px-2">
             <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 w-full">
@@ -562,16 +513,20 @@ export default function Home() {
                   openEditModal={openEditModal}
                   setDeleteAppTarget={setDeleteAppTarget}
                   dbUser={dbUser}
+                  // เพิ่ม Props ตรงนี้ เพื่อรับคำสั่งเวลากดปุ่มจากหน้ารายการ
                   onAddNewClick={(targetDate) => {
-                    resetForm();
-                    if (targetDate) setDate(targetDate);
-                    setActiveTab("book");
+                    resetForm(); // เคลียร์ฟอร์มเดิมก่อน
+                    if (targetDate) {
+                      setDate(targetDate); // ถ้าระบุวันที่มา ก็จับใส่ช่องวันที่ให้เลย
+                    }
+                    setActiveTab("book"); // เด้งสลับกลับไปแท็บฟอร์มจอง
                   }}
                 />
               )}
             </div>
           </div>
 
+          {/* 🔥 เรียกใช้กลุ่มกล่อง Pop-up ต่างๆ */}
           <AppointmentModals
             viewAppTarget={viewAppTarget}
             setViewAppTarget={setViewAppTarget}
