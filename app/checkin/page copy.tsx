@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import imageCompression from "browser-image-compression";
+import ProfileSettings from "@/components/ProfileSettings";
 import {
   MapPin,
   Clock,
@@ -19,9 +20,6 @@ import {
   LogOut,
   MapPinHouse,
 } from "lucide-react";
-
-// 🌟 นำเข้า ProfileSettings สำหรับด่านสกัด
-import ProfileSettings from "@/components/ProfileSettings";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,13 +39,14 @@ const teamLabels: { [key: string]: string } = {
   team_other: "อื่นๆ",
 };
 
+// 🌟 ฟังก์ชันคำนวณระยะทาง GPS (Haversine Formula) คืนค่าเป็น "เมตร"
 const calculateDistance = (
   lat1: number,
   lon1: number,
   lat2: number,
   lon2: number,
 ) => {
-  const R = 6371e3;
+  const R = 6371e3; // รัศมีโลก (เมตร)
   const p1 = (lat1 * Math.PI) / 180;
   const p2 = (lat2 * Math.PI) / 180;
   const deltaP = ((lat2 - lat1) * Math.PI) / 180;
@@ -67,7 +66,6 @@ export default function CheckinPage() {
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // 🌟 เพิ่ม State สำหรับด่านสกัด
   const [dbUser, setDbUser] = useState<any>(null);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
@@ -75,11 +73,14 @@ export default function CheckinPage() {
 
   const [topics, setTopics] = useState<any[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
+
   const [checkoutTopic, setCheckoutTopic] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const [todayLog, setTodayLog] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+
   const [toast, setToast] = useState({
     show: false,
     message: "",
@@ -101,6 +102,7 @@ export default function CheckinPage() {
     new Date().toISOString().split("T")[0],
   );
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // 🌟 เพิ่ม State สำหรับเปิด/ปิดหน้าต่างดูรายละเอียดประวัติ
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
   useEffect(() => {
@@ -113,12 +115,10 @@ export default function CheckinPage() {
         await liff.init({
           liffId: process.env.NEXT_PUBLIC_LIFF_ID || "2010143328-wyg8T4P5",
         });
-
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setUserProfile(profile);
 
-          // 🌟 1. ดึงข้อมูลและสร้าง User ถ้ายังไม่มี
           const { data: userData } = await supabase
             .from("users")
             .select("*")
@@ -144,33 +144,31 @@ export default function CheckinPage() {
 
           setDbUser(currentUser || {});
 
-          // 🌟 2. ด่านสกัด: บังคับกรอกชื่อ
+          // 🌟 ด่านที่ 1: เช็คชื่อและชื่อเล่นแบบเข้มงวด (กันค่าว่าง)
           const hasName =
             currentUser?.full_name && currentUser.full_name.trim() !== "";
           const hasNick =
             currentUser?.nickname && currentUser.nickname.trim() !== "";
+
           if (!hasName || !hasNick) {
             setIsNewUser(true);
-            return;
+            return; // 🛑 หยุดตรงนี้ เด้งไปหน้าโปรไฟล์
           }
 
-          // 🌟 3. ด่านสกัด: รออนุมัติ
+          // 🌟 ด่านที่ 2: เช็คการอนุมัติ
           if (currentUser.is_active === false) {
             setIsPendingApproval(true);
-            return;
+            return; // 🛑 หยุดตรงนี้ เด้งไปหน้ารออนุมัติ
           }
 
+          // ผ่านทุกด่าน
           setIsNewUser(false);
           setIsPendingApproval(false);
         } else {
           liff.login();
         }
       } catch (error) {
-        setUserProfile({
-          userId: "U_LOCAL_TESTER",
-          displayName: "Dev Mode",
-          pictureUrl: "https://ui-avatars.com/api/?name=Dev",
-        });
+        console.error("LIFF Init Error:", error);
       } finally {
         setIsLiffInit(true);
       }
@@ -179,16 +177,19 @@ export default function CheckinPage() {
   }, []);
 
   useEffect(() => {
-    if (isLiffInit && userProfile && !isNewUser && !isPendingApproval) {
+    if (isLiffInit && userProfile) {
       if (activeTab === "checkin") {
         checkTodayStatus();
         fetchActiveTopics();
-        if (navigator.geolocation)
+
+        // 🌟 เพิ่มระบบ วอร์มอัป GPS แบบเงียบๆ ทันทีที่เปิดหน้าเว็บ
+        if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
-            () => {},
-            () => {},
+            () => {}, // สำเร็จไม่ทำอะไร แค่ปลุกชิป
+            () => {}, // พลาดก็ไม่ทำอะไร
             { enableHighAccuracy: true, maximumAge: 0 },
           );
+        }
       } else fetchHistory();
     }
   }, [
@@ -198,8 +199,6 @@ export default function CheckinPage() {
     customEndDate,
     isLiffInit,
     userProfile,
-    isNewUser,
-    isPendingApproval,
   ]);
 
   useEffect(() => {
@@ -229,7 +228,9 @@ export default function CheckinPage() {
     if (data && !data.check_out_time) {
       setTodayLog(data);
       setCheckoutTopic(data.topic_id);
-    } else setTodayLog(null);
+    } else {
+      setTodayLog(null);
+    }
     setIsCheckingStatus(false);
   };
 
@@ -243,13 +244,22 @@ export default function CheckinPage() {
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
+      // 🌟 กรองสิทธิ์การมองเห็น
       const visibleTopics = data.filter((t) => {
+        // 1. ถ้าเป็นออฟฟิศ หรือ เลือกทีมเป็น "ทั้งหมดทุกคน" -> เห็นทุกคน
         if (t.team_type === "office" || t.team_type === "team_all") return true;
+
+        // 🌟 2. (เพิ่มใหม่แก้บั๊ก) ถ้าเว้นว่างไว้ (ไม่ได้เลือกใครเลย) -> ถือว่าอนุญาตให้ทุกคนเห็น
         if (!t.allowed_users || t.allowed_users.length === 0) return true;
-        if (t.allowed_users && Array.isArray(t.allowed_users))
+
+        // 3. ถ้ามีการเลือกบุคคลไว้ -> เช็คว่ามีไอดีของตัวเองอยู่ในนั้นไหม
+        if (t.allowed_users && Array.isArray(t.allowed_users)) {
           return t.allowed_users.includes(userProfile?.userId);
+        }
+
         return false;
       });
+
       setTopics(visibleTopics);
       if (
         !selectedTopic ||
@@ -257,7 +267,9 @@ export default function CheckinPage() {
       ) {
         if (visibleTopics.length > 0) setSelectedTopic(visibleTopics[0].id);
       }
-    } else setTopics([]);
+    } else {
+      setTopics([]);
+    }
   };
 
   const showToast = (
@@ -291,10 +303,19 @@ export default function CheckinPage() {
         cacheControl: "3600",
         upsert: false,
       });
-    if (uploadError)
-      throw new Error(`อัพรูปล้มเหลว! กรุณาตรวจสอบสิทธิ์ของ Supabase Storage`);
-    return supabase.storage.from("attendance_photos").getPublicUrl(fileName)
-      .data.publicUrl;
+
+    // 🌟 ดัก Error ให้ชัดเจนขึ้น
+    if (uploadError) {
+      console.error("Storage Upload Error:", uploadError);
+      throw new Error(
+        `อัพรูปล้มเหลว! กรุณาตั้งค่า Bucket "attendance_photos" แบบ Public ใน Supabase Storage ก่อนครับ`,
+      );
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("attendance_photos")
+      .getPublicUrl(fileName);
+    return publicUrlData.publicUrl;
   };
 
   const handleCheckIn = async () => {
@@ -309,11 +330,16 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          // 🌟 1. เช็คความแม่นยำ (Accuracy) ของสัญญาณ GPS ก่อน
           const accuracy = position.coords.accuracy;
-          if (accuracy > 150)
+          if (accuracy > 150) {
+            // ถ้าคลาดเคลื่อนเกิน 150 เมตร แปลว่าจับจากเสาสัญญาณมือถือ ไม่ใช่ดาวเทียม
             throw new Error(
               `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาทีแล้วกดใหม่ครับ`,
             );
+          }
+
+          // 🌟 2. เช็คระยะพิกัด (Radar)
           if (
             selectedTopicData.radius_meters > 0 &&
             selectedTopicData.lat &&
@@ -325,11 +351,13 @@ export default function CheckinPage() {
               selectedTopicData.lat,
               selectedTopicData.lng,
             );
-            if (distance > selectedTopicData.radius_meters)
+            if (distance > selectedTopicData.radius_meters) {
               throw new Error(
                 `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${selectedTopicData.radius_meters}ม.)`,
               );
+            }
           }
+
           const uploadedPhotoUrl = await uploadPhoto();
           const { data, error } = await supabase
             .from("attendance_logs")
@@ -345,9 +373,12 @@ export default function CheckinPage() {
             ])
             .select()
             .single();
+
           if (error) throw error;
+
           setCheckoutTopic(selectedTopic);
           setTodayLog({ ...data, attendance_topics: selectedTopicData });
+
           try {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
@@ -366,7 +397,10 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location และอนุญาตการเข้าถึง",
+          "error",
+        );
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
@@ -375,9 +409,11 @@ export default function CheckinPage() {
 
   const handleCheckOut = async () => {
     if (!todayLog) return;
+
     const finalTopicId = checkoutTopic || todayLog.topic_id;
     const finalTopicData =
       topics.find((t) => t.id === finalTopicId) || todayLog.attendance_topics;
+
     if (finalTopicData.photo_mode !== "none" && !photoFile)
       return showToast("กรุณาแนบรูปภาพเพื่อ Check-out ครับ", "error");
 
@@ -385,11 +421,15 @@ export default function CheckinPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          // 🌟 1. เช็คความแม่นยำ (Accuracy) ของสัญญาณ GPS ก่อน
           const accuracy = position.coords.accuracy;
-          if (accuracy > 150)
+          if (accuracy > 150) {
             throw new Error(
-              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.)`,
+              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาทีแล้วกดใหม่ครับ`,
             );
+          }
+
+          // 🌟 2. เช็คระยะพิกัด (Radar)
           if (
             finalTopicData.radius_meters > 0 &&
             finalTopicData.lat &&
@@ -401,12 +441,15 @@ export default function CheckinPage() {
               finalTopicData.lat,
               finalTopicData.lng,
             );
-            if (distance > finalTopicData.radius_meters)
+            if (distance > finalTopicData.radius_meters) {
               throw new Error(
-                `ไม่อนุญาตให้ลงเวลา! ห่าง ${Math.ceil(distance)} ม.`,
+                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${finalTopicData.radius_meters}ม.)`,
               );
+            }
           }
+
           const uploadedPhotoUrl = await uploadPhoto();
+
           const { error } = await supabase
             .from("attendance_logs")
             .update({
@@ -418,7 +461,9 @@ export default function CheckinPage() {
               status: "checked_out",
             })
             .eq("id", todayLog.id);
+
           if (error) throw error;
+
           try {
             const liff = (await import("@line/liff")).default;
             if (liff.isInClient()) {
@@ -426,7 +471,9 @@ export default function CheckinPage() {
                 { type: "text", text: "🕕 ลงชื่อออกงาน" },
               ]);
               liff.closeWindow();
-            } else setTimeout(() => setActiveTab("history"), 1500);
+            } else {
+              setTimeout(() => setActiveTab("history"), 1500);
+            }
           } catch (liffError) {
             setTimeout(() => setActiveTab("history"), 1500);
           }
@@ -437,7 +484,10 @@ export default function CheckinPage() {
         }
       },
       (error) => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
+        showToast(
+          "ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location และอนุญาตการเข้าถึง",
+          "error",
+        );
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
@@ -446,6 +496,7 @@ export default function CheckinPage() {
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
+
     const getThaiDateStr = (date: Date) => {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -455,11 +506,13 @@ export default function CheckinPage() {
 
     let start = new Date();
     let end = new Date();
+
     if (historyFilter === "week") {
       const day = start.getDay();
       const diff = start.getDate() - day + (day === 0 ? -6 : 1);
       start.setDate(diff);
     } else if (historyFilter === "month") {
+      // 🌟 ลอจิกรอบเงินเดือน (ตัดวันที่ 20 ของทุกเดือน)
       const todayDate = start.getDate();
       if (todayDate <= 20) {
         start.setMonth(start.getMonth() - 1);
@@ -477,6 +530,7 @@ export default function CheckinPage() {
 
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
+
     const { data } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, team_type )`)
@@ -484,6 +538,7 @@ export default function CheckinPage() {
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
+
     if (data) setLogs(data);
     setLoadingHistory(false);
   };
@@ -511,7 +566,7 @@ export default function CheckinPage() {
     );
   }
 
-  // 🌟 ด่านที่ 1: บังคับกรอกข้อมูล
+  // 🌟 หน้าจอของด่านที่ 1 (บังคับกรอกข้อมูล)
   if (isNewUser || showProfileSettings) {
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
@@ -525,14 +580,16 @@ export default function CheckinPage() {
             setDbUser(updated);
             setIsNewUser(false);
             setShowProfileSettings(false);
-            if (updated.is_active === false) setIsPendingApproval(true);
+            if (updated.is_active === false) {
+              setIsPendingApproval(true);
+            }
           }}
         />
       </div>
     );
   }
 
-  // 🌟 ด่านที่ 2: รอแอดมินอนุมัติ
+  // 🌟 หน้าจอของด่านที่ 2 (รอแอดมินอนุมัติ)
   if (isPendingApproval) {
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
@@ -544,8 +601,7 @@ export default function CheckinPage() {
             รอการอนุมัติ
           </h2>
           <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto mb-8">
-            ข้อมูลถูกบันทึกแล้ว
-            กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การใช้งานครับ
+            ข้อมูลถูกบันทึกแล้ว กรุณารอผู้ดูแลระบบเปิดสิทธิ์การเข้าใช้งานครับ
           </p>
           <button
             onClick={() => {
@@ -571,7 +627,11 @@ export default function CheckinPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
       {toast.show && (
         <div
-          className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
+          className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${
+            toast.type === "success"
+              ? "bg-green-50 border-green-200 text-green-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
         >
           {toast.type === "success" ? (
             <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" />
@@ -626,6 +686,7 @@ export default function CheckinPage() {
               <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
           ) : todayLog ? (
+            // 🔴 โหมด: ลงเวลาออกงาน (Check-out) ที่สามารถเลือกไซต์งานได้!
             <div className="bg-white rounded-3xl shadow-sm border border-red-100 overflow-hidden ring-1 ring-red-50">
               <div className="bg-red-50 p-6 border-b border-red-100 flex flex-col items-center text-center">
                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-red-500">
@@ -641,6 +702,8 @@ export default function CheckinPage() {
                   </span>
                 </div>
               </div>
+
+              {/* 🌟 1. เพิ่มกล่องให้พนักงาน "จิ้มเลือกไซต์งาน" ก่อนออกงานได้ */}
               <div className="p-6 pb-2 border-b border-gray-100">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
                   <MapPinHouse className="h-5 w-5 text-orange-500" />{" "}
@@ -676,6 +739,8 @@ export default function CheckinPage() {
                   ))}
                 </div>
               </div>
+
+              {/* 📸 ส่วนของการแนบรูปภาพ */}
               {currentTopic && currentTopic.photo_mode !== "none" && (
                 <div className="p-6">
                   <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
@@ -735,6 +800,7 @@ export default function CheckinPage() {
                   )}
                 </div>
               )}
+
               <div className="p-6 bg-gray-50 border-t border-gray-100">
                 <button
                   onClick={handleCheckOut}
@@ -755,6 +821,7 @@ export default function CheckinPage() {
               </div>
             </div>
           ) : (
+            // 🟢 โหมด: ลงเวลาเข้างาน (Check-in) แบบเดิม
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
@@ -813,6 +880,7 @@ export default function CheckinPage() {
                   </div>
                 )}
               </div>
+
               {currentTopic && currentTopic.photo_mode !== "none" && (
                 <div className="px-6 pb-6">
                   <hr className="border-gray-100 mb-6" />
@@ -873,6 +941,7 @@ export default function CheckinPage() {
                   )}
                 </div>
               )}
+
               <div className="p-6 bg-gray-50 border-t border-gray-100">
                 <button
                   onClick={handleCheckIn}
@@ -922,6 +991,7 @@ export default function CheckinPage() {
             >
               รอบเงินเดือน
             </button>
+            {/* 🌟 เพิ่มปุ่ม "กำหนดเอง" ลงในแถบเมนู */}
             <button
               onClick={() => setHistoryFilter("custom")}
               className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
@@ -929,6 +999,8 @@ export default function CheckinPage() {
               กำหนดเอง
             </button>
           </div>
+
+          {/* 🌟 กล่องเลือกวันที่ จะแสดงเมื่อกดปุ่ม "กำหนดเอง" */}
           {historyFilter === "custom" && (
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
               <div className="flex-1">
@@ -955,6 +1027,7 @@ export default function CheckinPage() {
               </div>
             </div>
           )}
+
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
@@ -994,6 +1067,8 @@ export default function CheckinPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 🌟 เพิ่มปุ่ม "ดูรายละเอียด" ด้านขวาให้เห็นชัดเจนขึ้น */}
                   <div className="text-right shrink-0 flex flex-col items-end justify-center">
                     <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-0.5">
                       เข้า: {formatTime(log.check_in_time)}
@@ -1015,7 +1090,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 โค้ดส่วน Modal แสดงรายละเอียด */}
+      {/* 🌟 โค้ดส่วน Modal (Pop-up) แสดงรายละเอียดการลงเวลา */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -1030,7 +1105,9 @@ export default function CheckinPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
+              {/* รูปภาพขาเข้า */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อเข้างาน
@@ -1046,6 +1123,8 @@ export default function CheckinPage() {
                   </div>
                 )}
               </div>
+
+              {/* ข้อมูลเวลา */}
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
                 <div>
                   <p className="text-xs font-bold text-gray-500 mb-1">
@@ -1076,9 +1155,11 @@ export default function CheckinPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ลิงก์แผนที่ (ถ้ามีพิกัด) */}
               {selectedLog.check_in_lat && selectedLog.check_in_lng && (
                 <a
-                  href={`https://www.google.com/maps?q=$${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
+                  href={`https://www.google.com/maps?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-3 px-4 rounded-xl transition-colors text-sm"
