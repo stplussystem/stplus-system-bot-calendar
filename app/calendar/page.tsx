@@ -10,6 +10,7 @@ import ProfileSettings from "@/components/ProfileSettings";
 import BookingForm from "@/components/BookingForm";
 import AppointmentList from "@/components/AppointmentList";
 import AppointmentModals from "@/components/AppointmentModals";
+import { getSuccessMessage } from "@/lib/lineFlex";
 
 export default function CalendarPage() {
   const [profile, setProfile] = useState<any>(null);
@@ -311,173 +312,19 @@ export default function CalendarPage() {
               ? selectedAttendees.map((att: any) => att.nickname).join(", ")
               : "-";
           const phoneText = contactPhone ? ` (${contactPhone})` : "";
+          const targetLiffUrl =
+            "https://liff.line.me/2010143328-wyg8T4P5/calendar";
 
-          // 🌟 Flex Message สำหรับลดโควต้าและเพิ่มความสวยงาม
-          const flexMessage = {
-            type: "flex",
-            altText: `📅 นัดหมายใหม่: ${title}`,
-            contents: {
-              type: "bubble",
-              size: "mega",
-              header: {
-                type: "box",
-                layout: "vertical",
-                backgroundColor: "#2563EB",
-                paddingAll: "16px",
-                contents: [
-                  {
-                    type: "text",
-                    text: "📅 บันทึกคิวงานสำเร็จ",
-                    color: "#FFFFFF",
-                    weight: "bold",
-                    size: "md",
-                  },
-                ],
-              },
-              body: {
-                type: "box",
-                layout: "vertical",
-                paddingAll: "20px",
-                spacing: "md",
-                contents: [
-                  {
-                    type: "text",
-                    text: title,
-                    weight: "bold",
-                    size: "xl",
-                    wrap: true,
-                    color: "#111827",
-                  },
-                  { type: "separator", margin: "md" },
-                  {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "🗓️ วันที่:",
-                        color: "#6B7280",
-                        size: "sm",
-                        flex: 3,
-                      },
-                      {
-                        type: "text",
-                        text: formatThaiDate(date),
-                        color: "#111827",
-                        size: "sm",
-                        weight: "bold",
-                        flex: 7,
-                        wrap: true,
-                      },
-                    ],
-                  },
-                  {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "⏰ เวลา:",
-                        color: "#6B7280",
-                        size: "sm",
-                        flex: 3,
-                      },
-                      {
-                        type: "text",
-                        text: `${startTime} - ${endTime} น.`,
-                        color: "#111827",
-                        size: "sm",
-                        weight: "bold",
-                        flex: 7,
-                        wrap: true,
-                      },
-                    ],
-                  },
-                  {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "📍 สถานที่:",
-                        color: "#6B7280",
-                        size: "sm",
-                        flex: 3,
-                      },
-                      {
-                        type: "text",
-                        text: location || "-",
-                        color: "#111827",
-                        size: "sm",
-                        weight: "bold",
-                        flex: 7,
-                        wrap: true,
-                      },
-                    ],
-                  },
-                  {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "📞 ติดต่อ:",
-                        color: "#6B7280",
-                        size: "sm",
-                        flex: 3,
-                      },
-                      {
-                        type: "text",
-                        text: `${contactPerson || "-"}${phoneText}`,
-                        color: "#111827",
-                        size: "sm",
-                        weight: "bold",
-                        flex: 7,
-                        wrap: true,
-                      },
-                    ],
-                  },
-                  {
-                    type: "box",
-                    layout: "horizontal",
-                    contents: [
-                      {
-                        type: "text",
-                        text: "👥 ผู้เข้าร่วม:",
-                        color: "#6B7280",
-                        size: "sm",
-                        flex: 3,
-                      },
-                      {
-                        type: "text",
-                        text: attendeesText || "-",
-                        color: "#111827",
-                        size: "sm",
-                        weight: "bold",
-                        flex: 7,
-                        wrap: true,
-                      },
-                    ],
-                  },
-                ],
-              },
-              footer: {
-                type: "box",
-                layout: "vertical",
-                paddingAll: "16px",
-                backgroundColor: "#F3F4F6",
-                contents: [
-                  {
-                    type: "text",
-                    text: `บันทึกโดย: ${dbUser.full_name}`,
-                    color: "#6B7280",
-                    size: "xs",
-                    align: "center",
-                  },
-                ],
-              },
-            },
-          };
+          // 🌟 ดึง Flex Message จากไฟล์ lineFlex.ts มาใช้งานได้เลย! โค้ดคลีนสุดๆ
+          const flexMessage = getSuccessMessage(
+            title,
+            location || "-",
+            `${contactPerson || "-"}${phoneText}`,
+            attendeesText,
+            formatThaiDate(date),
+            `${startTime} - ${endTime} น.`,
+            targetLiffUrl,
+          );
 
           await liff.sendMessages([
             { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
