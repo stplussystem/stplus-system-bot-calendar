@@ -49,6 +49,37 @@ export default function Home() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [deleteAppTarget, setDeleteAppTarget] = useState<any>(null);
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
+  const fetchAllUsers = async () => {
+    const { data } = await supabase
+      .from("users")
+      .select("*")
+      .not("full_name", "is", null);
+    if (data)
+      setUserOptions(
+        data
+          .filter((u) => u.gmail && u.gmail.includes("@"))
+          .map((u) => ({
+            value: u.gmail,
+            label: `${u.full_name} (${u.nickname})`,
+            nickname: u.nickname,
+          })),
+      );
+  };
+
+  const fetchMyAppointments = async (currentUserId?: string) => {
+    const targetUserId = currentUserId || profile?.userId;
+    if (!targetUserId) return;
+    setIsLoadingList(true);
+    const { data } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("user_id", targetUserId)
+      .eq("status", "active")
+      .order("appointment_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    setMyAppointments(data || []);
+    setIsLoadingList(false);
+  };
 
   useEffect(() => {
     const localDate = new Date();
@@ -139,38 +170,6 @@ export default function Home() {
     };
     initApp();
   }, []);
-
-  const fetchAllUsers = async () => {
-    const { data } = await supabase
-      .from("users")
-      .select("*")
-      .not("full_name", "is", null);
-    if (data)
-      setUserOptions(
-        data
-          .filter((u) => u.gmail && u.gmail.includes("@"))
-          .map((u) => ({
-            value: u.gmail,
-            label: `${u.full_name} (${u.nickname})`,
-            nickname: u.nickname,
-          })),
-      );
-  };
-
-  const fetchMyAppointments = async (currentUserId?: string) => {
-    const targetUserId = currentUserId || profile?.userId;
-    if (!targetUserId) return;
-    setIsLoadingList(true);
-    const { data } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("user_id", targetUserId)
-      .eq("status", "active")
-      .order("appointment_date", { ascending: true })
-      .order("start_time", { ascending: true });
-    setMyAppointments(data || []);
-    setIsLoadingList(false);
-  };
 
   const resetForm = () => {
     setTitle("");

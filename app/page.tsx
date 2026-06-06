@@ -17,6 +17,7 @@ import ProfileSettings from "@/components/ProfileSettings";
 import BookingForm from "@/components/BookingForm";
 import AppointmentList from "@/components/AppointmentList";
 import AppointmentModals from "@/components/AppointmentModals";
+import { getSuccessMessage } from "@/lib/lineFlex";
 
 export default function Home() {
   const [profile, setProfile] = useState<any>(null);
@@ -49,6 +50,37 @@ export default function Home() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [deleteAppTarget, setDeleteAppTarget] = useState<any>(null);
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
+  const fetchAllUsers = async () => {
+    const { data } = await supabase
+      .from("users")
+      .select("*")
+      .not("full_name", "is", null);
+    if (data)
+      setUserOptions(
+        data
+          .filter((u) => u.gmail && u.gmail.includes("@"))
+          .map((u) => ({
+            value: u.gmail,
+            label: `${u.full_name} (${u.nickname})`,
+            nickname: u.nickname,
+          })),
+      );
+  };
+
+  const fetchMyAppointments = async (currentUserId?: string) => {
+    const targetUserId = currentUserId || profile?.userId;
+    if (!targetUserId) return;
+    setIsLoadingList(true);
+    const { data } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("user_id", targetUserId)
+      .eq("status", "active")
+      .order("appointment_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    setMyAppointments(data || []);
+    setIsLoadingList(false);
+  };
 
   useEffect(() => {
     const localDate = new Date();
@@ -139,38 +171,6 @@ export default function Home() {
     };
     initApp();
   }, []);
-
-  const fetchAllUsers = async () => {
-    const { data } = await supabase
-      .from("users")
-      .select("*")
-      .not("full_name", "is", null);
-    if (data)
-      setUserOptions(
-        data
-          .filter((u) => u.gmail && u.gmail.includes("@"))
-          .map((u) => ({
-            value: u.gmail,
-            label: `${u.full_name} (${u.nickname})`,
-            nickname: u.nickname,
-          })),
-      );
-  };
-
-  const fetchMyAppointments = async (currentUserId?: string) => {
-    const targetUserId = currentUserId || profile?.userId;
-    if (!targetUserId) return;
-    setIsLoadingList(true);
-    const { data } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("user_id", targetUserId)
-      .eq("status", "active")
-      .order("appointment_date", { ascending: true })
-      .order("start_time", { ascending: true });
-    setMyAppointments(data || []);
-    setIsLoadingList(false);
-  };
 
   const resetForm = () => {
     setTitle("");
@@ -325,8 +325,23 @@ export default function Home() {
               ? selectedAttendees.map((att: any) => att.nickname).join(", ")
               : "-";
           const phoneText = contactPhone ? ` (${contactPhone})` : "";
-          let msgText = `ข้อมุลบันทึกคิวงาน\nหัวข้อ: ${title}\nสถานที่: ${location || "-"}\nติดต่อ: ${contactPerson || "-"}${phoneText}\nผู้เข้าร่วม: ${attendeesText}\nวันที่: ${date}\nเวลา: ${startTime} - ${endTime}`;
-          await liff.sendMessages([{ type: "text", text: msgText }]);
+          const targetLiffUrl = "https://liff.line.me/2010143328-wyg8T4P5";
+
+          // 🌟 ดึง Flex Message จากไฟล์ lineFlex.ts มาใช้งานได้เลย! โค้ดคลีนสุดๆ
+          const flexMessage = getSuccessMessage(
+            title,
+            location || "-",
+            `${contactPerson || "-"}${phoneText}`,
+            attendeesText,
+            formatThaiDate(date),
+            `${startTime} - ${endTime} น.`,
+            targetLiffUrl,
+          );
+
+          await liff.sendMessages([
+            { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
+            flexMessage as any,
+          ]);
           liff.closeWindow();
           return;
         }
