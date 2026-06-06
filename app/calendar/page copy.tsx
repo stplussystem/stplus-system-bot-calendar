@@ -3,34 +3,27 @@
 import { useEffect, useState } from "react";
 import liff from "@line/liff";
 import { supabase } from "@/lib/supabase";
-import {
-  CalendarPlus,
-  LayoutList,
-  Settings,
-  LockKeyhole,
-  Clock,
-} from "lucide-react";
+import { CalendarPlus, LayoutList, Settings, Clock } from "lucide-react";
 import { toast } from "sonner";
 
-// 🔥 นำเข้าชิ้นส่วนต่างๆ ที่เราแยกไฟล์ไว้
 import ProfileSettings from "@/components/ProfileSettings";
 import BookingForm from "@/components/BookingForm";
 import AppointmentList from "@/components/AppointmentList";
 import AppointmentModals from "@/components/AppointmentModals";
+import { getSuccessMessage } from "@/lib/lineFlex";
 
-export default function Home() {
+export default function CalendarPage() {
   const [profile, setProfile] = useState<any>(null);
   const [dbUser, setDbUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
-  const [isPendingApproval, setIsPendingApproval] = useState(false); // 🌟 State เช็คการรออนุมัติ
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"book" | "list">("book");
   const [myAppointments, setMyAppointments] = useState<any[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
 
-  // ฟอร์มจอง/แก้ไข
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -64,7 +57,6 @@ export default function Home() {
           const userProfile = await liff.getProfile();
           setProfile(userProfile);
 
-          // 🌟 1. ดึงข้อมูลผู้ใช้จากฐานข้อมูล
           const { data: userData } = await supabase
             .from("users")
             .select("*")
@@ -73,7 +65,6 @@ export default function Home() {
 
           let currentUser = userData;
 
-          // 🌟 2. ถ้าไม่พบข้อมูลเลย (เพิ่งเข้าครั้งแรก) ให้สร้างใหม่ (ตั้งค่า is_active = false)
           if (!currentUser) {
             const { data: newUser } = await supabase
               .from("users")
@@ -82,32 +73,28 @@ export default function Home() {
                   line_user_id: userProfile.userId,
                   display_name: userProfile.displayName,
                   picture_url: userProfile.pictureUrl,
-                  is_active: false, // 🌟 บังคับให้เป็น false (รออนุมัติ) ตอนสมัครใหม่
+                  is_active: false,
                 },
               ])
               .select()
               .single();
-
             currentUser = newUser;
           }
 
           setDbUser(currentUser || {});
 
-          // 🌟 3. เช็คเงื่อนไข "บังคับกรอกข้อมูล" (ด่าน 1)
           if (!currentUser?.full_name || !currentUser?.nickname) {
             setIsNewUser(true);
             setIsLoading(false);
-            return; // หยุดการทำงานส่วนอื่นไปเลย บังคับกรอกก่อน
+            return;
           }
 
-          // 🌟 4. เช็คเงื่อนไข "รอการอนุมัติ" (ด่าน 2)
           if (currentUser.is_active === false) {
             setIsPendingApproval(true);
             setIsLoading(false);
-            return; // หยุดการทำงาน บังคับรออนุมัติ
+            return;
           }
 
-          // 🌟 ผ่านทุกด่าน เข้าใช้งานระบบปกติ
           setIsNewUser(false);
           setIsPendingApproval(false);
           fetchAllUsers();
@@ -325,8 +312,24 @@ export default function Home() {
               ? selectedAttendees.map((att: any) => att.nickname).join(", ")
               : "-";
           const phoneText = contactPhone ? ` (${contactPhone})` : "";
-          let msgText = `ข้อมุลบันทึกคิวงาน\nหัวข้อ: ${title}\nสถานที่: ${location || "-"}\nติดต่อ: ${contactPerson || "-"}${phoneText}\nผู้เข้าร่วม: ${attendeesText}\nวันที่: ${date}\nเวลา: ${startTime} - ${endTime}`;
-          await liff.sendMessages([{ type: "text", text: msgText }]);
+          const targetLiffUrl =
+            "https://liff.line.me/2010143328-wyg8T4P5/calendar";
+
+          // 🌟 ดึง Flex Message จากไฟล์ lineFlex.ts มาใช้งานได้เลย! โค้ดคลีนสุดๆ
+          const flexMessage = getSuccessMessage(
+            title,
+            location || "-",
+            `${contactPerson || "-"}${phoneText}`,
+            attendeesText,
+            formatThaiDate(date),
+            `${startTime} - ${endTime} น.`,
+            targetLiffUrl,
+          );
+
+          await liff.sendMessages([
+            { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
+            flexMessage as any,
+          ]);
           liff.closeWindow();
           return;
         }
@@ -432,16 +435,11 @@ export default function Home() {
             setDbUser(updated);
             setIsNewUser(false);
             setShowProfileSettings(false);
-            // 🌟 เช็คว่าถ้าบันทึก Profile เสร็จแล้ว แต่ยังไม่ได้ถูกเปิดใช้งาน ให้โชว์หน้า "รออนุมัติ" ทันที
-            if (updated.is_active === false) {
-              setIsPendingApproval(true);
-            } else {
-              fetchAllUsers();
-            }
+            if (updated.is_active === false) setIsPendingApproval(true);
+            else fetchAllUsers();
           }}
         />
       ) : isPendingApproval ? (
-        // 🌟 ด่านที่ 2: หน้าจอแสดงผลระหว่างรอแอดมินอนุมัติ (Pending Approval)
         <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
           <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-orange-100 shadow-sm">
             <Clock className="w-12 h-12 text-orange-500 animate-pulse" />
@@ -453,14 +451,6 @@ export default function Home() {
             ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว
             กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การใช้งานให้คุณครับ
           </p>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-600 mb-1">
-              ข้อมูลของคุณ:
-            </p>
-            <p className="text-sm text-slate-800">
-              {dbUser?.full_name} ({dbUser?.nickname})
-            </p>
-          </div>
           <button
             onClick={() => {
               if (liff.isInClient()) liff.closeWindow();
@@ -472,7 +462,6 @@ export default function Home() {
           </button>
         </div>
       ) : profile && dbUser ? (
-        // 🌟 ผ่านด่านทั้งหมด: แสดงหน้าแอปปกติ
         <div className="w-full max-w-2xl mt-4 relative">
           <div className="sticky top-2 md:top-4 z-40 bg-slate-50/80 backdrop-blur-md pb-2 -mx-2 px-2">
             <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 w-full">
@@ -496,7 +485,6 @@ export default function Home() {
               </button>
             </div>
           </div>
-
           <div className="w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 mt-2">
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-8 flex items-center justify-between relative overflow-hidden">
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
@@ -520,7 +508,6 @@ export default function Home() {
                 <Settings size={20} />
               </button>
             </div>
-
             <div className="p-8 md:p-10">
               {activeTab === "book" && !editingApp && (
                 <BookingForm
@@ -551,7 +538,6 @@ export default function Home() {
                   isSubmitting={isSubmitting}
                 />
               )}
-
               {activeTab === "list" && (
                 <AppointmentList
                   isLoadingList={isLoadingList}
@@ -571,7 +557,6 @@ export default function Home() {
               )}
             </div>
           </div>
-
           <AppointmentModals
             viewAppTarget={viewAppTarget}
             setViewAppTarget={setViewAppTarget}
