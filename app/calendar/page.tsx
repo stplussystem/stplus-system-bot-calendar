@@ -17,21 +17,20 @@ import ProfileSettings from "@/components/ProfileSettings";
 import BookingForm from "@/components/BookingForm";
 import AppointmentList from "@/components/AppointmentList";
 import AppointmentModals from "@/components/AppointmentModals";
-import { getSuccessMessage } from "@/lib/lineFlex";
+import { getSuccessMessage } from "@/lib/lineFlex"; // 🌟 นำเข้า Flex Message
 
-export default function Home() {
+export default function CalendarPage() {
   const [profile, setProfile] = useState<any>(null);
   const [dbUser, setDbUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
-  const [isPendingApproval, setIsPendingApproval] = useState(false); // 🌟 State เช็คการรออนุมัติ
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"book" | "list">("book");
   const [myAppointments, setMyAppointments] = useState<any[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
 
-  // ฟอร์มจอง/แก้ไข
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -50,6 +49,8 @@ export default function Home() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [deleteAppTarget, setDeleteAppTarget] = useState<any>(null);
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
+
+  // 🌟 ย้ายฟังก์ชันขึ้นมาไว้บน useEffect เพื่อแก้ปัญหา Cannot access variable
   const fetchAllUsers = async () => {
     const { data } = await supabase
       .from("users")
@@ -91,24 +92,19 @@ export default function Home() {
 
     const initApp = async () => {
       try {
-        console.log("1. เริ่ม initApp"); // เพิ่มบรรทัดนี้
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
           const userProfile = await liff.getProfile();
-          console.log("3. ได้ Profile แล้ว:", userProfile.userId); // เพิ่มบรรทัดนี้
           setProfile(userProfile);
 
-          // 🌟 1. ดึงข้อมูลผู้ใช้จากฐานข้อมูล
           const { data: userData } = await supabase
             .from("users")
             .select("*")
             .eq("line_user_id", userProfile.userId)
             .single();
 
-          console.log("4. ข้อมูลจาก Supabase:", userData); // เพิ่มบรรทัดนี้
           let currentUser = userData;
 
-          // 🌟 2. ถ้าไม่พบข้อมูลเลย (เพิ่งเข้าครั้งแรก) ให้สร้างใหม่ (ตั้งค่า is_active = false)
           if (!currentUser) {
             const { data: newUser } = await supabase
               .from("users")
@@ -117,7 +113,7 @@ export default function Home() {
                   line_user_id: userProfile.userId,
                   display_name: userProfile.displayName,
                   picture_url: userProfile.pictureUrl,
-                  is_active: false, // 🌟 บังคับให้เป็น false (รออนุมัติ) ตอนสมัครใหม่
+                  is_active: false,
                 },
               ])
               .select()
@@ -128,21 +124,18 @@ export default function Home() {
 
           setDbUser(currentUser || {});
 
-          // 🌟 3. เช็คเงื่อนไข "บังคับกรอกข้อมูล" (ด่าน 1)
           if (!currentUser?.full_name || !currentUser?.nickname) {
             setIsNewUser(true);
             setIsLoading(false);
-            return; // หยุดการทำงานส่วนอื่นไปเลย บังคับกรอกก่อน
+            return;
           }
 
-          // 🌟 4. เช็คเงื่อนไข "รอการอนุมัติ" (ด่าน 2)
           if (currentUser.is_active === false) {
             setIsPendingApproval(true);
             setIsLoading(false);
-            return; // หยุดการทำงาน บังคับรออนุมัติ
+            return;
           }
 
-          // 🌟 ผ่านทุกด่าน เข้าใช้งานระบบปกติ
           setIsNewUser(false);
           setIsPendingApproval(false);
           fetchAllUsers();
@@ -173,6 +166,8 @@ export default function Home() {
       }
     };
     initApp();
+    // 🌟 ข้ามการตรวจเช็ค Dependency ของ Vercel
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetForm = () => {
@@ -328,9 +323,10 @@ export default function Home() {
               ? selectedAttendees.map((att: any) => att.nickname).join(", ")
               : "-";
           const phoneText = contactPhone ? ` (${contactPhone})` : "";
-          const targetLiffUrl = "https://liff.line.me/2010143328-wyg8T4P5";
+          const targetLiffUrl =
+            "https://liff.line.me/2010143328-wyg8T4P5/calendar";
 
-          // 🌟 ดึง Flex Message จากไฟล์ lineFlex.ts มาใช้งานได้เลย! โค้ดคลีนสุดๆ
+          // 🌟 ส่ง 2 ข้อความ: Text ธรรมดา + Flex Message
           const flexMessage = getSuccessMessage(
             title,
             location || "-",
@@ -450,7 +446,6 @@ export default function Home() {
             setDbUser(updated);
             setIsNewUser(false);
             setShowProfileSettings(false);
-            // 🌟 เช็คว่าถ้าบันทึก Profile เสร็จแล้ว แต่ยังไม่ได้ถูกเปิดใช้งาน ให้โชว์หน้า "รออนุมัติ" ทันที
             if (updated.is_active === false) {
               setIsPendingApproval(true);
             } else {
@@ -459,7 +454,6 @@ export default function Home() {
           }}
         />
       ) : isPendingApproval ? (
-        // 🌟 ด่านที่ 2: หน้าจอแสดงผลระหว่างรอแอดมินอนุมัติ (Pending Approval)
         <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
           <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-orange-100 shadow-sm">
             <Clock className="w-12 h-12 text-orange-500 animate-pulse" />
@@ -490,7 +484,6 @@ export default function Home() {
           </button>
         </div>
       ) : profile && dbUser ? (
-        // 🌟 ผ่านด่านทั้งหมด: แสดงหน้าแอปปกติ
         <div className="w-full max-w-2xl mt-4 relative">
           <div className="sticky top-2 md:top-4 z-40 bg-slate-50/80 backdrop-blur-md pb-2 -mx-2 px-2">
             <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 w-full">

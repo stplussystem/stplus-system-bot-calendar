@@ -14,7 +14,7 @@ const LINE_API_URL = "https://api.line.me/v2/bot/message/push";
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LIFF_URL =
   process.env.NEXT_PUBLIC_LIFF_URL ||
-  "https://stplus-system-bot-calendar.vercel.app";
+  "https://exchange-ending-getaway.ngrok-free.dev/";
 
 const getDayTheme = (dateStr: string) => {
   const themes: { [key: number]: { light: string; dark: string } } = {
