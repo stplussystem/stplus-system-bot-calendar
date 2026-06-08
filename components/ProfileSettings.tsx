@@ -102,7 +102,8 @@ export default function ProfileSettings({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <User size={16} /> ชื่อ-สกุล (จริง) (บังคับ)
+              <User size={16} /> ชื่อ-สกุล (จริง){" "}
+              <span className="text-red-500">* จำเป็น</span>
             </label>
             <input
               type="text"
@@ -115,7 +116,8 @@ export default function ProfileSettings({
           </div>
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <User size={16} /> ชื่อเล่น (บังคับ)
+              <User size={16} /> ชื่อเล่น{" "}
+              <span className="text-red-500">* จำเป็น</span>
             </label>
             <input
               type="text"
