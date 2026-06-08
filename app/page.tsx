@@ -71,6 +71,12 @@ export default function DashboardPage() {
           } else {
             setIsNewUser(false);
           }
+          if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get("action") === "profile") {
+              setShowProfileSettings(true); // สั่งให้เปิดหน้าโปรไฟล์ทันที
+            }
+          }
         } else {
           liff.login();
         }

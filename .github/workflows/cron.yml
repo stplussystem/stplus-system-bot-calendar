@@ -16,5 +16,5 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         # ใช้คำสั่ง curl ยิงไปที่ API ของ Vercel พร้อมแนบ Authorization Header
         run: |
-          curl -X GET "https://st-plus-system-office.vercel.app//api/cron" \
+          curl -X GET "https://st-plus-system-office.vercel.app/api/cron/morning-brief" \
           -H "Authorization: Bearer $CRON_SECRET"
