@@ -353,7 +353,7 @@ export default function CalendarPage() {
         //   );
 
         //   await liff.sendMessages([
-        //     { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
+        //     { type: "text", text: "📅 บันทึกคิวงาน" },
         //     flexMessage as any,
         //   ]);
         //   liff.closeWindow();
@@ -361,9 +361,7 @@ export default function CalendarPage() {
         // }
         if (liff.isInClient()) {
           // ส่งแค่ข้อความสั้นๆ เพื่อให้ Webhook ทำงาน (เอาการดึง Flex ออก)
-          await liff.sendMessages([
-            { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
-          ]);
+          await liff.sendMessages([{ type: "text", text: "📅 บันทึกคิวงาน" }]);
           liff.closeWindow();
           return;
         }

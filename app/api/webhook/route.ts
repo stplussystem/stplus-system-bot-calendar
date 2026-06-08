@@ -343,20 +343,29 @@ export async function POST(request: Request) {
           continue;
         }
 
-        if (userMessage === "📅 บันทึกคิวงานสำเร็จ") {
+        if (userMessage === "📅 บันทึกคิวงาน") {
+          console.log("👉 [Webhook] บอทได้รับคำสั่ง '📅 บันทึกคิวงาน' แล้ว!");
+
           // 1. เรียกใช้ฟังก์ชัน Loading ของพี่แม็ค
           await startLoading(userId);
 
           // 2. ดึงข้อมูลรายการที่เพิ่งบันทึกไปล่าสุดของคนๆ นี้
-          const { data: latestApp } = await supabase
+          const { data: latestApp, error } = await supabase
             .from("appointments")
             .select("*")
             .eq("user_id", userId)
-            .order("id", { ascending: false })
+            .order("created_at", { ascending: false }) // 🌟 เปลี่ยนมาเรียงตาม created_at เพื่อป้องกัน Error
             .limit(1)
             .single();
 
+          if (error) {
+            console.error("❌ [Webhook] Error ดึงข้อมูลล่าสุด:", error.message);
+          }
+
           if (latestApp) {
+            console.log(
+              "✅ [Webhook] ดึงข้อมูลสำเร็จ! เตรียมส่ง Flex Message กลับไป",
+            );
             // แปลงวันที่ให้อ่านง่าย (dd/mm/yyyy พ.ศ.)
             const d = new Date(latestApp.appointment_date);
             const formattedDate = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear() + 543}`;
@@ -370,7 +379,7 @@ export async function POST(request: Request) {
                 latestApp.contact_person || "-",
                 latestApp.attendees && latestApp.attendees.length > 0
                   ? "มีผู้เข้าร่วม"
-                  : "-", // ตรวจสอบผู้เข้าร่วมเบื้องต้น
+                  : "-",
                 formattedDate,
                 timeStr,
                 liffUrl,
