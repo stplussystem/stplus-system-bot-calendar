@@ -75,11 +75,11 @@ export async function GET(request: Request) {
     const currentHour = String(now.getHours()).padStart(2, "0");
     const [targetHour] = timeSetting.split(":");
 
-    if (currentHour !== targetHour) {
-      return NextResponse.json({
-        message: `Skipping: Current hour (${currentHour}:00) does not match target hour (${targetHour}:00).`,
-      });
-    }
+    // if (currentHour !== targetHour) {
+    //   return NextResponse.json({
+    //     message: `Skipping: Current hour (${currentHour}:00) does not match target hour (${targetHour}:00).`,
+    //   });
+    // }
 
     // 📅 4. หาวันที่ของ "วันนี้"
     const y = now.getFullYear();
