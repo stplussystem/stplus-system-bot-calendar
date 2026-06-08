@@ -539,8 +539,8 @@ export const getSuccessMessage = (
       type: "box",
       layout: "vertical",
       paddingAll: "6px",
-      paddingTop: "0px",
-      spacing: "sm",
+      paddingTop: "2px",
+      spacing: "md", // 🌟 เปลี่ยนจาก "sm" เป็น "md" (หรือ "lg") เพื่อเพิ่มระยะห่าง
       contents: [
         {
           type: "button",
@@ -549,13 +549,17 @@ export const getSuccessMessage = (
           action: {
             type: "uri",
             label: "📋 ดูรายการคิวงาน",
-            uri: `${liffUrl}?tab=list`,
+            uri: `${liffUrl}/calendar?tab=list`, // 🌟 อัปเดต Path เป็นหน้า List
           },
         },
         {
           type: "button",
           style: "secondary",
-          action: { type: "uri", label: "📝 เพิ่มบันทึกคิวงาน", uri: liffUrl },
+          action: { 
+            type: "uri", 
+            label: "📝 เพิ่มบันทึกคิวงาน", 
+            uri: `${liffUrl}/calendar?tab=book`, // 🌟 อัปเดต Path เป็นหน้า Book
+          },
         },
       ],
     },
