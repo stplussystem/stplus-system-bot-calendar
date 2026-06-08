@@ -332,33 +332,40 @@ export default function CalendarPage() {
           },
         ]);
 
+        // if (liff.isInClient()) {
+        //   const attendeesText =
+        //     hasAttendees && selectedAttendees.length > 0
+        //       ? selectedAttendees.map((att: any) => att.nickname).join(", ")
+        //       : "-";
+        //   const phoneText = contactPhone ? ` (${contactPhone})` : "";
+        //   const targetLiffUrl =
+        //     "https://liff.line.me/2010143328-wyg8T4P5/calendar";
+
+        //   // 🌟 ส่ง 2 ข้อความ: Text ธรรมดา + Flex Message
+        //   const flexMessage = getSuccessMessage(
+        //     title,
+        //     location || "-",
+        //     `${contactPerson || "-"}${phoneText}`,
+        //     attendeesText,
+        //     formatThaiDate(date),
+        //     `${startTime} - ${endTime} น.`,
+        //     targetLiffUrl,
+        //   );
+
+        //   await liff.sendMessages([
+        //     { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
+        //     flexMessage as any,
+        //   ]);
+        //   liff.closeWindow();
+        //   return;
+        // }
         if (liff.isInClient()) {
-          const attendeesText =
-            hasAttendees && selectedAttendees.length > 0
-              ? selectedAttendees.map((att: any) => att.nickname).join(", ")
-              : "-";
-          const phoneText = contactPhone ? ` (${contactPhone})` : "";
-          const targetLiffUrl =
-            "https://liff.line.me/2010143328-wyg8T4P5/calendar";
-
-          // 🌟 ส่ง 2 ข้อความ: Text ธรรมดา + Flex Message
-          const flexMessage = getSuccessMessage(
-            title,
-            location || "-",
-            `${contactPerson || "-"}${phoneText}`,
-            attendeesText,
-            formatThaiDate(date),
-            `${startTime} - ${endTime} น.`,
-            targetLiffUrl,
-          );
-
-          await liff.sendMessages([
-            { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
-            flexMessage as any,
-          ]);
+          // ส่งแค่ข้อความสั้นๆ เพื่อให้ Webhook ทำงาน (เอาการดึง Flex ออก)
+          await liff.sendMessages([{ type: "text", text: "📅 บันทึกคิวงาน" }]);
           liff.closeWindow();
           return;
         }
+
         toast.success("บันทึกคิวงานสำเร็จ!");
         resetForm();
         setActiveTab("list");

@@ -343,27 +343,40 @@ export async function POST(request: Request) {
           continue;
         }
 
-        if (
-          userMessage.startsWith("ข้อมุลบันทึกคิวงาน") ||
-          userMessage.startsWith("ข้อมูลบันทึกคิวงาน")
-        ) {
+        if (userMessage === "📅 บันทึกคิวงาน") {
+          // 1. เรียกใช้ฟังก์ชัน Loading ของพี่แม็ค
           await startLoading(userId);
-          const lines = userMessage.split("\n");
-          const extractLine = (keyword: string) => {
-            const foundLine = lines.find((l) => l.startsWith(keyword));
-            return foundLine ? foundLine.replace(keyword, "").trim() : "-";
-          };
-          await replyToLine(replyToken, [
-            flex.getSuccessMessage(
-              extractLine("หัวข้อ:"),
-              extractLine("สถานที่:"),
-              extractLine("ติดต่อ:"),
-              extractLine("ผู้เข้าร่วม:"),
-              extractLine("วันที่:"),
-              extractLine("เวลา:"),
-              liffUrl,
-            ),
-          ]);
+
+          // 2. ดึงข้อมูลรายการที่เพิ่งบันทึกไปล่าสุดของคนๆ นี้
+          const { data: latestApp } = await supabase
+            .from("appointments")
+            .select("*")
+            .eq("user_id", userId)
+            .order("id", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (latestApp) {
+            // แปลงวันที่ให้อ่านง่าย (dd/mm/yyyy พ.ศ.)
+            const d = new Date(latestApp.appointment_date);
+            const formattedDate = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear() + 543}`;
+            const timeStr = `${latestApp.start_time.substring(0, 5)} - ${latestApp.end_time.substring(0, 5)} น.`;
+
+            // 3. ใช้ฟังก์ชันตอบกลับของพี่แม็ค ส่ง Flex Message กลับไป
+            await replyToLine(replyToken, [
+              flex.getSuccessMessage(
+                latestApp.title,
+                latestApp.location || "-",
+                latestApp.contact_person || "-",
+                latestApp.attendees && latestApp.attendees.length > 0
+                  ? "มีผู้เข้าร่วม"
+                  : "-", // ตรวจสอบผู้เข้าร่วมเบื้องต้น
+                formattedDate,
+                timeStr,
+                liffUrl,
+              ),
+            ]);
+          }
         } else if (
           ["รายการคิวงาน", "ดูตารางนัด", "ดูตารางคิวงาน"].includes(userMessage)
         ) {
