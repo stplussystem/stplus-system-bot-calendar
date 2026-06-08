@@ -343,7 +343,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        if (userMessage === "📅 บันทึกคิวงาน") {
+        if (userMessage === "📅 บันทึกคิวงานสำเร็จ") {
           // 1. เรียกใช้ฟังก์ชัน Loading ของพี่แม็ค
           await startLoading(userId);
 

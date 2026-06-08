@@ -361,7 +361,9 @@ export default function CalendarPage() {
         // }
         if (liff.isInClient()) {
           // ส่งแค่ข้อความสั้นๆ เพื่อให้ Webhook ทำงาน (เอาการดึง Flex ออก)
-          await liff.sendMessages([{ type: "text", text: "📅 บันทึกคิวงาน" }]);
+          await liff.sendMessages([
+            { type: "text", text: "📅 บันทึกคิวงานสำเร็จ" },
+          ]);
           liff.closeWindow();
           return;
         }
