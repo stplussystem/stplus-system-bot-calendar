@@ -312,7 +312,7 @@ export default function CheckinPage() {
           const accuracy = position.coords.accuracy;
           if (accuracy > 150)
             throw new Error(
-              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาทีแล้วกดใหม่ครับ`,
+              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาที หรือ อยู่ในในที่โล่ง แล้วกดใหม่ครับ`,
             );
           if (
             selectedTopicData.radius_meters > 0 &&
@@ -325,10 +325,16 @@ export default function CheckinPage() {
               selectedTopicData.lat,
               selectedTopicData.lng,
             );
-            if (distance > selectedTopicData.radius_meters)
+            if (distance > selectedTopicData.radius_meters) {
+              const distanceText =
+                distance < 1000
+                  ? `${Math.ceil(distance)} เมตร`
+                  : `${(distance / 1000).toFixed(2)} กิโลเมตร`;
+
               throw new Error(
-                `ไม่อนุญาตให้ลงเวลา! คุณอยู่ห่างจากสถานที่ทำงาน ${Math.ceil(distance)} เมตร (กำหนดไว้ ${selectedTopicData.radius_meters}ม.)`,
+                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
               );
+            }
           }
           const uploadedPhotoUrl = await uploadPhoto();
           const { data, error } = await supabase

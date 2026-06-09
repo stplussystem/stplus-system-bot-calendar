@@ -136,6 +136,14 @@ export default function SettingsPage() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState<any>(null);
+  // State สำหรับ Popup ยืนยันเรื่องวันหยุด
+  const [confirmHolidayModal, setConfirmHolidayModal] = useState({
+    show: false,
+    action: "", // "load_template" หรือ "delete"
+    id: "",
+    title: "",
+    message: "",
+  });
 
   // 🌟 State: Modal ยืนยันการเปลี่ยน Role และลบพนักงาน
   const [confirmRoleModal, setConfirmRoleModal] = useState({
@@ -462,12 +470,49 @@ export default function SettingsPage() {
     if (data) setAnnouncementUrl(data.setting_value);
   };
 
-  const loadHolidayTemplate = async () => {
-    if (
-      holidays.length > 0 &&
-      !window.confirm("มีวันหยุดในระบบแล้ว โหลดแม่แบบทับเพิ่ม?")
-    )
-      return;
+  // เปลี่ยน 2 ฟังก์ชันเดิม เป็น 3 ฟังก์ชันนี้ครับ
+  const triggerLoadTemplate = () => {
+    if (holidays.length > 0) {
+      setConfirmHolidayModal({
+        show: true,
+        action: "load_template",
+        id: "",
+        title: "ยืนยันการโหลดแม่แบบ",
+        message:
+          "มีวันหยุดในระบบแล้ว คุณต้องการโหลดแม่แบบทับเพิ่มเข้าไปใช่หรือไม่?",
+      });
+    } else {
+      executeLoadTemplate();
+    }
+  };
+
+  const triggerDeleteHoliday = (id: string) => {
+    setConfirmHolidayModal({
+      show: true,
+      action: "delete",
+      id,
+      title: "ยืนยันลบวันหยุด",
+      message: "คุณต้องการลบรายการวันหยุดนี้ออกจากระบบใช่หรือไม่?",
+    });
+  };
+
+  const executeHolidayAction = async () => {
+    const { action, id } = confirmHolidayModal;
+    setConfirmHolidayModal({ ...confirmHolidayModal, show: false }); // ปิด popup ก่อนทำงาน
+
+    if (action === "load_template") {
+      executeLoadTemplate(); // เอาโค้ดในฟังก์ชัน loadHolidayTemplate เดิม (ตั้งแต่ setSaving(true)...) มาใส่ในฟังก์ชันนี้
+    } else if (action === "delete") {
+      const { error } = await supabase
+        .from("company_holidays")
+        .delete()
+        .eq("id", id);
+      if (error) showToast(error.message, "error");
+      else fetchHolidays();
+    }
+  };
+
+  const executeLoadTemplate = async () => {
     setSaving(true);
     try {
       const gregorianYear = parseInt(holidayYear) - 543;
@@ -588,16 +633,6 @@ export default function SettingsPage() {
     } catch (err: any) {
       showToast(err.message, "error");
     }
-  };
-
-  const deleteHoliday = async (id: string) => {
-    if (!window.confirm("ยืนยันลบวันหยุดนี้?")) return;
-    const { error } = await supabase
-      .from("company_holidays")
-      .delete()
-      .eq("id", id);
-    if (error) showToast(error.message, "error");
-    else fetchHolidays();
   };
 
   const formatThaiDate = (dateString: string) => {
@@ -826,6 +861,47 @@ export default function SettingsPage() {
                 className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-purple-700 transition-colors"
               >
                 บันทึกข้อมูล
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Modal: ยืนยันจัดการวันหยุด */}
+      {confirmHolidayModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95 text-center">
+            {confirmHolidayModal.action === "delete" ? (
+              <Trash2 className="w-12 h-12 text-red-500 mx-auto mb-3" />
+            ) : (
+              <FileText className="w-12 h-12 text-orange-500 mx-auto mb-3" />
+            )}
+            <h3 className="text-lg font-black text-gray-900 mb-2">
+              {confirmHolidayModal.title}
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              {confirmHolidayModal.message}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setConfirmHolidayModal({
+                    show: false,
+                    action: "",
+                    id: "",
+                    title: "",
+                    message: "",
+                  })
+                }
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeHolidayAction}
+                className={`flex-1 text-white font-bold py-3 rounded-xl text-sm shadow-sm ${confirmHolidayModal.action === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700"}`}
+              >
+                ยืนยัน
               </button>
             </div>
           </div>
@@ -1222,7 +1298,7 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 {holidays.length === 0 && (
                   <button
-                    onClick={loadHolidayTemplate}
+                    onClick={triggerLoadTemplate}
                     className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
                   >
                     โหลดแม่แบบ
@@ -1336,7 +1412,7 @@ export default function SettingsPage() {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => deleteHoliday(h.id)}
+                            onClick={() => triggerDeleteHoliday(h.id)}
                             className="p-2 text-gray-400 hover:text-red-500 border rounded-lg"
                           >
                             <Trash2 className="w-4 h-4" />

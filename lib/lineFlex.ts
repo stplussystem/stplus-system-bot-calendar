@@ -63,7 +63,11 @@ export const getEmptyAppointment = (queryTitle: string, liffUrl: string) => ({
           type: "button",
           style: "primary",
           color: "#1f2937",
-          action: { type: "uri", label: "+ เพิ่มคิวงานใหม่", uri: liffUrl },
+          action: {
+            type: "uri",
+            label: "+ เพิ่มคิวงานใหม่",
+            uri: `${liffUrl}/calendar`,
+          },
         },
       ],
     },
@@ -291,7 +295,11 @@ export const getDateCarousel = (
           {
             type: "button",
             style: "secondary",
-            action: { type: "uri", label: "+ เพิ่มคิวงาน", uri: liffUrl },
+            action: {
+              type: "uri",
+              label: "+ เพิ่มคิวงาน",
+              uri: `${liffUrl}/calendar`,
+            },
           },
           {
             type: "button",
@@ -300,7 +308,7 @@ export const getDateCarousel = (
             action: {
               type: "uri",
               label: "ดูรายการ",
-              uri: `${liffUrl}?tab=list&filter=${filterParam}`,
+              uri: `${liffUrl}/calendar?tab=list&filter=${filterParam}`,
             },
           },
         ],
@@ -351,7 +359,7 @@ export const getDateCarousel = (
             action: {
               type: "uri",
               label: "ดูรายการทั้งหมด",
-              uri: `${liffUrl}?tab=list&filter=${filterParam}`,
+              uri: `${liffUrl}/calendar?tab=list&filter=${filterParam}`,
             },
           },
         ],
@@ -555,9 +563,9 @@ export const getSuccessMessage = (
         {
           type: "button",
           style: "secondary",
-          action: { 
-            type: "uri", 
-            label: "📝 เพิ่มบันทึกคิวงาน", 
+          action: {
+            type: "uri",
+            label: "📝 เพิ่มบันทึกคิวงาน",
             uri: `${liffUrl}/calendar?tab=book`, // 🌟 อัปเดต Path เป็นหน้า Book
           },
         },
@@ -629,7 +637,7 @@ export const getOpenForm = (liffUrl: string) => ({
           action: {
             type: "uri",
             label: "📝 เปิดฟอร์มสร้างคิวงาน",
-            uri: liffUrl,
+            uri: `${liffUrl}/calendar`,
           },
         },
       ],

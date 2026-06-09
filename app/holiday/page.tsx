@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   CalendarDays,
@@ -20,19 +20,21 @@ export default function HolidayPage() {
   const [loading, setLoading] = useState(true);
   const [holidays, setHolidays] = useState<any[]>([]);
   const [announcementUrl, setAnnouncementUrl] = useState<string | null>(null);
-
-  // 🌟 ดึงปีปัจจุบันอัตโนมัติ (เป็นปี พ.ศ.)
   const [currentYear, setCurrentYear] = useState<string>("");
 
+  // 🌟 ตัวแปรเก็บวันที่ปัจจุบัน (รูปแบบ YYYY-MM-DD) เพื่อเอาไว้เทียบว่าวันหยุดไหนผ่านไปแล้ว
+  const todayStr = new Date().toISOString().split("T")[0];
+
   useEffect(() => {
-    // คำนวณปีปัจจุบัน (พ.ศ.)
     const thaiYear = (new Date().getFullYear() + 543).toString();
     setCurrentYear(thaiYear);
 
     const initLiff = async () => {
       try {
         const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId: "2010143328-wyg8T4P5" });
+        await liff.init({
+          liffId: process.env.NEXT_PUBLIC_LIFF_ID || "2010143328-wyg8T4P5",
+        });
         if (!liff.isLoggedIn()) {
           liff.login();
         }
@@ -70,7 +72,6 @@ export default function HolidayPage() {
     setLoading(false);
   };
 
-  // 🌟 ฟังก์ชันแปลงวันที่แบบรวบรัด (เช่น "วันอังคาร 3 มีนาคม")
   const getFullThaiDateStr = (dateString: string) => {
     if (!dateString) return "";
     const [year, month, day] = dateString.split("-");
@@ -101,6 +102,15 @@ export default function HolidayPage() {
     return `วัน${days[d.getDay()]} ${parseInt(day)} ${months[parseInt(month) - 1]}`;
   };
 
+  // 🌟 ฟังก์ชันหาว่า "วันหยุดไหนคือคิวต่อไป" (เอาไว้ทำไฮไลท์)
+  const nextHolidayId = useMemo(() => {
+    const next = holidays.find((h) => {
+      const targetDate = h.is_changed ? h.changed_date : h.date;
+      return targetDate >= todayStr;
+    });
+    return next ? next.id : null;
+  }, [holidays, todayStr]);
+
   if (!isLiffInit || loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
@@ -114,12 +124,10 @@ export default function HolidayPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-10">
-      {/* 🌟 1. Header เปลี่ยนเป็นสีน้ำเงินไล่เฉด */}
       <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-12 pb-16 px-6 text-white text-center rounded-b-[40px] shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
         <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-90" />
         <h1 className="text-2xl font-black mb-1">ประกาศวันหยุดประจำปี</h1>
-        {/* 🌟 2. ปีปัจจุบันอัตโนมัติ */}
         <p className="text-blue-100 text-sm font-medium">
           ST PLUS SYSTEM ปี {currentYear}
         </p>
@@ -160,65 +168,88 @@ export default function HolidayPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {holidays.map((h, index) => (
-                <div
-                  key={h.id}
-                  className="p-5 flex items-start gap-4 hover:bg-slate-50 transition-colors"
-                >
-                  {/* ลำดับตัวเลข */}
-                  <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                    {index + 1}
-                  </div>
+              {holidays.map((h, index) => {
+                // 🌟 ลอจิกตรวจสอบสถานะวันหยุดแต่ละอัน
+                const targetDate = h.is_changed ? h.changed_date : h.date;
+                const isPast = targetDate < todayStr;
+                const isNext = h.id === nextHolidayId;
 
-                  {/* 🌟 3. ข้อมูลเนื้อหาวันหยุด */}
-                  <div className="flex-1 flex flex-col">
-                    {h.is_changed ? (
-                      /* กรณีเลื่อนวันหยุด */
-                      <>
-                        {/* บรรทัด 1-2 ขีดฆ่า */}
-                        <div className="text-xs text-gray-400 line-through font-medium mb-0.5">
-                          {getFullThaiDateStr(h.date)}
-                        </div>
-                        <div className="text-sm font-bold text-gray-400 line-through mb-1.5">
-                          {h.title}
-                        </div>
-
-                        {/* 🌟 4. บรรทัด 3 แสดงวันที่หยุดใหม่ สีแดง + ปุ่มดูเอกสาร */}
-                        <div className="bg-red-50/50 p-2.5 rounded-lg border border-red-100/50 flex flex-col items-start gap-2">
-                          <div className="text-[13px] font-black text-red-600 flex items-center gap-1.5 leading-snug">
-                            <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
-                            หยุด เป็นวันที่ {getFullThaiDateStr(
-                              h.changed_date,
-                            )}{" "}
-                            แทน
-                          </div>
-                          {h.change_document_url && (
-                            <a
-                              href={h.change_document_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 bg-white border border-red-200 text-red-600 px-2 py-1.5 rounded-md text-[10px] font-bold hover:bg-red-50 transition-colors shadow-sm active:scale-95"
-                            >
-                              <Eye className="w-3.5 h-3.5" />{" "}
-                              ดูเอกสารเปลี่ยนวันหยุด
-                            </a>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      /* กรณีวันหยุดปกติ */
-                      <>
-                        <div className="text-xs text-gray-500 font-medium mb-0.5">
-                          {getFullThaiDateStr(h.date)}
-                        </div>
-                        <div className="text-sm font-bold text-gray-900 leading-relaxed">
-                          {h.title}
-                        </div>
-                      </>
+                return (
+                  <div
+                    key={h.id}
+                    className={`relative p-5 flex items-start gap-4 transition-all duration-300 ${
+                      isPast
+                        ? "opacity-50 grayscale bg-gray-50/50" // ผ่านไปแล้ว: สีจาง เทา
+                        : isNext
+                          ? "bg-blue-50/30 border-l-4 border-l-blue-500" // คิวต่อไป: ไฮไลท์ฟ้า
+                          : "hover:bg-slate-50" // วันหยุดอนาคตปกติ
+                    }`}
+                  >
+                    {/* 🌟 ป้ายกำกับวันหยุดถัดไป */}
+                    {isNext && (
+                      <span className="absolute top-3 right-4 bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[10px] font-bold animate-pulse shadow-sm border border-blue-200">
+                        ✨ วันหยุดถัดไป
+                      </span>
                     )}
+
+                    {/* ลำดับตัวเลข */}
+                    <div
+                      className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 ${
+                        isNext
+                          ? "bg-blue-600 text-white shadow-md"
+                          : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {index + 1}
+                    </div>
+
+                    <div className="flex-1 flex flex-col pr-16">
+                      {h.is_changed ? (
+                        <>
+                          <div className="text-xs text-gray-400 line-through font-medium mb-0.5">
+                            {getFullThaiDateStr(h.date)}
+                          </div>
+                          <div className="text-sm font-bold text-gray-400 line-through mb-1.5">
+                            {h.title}
+                          </div>
+
+                          <div className="bg-red-50/80 p-2.5 rounded-lg border border-red-100/50 flex flex-col items-start gap-2 mt-1">
+                            <div className="text-[13px] font-black text-red-600 flex items-center gap-1.5 leading-snug">
+                              <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                              หยุด เป็นวันที่{" "}
+                              {getFullThaiDateStr(h.changed_date)} แทน
+                            </div>
+                            {h.change_document_url && (
+                              <a
+                                href={h.change_document_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 bg-white border border-red-200 text-red-600 px-2 py-1.5 rounded-md text-[10px] font-bold hover:bg-red-50 transition-colors shadow-sm active:scale-95"
+                              >
+                                <Eye className="w-3.5 h-3.5" />{" "}
+                                ดูเอกสารเปลี่ยนวันหยุด
+                              </a>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            className={`text-xs font-medium mb-0.5 ${isPast ? "text-gray-400" : "text-gray-500"}`}
+                          >
+                            {getFullThaiDateStr(h.date)}
+                          </div>
+                          <div
+                            className={`text-sm font-bold leading-relaxed ${isPast ? "text-gray-500" : "text-gray-900"}`}
+                          >
+                            {h.title}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
