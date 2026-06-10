@@ -399,17 +399,30 @@ export default function AttendanceAdminPage() {
     setLoading(true);
 
     try {
-      // 🌟 ระบบบันทึก Favorite อัตโนมัติ หากติ๊กเลือกไว้และมีพิกัด
+      // 🌟 ระบบบันทึก Favorite อัตโนมัติ (พร้อมเช็คซ้ำ)
       if (formData.saveFavorite && formData.lat && formData.lng && !editingId) {
-        await supabase.from("saved_locations").insert([
-          {
-            user_id: "admin_system",
-            title: formData.title,
-            lat: parseFloat(formData.lat),
-            lng: parseFloat(formData.lng),
-          },
-        ]);
-        fetchAllFavorites(); // โหลดข้อมูลใหม่เผื่อใช้รอบต่อไป
+        // เช็คว่ามีสถานที่ชื่อนี้ในระบบส่วนกลางหรือยัง
+        const { data: existingFav } = await supabase
+          .from("saved_locations")
+          .select("id")
+          .eq("title", formData.title);
+
+        if (existingFav && existingFav.length > 0) {
+          showToast(
+            "มีสถานที่ชื่อนี้ในระบบแล้ว ระบบจะไม่บันทึกซ้ำครับ",
+            "error",
+          );
+        } else {
+          await supabase.from("saved_locations").insert([
+            {
+              user_id: "admin_system",
+              title: formData.title,
+              lat: parseFloat(formData.lat),
+              lng: parseFloat(formData.lng),
+            },
+          ]);
+          fetchAllFavorites();
+        }
       }
 
       const payload = {
@@ -798,7 +811,7 @@ export default function AttendanceAdminPage() {
 
                     {/* 🌟 Checkbox สำหรับ Save Favorite ทันที */}
                     {!selectedFavId && !editingId && (
-                      <label className="flex items-center gap-2 text-sm font-bold text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-100 cursor-pointer mt-4 transition-all hover:bg-orange-100">
+                      <label className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-100 cursor-pointer mt-4 transition-all hover:bg-orange-100">
                         <input
                           type="checkbox"
                           checked={formData.saveFavorite}
@@ -811,7 +824,7 @@ export default function AttendanceAdminPage() {
                           className="w-4 h-4 accent-orange-600"
                         />
                         <Star className="w-4 h-4" /> บันทึกพิกัดนี้เข้า
-                        "สถานที่ประจำ" ไว้ใช้รอบหน้า
+                        "สถานที่ประจำ" ไว้ใช้ครั้งต่อไป
                       </label>
                     )}
                   </div>

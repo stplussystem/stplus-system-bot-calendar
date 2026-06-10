@@ -387,19 +387,32 @@ export default function CheckinPage() {
     }
     setLoading(true);
     try {
-      // 1. ถ้าติ๊กบันทึกเป็นที่ประจำ
+      // 🌟 1. ถ้าติ๊กบันทึกเป็นที่ประจำ (พร้อมเช็คซ้ำของ User ตัวเอง)
       if (cpData.saveFavorite) {
-        await supabase
+        const { data: existingFav } = await supabase
           .from("saved_locations")
-          .insert([
-            {
-              user_id: userProfile.userId,
-              title: cpData.title,
-              lat: cpData.lat,
-              lng: cpData.lng,
-            },
-          ]);
-        fetchFavorites();
+          .select("id")
+          .eq("user_id", userProfile.userId)
+          .eq("title", cpData.title);
+
+        if (existingFav && existingFav.length > 0) {
+          showToast(
+            "คุณมีสถานที่นี้ในรายการโปรดแล้ว ระบบจะไม่บันทึกซ้ำครับ",
+            "error",
+          );
+        } else {
+          await supabase
+            .from("saved_locations")
+            .insert([
+              {
+                user_id: userProfile.userId,
+                title: cpData.title,
+                lat: cpData.lat,
+                lng: cpData.lng,
+              },
+            ]);
+          fetchFavorites();
+        }
       }
 
       // 2. บันทึกลงตาราง Checkpoint
@@ -417,7 +430,7 @@ export default function CheckinPage() {
       setShowCheckpointModal(false);
       setCpData({ title: "", lat: 0, lng: 0, saveFavorite: false });
 
-      // 3. ส่งข้อความเข้า LINE (Bot จะจับ Text นี้แล้วยิง Timeline Flex กลับมา)
+      // 3. ส่งข้อความเข้า LINE
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         await liff.sendMessages([
