@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 🌟 แก้ปัญหา Google Maps Dropdown โดนซ่อนหรือโดนบัง */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+  font-family: inherit !important;
+}
+.pac-item {
+  padding: 10px !important;
+  cursor: pointer !important;
+}
+.pac-item:hover {
+  background-color: #f3f4f6 !important;
+}

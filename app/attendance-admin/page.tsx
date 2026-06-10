@@ -172,7 +172,7 @@ export default function AttendanceAdminPage() {
     checkUserRole();
     fetchTopics();
     fetchEmployees();
-    fetchAllFavorites(); // 🌟 โหลด Favorites มาเตรียมไว้สำหรับ Dropdown ทันที
+    fetchAllFavorites(); // โหลด Favorites มาเตรียมไว้สำหรับ Dropdown ทันที
   }, []);
 
   useEffect(() => {
@@ -210,7 +210,7 @@ export default function AttendanceAdminPage() {
         }
       });
     }
-  }, [activeTab, googleMapsLoaded]);
+  }, [activeTab, googleMapsLoaded, formData.work_type]);
 
   const checkUserRole = async () => {
     setAuthStatus("allowed");
@@ -401,16 +401,14 @@ export default function AttendanceAdminPage() {
     try {
       // 🌟 ระบบบันทึก Favorite อัตโนมัติ หากติ๊กเลือกไว้และมีพิกัด
       if (formData.saveFavorite && formData.lat && formData.lng && !editingId) {
-        await supabase
-          .from("saved_locations")
-          .insert([
-            {
-              user_id: "admin_system",
-              title: formData.title,
-              lat: parseFloat(formData.lat),
-              lng: parseFloat(formData.lng),
-            },
-          ]);
+        await supabase.from("saved_locations").insert([
+          {
+            user_id: "admin_system",
+            title: formData.title,
+            lat: parseFloat(formData.lat),
+            lng: parseFloat(formData.lng),
+          },
+        ]);
         fetchAllFavorites(); // โหลดข้อมูลใหม่เผื่อใช้รอบต่อไป
       }
 
