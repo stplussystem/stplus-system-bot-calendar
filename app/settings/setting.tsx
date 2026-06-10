@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Settings,
@@ -31,17 +31,7 @@ import {
   Filter,
   ShieldAlert,
   UserMinus,
-  Map,
-  Search,
 } from "lucide-react";
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -120,10 +110,6 @@ export default function SettingsPage() {
     photo_mode: "none",
   });
 
-  // 🌟 State & Refs สำหรับ Google Maps
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const autocompleteInputRef = useRef<HTMLInputElement>(null);
-
   // === State: Holidays ===
   const [holidays, setHolidays] = useState<any[]>([]);
   const [announcementUrl, setAnnouncementUrl] = useState("");
@@ -150,15 +136,16 @@ export default function SettingsPage() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState<any>(null);
-
+  // State สำหรับ Popup ยืนยันเรื่องวันหยุด
   const [confirmHolidayModal, setConfirmHolidayModal] = useState({
     show: false,
-    action: "",
+    action: "", // "load_template" หรือ "delete"
     id: "",
     title: "",
     message: "",
   });
 
+  // 🌟 State: Modal ยืนยันการเปลี่ยน Role และลบพนักงาน
   const [confirmRoleModal, setConfirmRoleModal] = useState({
     show: false,
     user: null as any,
@@ -176,19 +163,6 @@ export default function SettingsPage() {
     "admin",
   ]);
   const [cronTargetUsers, setCronTargetUsers] = useState<string[]>([]);
-
-  // โหลด Google Maps Script
-  useEffect(() => {
-    if (!window.google && GOOGLE_MAPS_API_KEY) {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      document.body.appendChild(script);
-      script.onload = () => setGoogleMapsLoaded(true);
-    } else if (window.google) {
-      setGoogleMapsLoaded(true);
-    }
-  }, []);
 
   useEffect(() => {
     const initLiff = async () => {
@@ -232,37 +206,6 @@ export default function SettingsPage() {
     }
   }, [isLiffInit, activeView, holidayYear, dbUser]);
 
-  // ตั้งค่า Google Places Autocomplete สำหรับหน้า Office Form
-  useEffect(() => {
-    if (
-      activeView === "office_form" &&
-      googleMapsLoaded &&
-      autocompleteInputRef.current
-    ) {
-      const autocomplete = new window.google.maps.places.Autocomplete(
-        autocompleteInputRef.current,
-        {
-          fields: ["formatted_address", "geometry", "name"],
-        },
-      );
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (place.geometry && place.geometry.location) {
-          const newLat = place.geometry.location.lat();
-          const newLng = place.geometry.location.lng();
-          setFormData((prev) => ({
-            ...prev,
-            lat: newLat.toString(),
-            lng: newLng.toString(),
-            maps_url: `https://maps.google.com/?q=${newLat},${newLng}`,
-          }));
-          showToast("ดึงพิกัดจาก Google Maps สำเร็จ!", "success");
-        }
-      });
-    }
-  }, [activeView, googleMapsLoaded]);
-
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
@@ -289,6 +232,7 @@ export default function SettingsPage() {
     setLoading(false);
   };
 
+  // 🌟 ฟังก์ชันเรียก Popup ยืนยันเปลี่ยนสิทธิ์
   const triggerRoleChange = (user: any, newRole: string) => {
     if (user.role === newRole) return;
     setConfirmRoleModal({ show: true, user, newRole });
@@ -332,6 +276,7 @@ export default function SettingsPage() {
     }
   };
 
+  // 🌟 ฟังก์ชันเรียก Popup ยืนยันการลบ
   const triggerDeleteUser = (user: any) => {
     setConfirmDeleteModal({ show: true, user });
   };
@@ -525,6 +470,7 @@ export default function SettingsPage() {
     if (data) setAnnouncementUrl(data.setting_value);
   };
 
+  // เปลี่ยน 2 ฟังก์ชันเดิม เป็น 3 ฟังก์ชันนี้ครับ
   const triggerLoadTemplate = () => {
     if (holidays.length > 0) {
       setConfirmHolidayModal({
@@ -552,10 +498,10 @@ export default function SettingsPage() {
 
   const executeHolidayAction = async () => {
     const { action, id } = confirmHolidayModal;
-    setConfirmHolidayModal({ ...confirmHolidayModal, show: false });
+    setConfirmHolidayModal({ ...confirmHolidayModal, show: false }); // ปิด popup ก่อนทำงาน
 
     if (action === "load_template") {
-      executeLoadTemplate();
+      executeLoadTemplate(); // เอาโค้ดในฟังก์ชัน loadHolidayTemplate เดิม (ตั้งแต่ setSaving(true)...) มาใส่ในฟังก์ชันนี้
     } else if (action === "delete") {
       const { error } = await supabase
         .from("company_holidays")
@@ -709,13 +655,15 @@ export default function SettingsPage() {
     return `${parseInt(day)} ${months[parseInt(month) - 1]} ${parseInt(year) + 543}`;
   };
 
-  if (!isLiffInit || (loading && activeView === "menu")) {
+  // ==========================================
+  // Render UI
+  // ==========================================
+  if (!isLiffInit || (loading && activeView === "menu"))
     return (
       <div className="min-h-screen flex justify-center items-center">
         <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
       </div>
     );
-  }
 
   if (!isAdminOrManager && !isHR) {
     return (
@@ -1157,28 +1105,10 @@ export default function SettingsPage() {
 
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                   <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
-                    <LinkIcon className="h-4 w-4" /> พิกัดออฟฟิศ
+                    <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
+                    พิกัด
                   </label>
-
-                  {/* 🌟 เพิ่มระบบค้นหาด้วย Google Maps */}
-                  <div className="relative mb-3">
-                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500" />
-                    <input
-                      type="text"
-                      ref={autocompleteInputRef}
-                      placeholder="🔍 ค้นหาที่ตั้งออฟฟิศด้วย Google Maps..."
-                      className="w-full border border-blue-300 rounded-lg p-3 pl-10 text-sm font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-3 px-1">
-                    <div className="flex-1 border-b border-gray-300"></div>
-                    <span className="text-xs text-gray-500 font-bold">
-                      หรือวางลิงก์เอง
-                    </span>
-                    <div className="flex-1 border-b border-gray-300"></div>
-                  </div>
-
+                  {/* 🌟 เพิ่มคู่มือแบบพับเก็บได้ (Accordion) */}
                   <details className="mb-3 group">
                     <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
                       <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
@@ -1322,6 +1252,7 @@ export default function SettingsPage() {
           >
             <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
           </button>
+
           <div className="flex gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
             {yearOptions.map((y) => (
               <button
@@ -1333,6 +1264,7 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+
           <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200">
             <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4 text-blue-600" /> ประกาศวันหยุดรวม
@@ -1357,6 +1289,7 @@ export default function SettingsPage() {
               />
             </label>
           </div>
+
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 bg-slate-50 flex justify-between items-center border-b border-gray-100">
               <h3 className="font-bold text-sm text-gray-800">
@@ -1379,6 +1312,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+
             <div className="p-0 bg-white">
               {showAddForm && (
                 <div className="bg-blue-50/50 p-4 m-4 rounded-xl border border-blue-100">
@@ -1415,6 +1349,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+
               <div className="divide-y divide-gray-100">
                 {holidays.map((h) => (
                   <div key={h.id} className="p-4">
@@ -1568,6 +1503,7 @@ export default function SettingsPage() {
           >
             <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
           </button>
+
           <div className="mb-4">
             <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
               <Users className="w-6 h-6 text-purple-600" />{" "}
@@ -1577,6 +1513,7 @@ export default function SettingsPage() {
               เปลี่ยนสิทธิ์ เปิด/ปิดระงับไอดี และแก้ไขข้อมูล
             </p>
           </div>
+
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="font-bold text-sm text-gray-800">
@@ -1598,6 +1535,7 @@ export default function SettingsPage() {
                 </select>
               </div>
             </div>
+
             <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto custom-scrollbar">
               {filteredUsersList.length === 0 ? (
                 <div className="p-10 text-center text-gray-400 font-bold text-sm">
@@ -1649,7 +1587,9 @@ export default function SettingsPage() {
                         )}
                       </button>
                     </div>
+
                     <div className="flex items-center gap-2 mt-1">
+                      {/* 🌟 เปลี่ยนมาใช้การเรียก Popup ยืนยันสิทธิ์แทน */}
                       <select
                         value={u.role || "user"}
                         onChange={(e) => triggerRoleChange(u, e.target.value)}
@@ -1662,6 +1602,7 @@ export default function SettingsPage() {
                         <option value="manager">หัวหน้างาน (MANAGER)</option>
                         <option value="admin">ผู้ดูแลระบบ (ADMIN)</option>
                       </select>
+
                       <button
                         onClick={() => triggerDeleteUser(u)}
                         className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
@@ -1691,6 +1632,7 @@ export default function SettingsPage() {
           >
             <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
           </button>
+
           <div className="mb-4">
             <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
               <Bot className="w-6 h-6 text-emerald-600" /> ตั้งค่าบอทปฏิทิน
@@ -1699,6 +1641,7 @@ export default function SettingsPage() {
               กำหนดเวลาและผู้ที่จะได้รับสรุปคิวงานประจำวัน
             </p>
           </div>
+
           <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden p-6">
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100">
               <Clock className="w-10 h-10 text-emerald-600" />
@@ -1706,12 +1649,14 @@ export default function SettingsPage() {
             <h3 className="font-bold text-gray-800 mb-2 text-center">
               เวลาแจ้งเตือนประจำวัน
             </h3>
+
             <input
               type="time"
               value={cronTime}
               onChange={(e) => setCronTime(e.target.value)}
               className="w-full max-w-[200px] text-center text-3xl font-black text-emerald-700 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-2xl outline-none focus:border-emerald-500 mx-auto block mb-6 shadow-inner"
             />
+
             <div className="mb-6 border-t border-gray-100 pt-6">
               <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
                 1. ส่งสรุปให้กลุ่มสิทธิ์ (Role)
@@ -1740,6 +1685,7 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+
             <div className="mb-8 border-t border-gray-100 pt-6">
               <h3 className="font-bold text-sm text-gray-800 mb-3 text-center">
                 2. ส่งสรุปให้รายบุคคล (เจาะจงคน)
@@ -1798,6 +1744,7 @@ export default function SettingsPage() {
                 ระบบจะส่งให้ทั้งสองกลุ่มโดยไม่ซ้ำซ้อนกันครับ
               </p>
             </div>
+
             <button
               onClick={handleSaveCronSettings}
               disabled={saving}

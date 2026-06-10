@@ -26,6 +26,19 @@ import {
   Search,
   Star,
   Map,
+  ChevronLeft,
+  ChevronRight,
+  LayoutDashboard,
+  ShieldCheck,
+  Building2,
+  Filter,
+  ToggleLeft,
+  ToggleRight,
+  ShieldAlert,
+  UserMinus,
+  Bot,
+  FileText,
+  Eye,
 } from "lucide-react";
 
 declare global {
@@ -40,6 +53,45 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
+
+const thaiHolidaysTemplateBase = [
+  { month: "01", day: "01", title: "วันขึ้นปีใหม่" },
+  { month: "03", day: "03", title: "วันมาฆบูชา" },
+  {
+    month: "04",
+    day: "06",
+    title: "วันพระบาทสมเด็จพระพุทธยอดฟ้าจุฬาโลกมหาราช",
+  },
+  { month: "04", day: "13", title: "วันสงกรานต์" },
+  { month: "04", day: "14", title: "วันสงกรานต์" },
+  { month: "04", day: "15", title: "วันสงกรานต์" },
+  { month: "05", day: "01", title: "วันแรงงานแห่งชาติ" },
+  {
+    month: "06",
+    day: "03",
+    title: "วันเฉลิมพระชนมพรรษาสมเด็จพระนางเจ้าสุทิดาฯ",
+  },
+  {
+    month: "07",
+    day: "28",
+    title: "วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว",
+  },
+  { month: "07", day: "29", title: "วันอาสาฬหบูชา" },
+  { month: "08", day: "12", title: "วันเฉลิมพระชนมพรรษาฯ และวันแม่แห่งชาติ" },
+  {
+    month: "10",
+    day: "13",
+    title: "วันคล้ายวันสวรรคตพระบาทสมเด็จพระบรมชนกาธิเบศรฯ",
+  },
+  { month: "10", day: "23", title: "วันปิยมหาราช" },
+  {
+    month: "12",
+    day: "05",
+    title: "วันคล้ายวันพระบรมราชสมภพฯ และวันพ่อแห่งชาติ",
+  },
+  { month: "12", day: "10", title: "วันรัฐธรรมนูญ" },
+  { month: "12", day: "31", title: "วันสิ้นปี" },
+];
 
 export default function AttendanceAdminPage() {
   const [authStatus, setAuthStatus] = useState<
@@ -57,7 +109,6 @@ export default function AttendanceAdminPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-
   const [toast, setToast] = useState({
     show: false,
     message: "",
@@ -87,8 +138,10 @@ export default function AttendanceAdminPage() {
     lat: "",
     lng: "",
     allowed_users: [] as string[],
+    saveFavorite: false, // 🌟 เพิ่ม State สำหรับเซฟ Favorite อัตโนมัติ
   });
 
+  const [selectedFavId, setSelectedFavId] = useState<string>(""); // 🌟 State สำหรับ Dropdown
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const autocompleteInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +172,7 @@ export default function AttendanceAdminPage() {
     checkUserRole();
     fetchTopics();
     fetchEmployees();
+    fetchAllFavorites(); // 🌟 โหลด Favorites มาเตรียมไว้สำหรับ Dropdown ทันที
   }, []);
 
   useEffect(() => {
@@ -151,6 +205,7 @@ export default function AttendanceAdminPage() {
             lng: newLng.toString(),
             maps_url: `https://maps.google.com/?q=${newLat},${newLng}`,
           }));
+          setSelectedFavId(""); // รีเซ็ต Dropdown เมื่อค้นหาใหม่
           showToast("ดึงพิกัดจาก Google Maps สำเร็จ!", "success");
         }
       });
@@ -226,7 +281,24 @@ export default function AttendanceAdminPage() {
       const lat = match[1] || match[3] || match[5];
       const lng = match[2] || match[4] || match[6];
       setFormData((prev) => ({ ...prev, lat, lng }));
+      setSelectedFavId(""); // รีเซ็ต Dropdown
       showToast("ดึงพิกัดสำเร็จ!", "success");
+    }
+  };
+
+  const handleSelectFavorite = (favId: string) => {
+    setSelectedFavId(favId);
+    if (favId) {
+      const fav = allFavorites.find((f) => f.id === favId);
+      if (fav) {
+        setFormData((prev) => ({
+          ...prev,
+          lat: fav.lat.toString(),
+          lng: fav.lng.toString(),
+          maps_url: `https://maps.google.com/?q=${fav.lat},${fav.lng}`,
+        }));
+        showToast("ดึงพิกัดจากสถานที่ประจำเรียบร้อย", "success");
+      }
     }
   };
 
@@ -244,6 +316,7 @@ export default function AttendanceAdminPage() {
 
   const handleEditClick = (topic: any) => {
     setEditingId(topic.id);
+    setSelectedFavId(""); // รีเซ็ต Dropdown
     setFormData({
       title: topic.title,
       shift_type: topic.shift_type,
@@ -260,6 +333,7 @@ export default function AttendanceAdminPage() {
       lat: topic.lat || "",
       lng: topic.lng || "",
       allowed_users: topic.allowed_users || [],
+      saveFavorite: false,
     });
     setActiveTab("form");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -325,6 +399,21 @@ export default function AttendanceAdminPage() {
     setLoading(true);
 
     try {
+      // 🌟 ระบบบันทึก Favorite อัตโนมัติ หากติ๊กเลือกไว้และมีพิกัด
+      if (formData.saveFavorite && formData.lat && formData.lng && !editingId) {
+        await supabase
+          .from("saved_locations")
+          .insert([
+            {
+              user_id: "admin_system",
+              title: formData.title,
+              lat: parseFloat(formData.lat),
+              lng: parseFloat(formData.lng),
+            },
+          ]);
+        fetchAllFavorites(); // โหลดข้อมูลใหม่เผื่อใช้รอบต่อไป
+      }
+
       const payload = {
         title: formData.title,
         shift_type: formData.shift_type,
@@ -361,6 +450,7 @@ export default function AttendanceAdminPage() {
       }
 
       setEditingId(null);
+      setSelectedFavId("");
       setActiveTab("list");
       fetchTopics();
     } catch (error: any) {
@@ -382,6 +472,7 @@ export default function AttendanceAdminPage() {
   };
 
   const getUserNameForFav = (userId: string) => {
+    if (userId === "admin_system") return "ส่วนกลาง (แอดมิน)";
     const emp = employeeList.find((e) => e.line_user_id === userId);
     return emp ? emp.nickname : "พนักงาน (ไม่ระบุ)";
   };
@@ -615,37 +706,81 @@ export default function AttendanceAdminPage() {
                     </select>
                   </div>
 
+                  {/* 🌟 ส่วนจัดการพิกัด 3 รูปแบบ */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
-                      <LinkIcon className="h-4 w-4" /> พิกัดสถานที่
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-4">
+                      <MapPinHouse className="h-5 w-5 text-indigo-500" />{" "}
+                      ค้นหา/ตั้งค่าพิกัดสถานที่ (3 รูปแบบ)
                     </label>
 
-                    {/* 🌟 ค้นหาด้วย Google Maps */}
-                    <div className="relative mb-3">
-                      <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500" />
-                      <input
-                        type="text"
-                        ref={autocompleteInputRef}
-                        placeholder="🔍 ค้นหาสถานที่ด้วย Google Maps..."
-                        className="w-full border border-blue-300 rounded-lg p-3 pl-10 text-sm font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm"
-                      />
+                    {/* 1. เลือกจาก Favorite */}
+                    <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">
+                        1. เลือกจากสถานที่ประจำ (Favorites)
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-lg p-3 text-sm font-bold text-gray-700 outline-none bg-white focus:ring-2 focus:ring-indigo-500"
+                        value={selectedFavId}
+                        onChange={(e) => handleSelectFavorite(e.target.value)}
+                      >
+                        <option value="">-- ไม่เลือก (สร้างใหม่) --</option>
+                        {allFavorites.map((fav) => (
+                          <option key={fav.id} value={fav.id}>
+                            📍 {fav.title}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="flex items-center gap-2 mb-3 px-1">
+                    <div className="flex items-center gap-2 mb-4 px-1">
                       <div className="flex-1 border-b border-gray-300"></div>
-                      <span className="text-xs text-gray-500 font-bold">
-                        หรือวางลิงก์เอง
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">
+                        หรือ
                       </span>
                       <div className="flex-1 border-b border-gray-300"></div>
                     </div>
 
-                    <input
-                      type="text"
-                      placeholder="วางลิงก์ Maps แบบยาว หรือ พิกัด (เช่น 13.123, 100.456)"
-                      className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white mb-2"
-                      value={formData.maps_url}
-                      onChange={(e) => handleMapsUrlParse(e.target.value)}
-                    />
+                    {/* 2. ค้นหาด้วย Google Maps */}
+                    <div className="relative mb-4">
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">
+                        2. ค้นหาด้วย Google Maps (Autocomplete)
+                      </label>
+                      <Map className="absolute left-3 top-[32px] w-5 h-5 text-blue-500" />
+                      <input
+                        type="text"
+                        ref={autocompleteInputRef}
+                        placeholder="พิมพ์ค้นหาสถานที่..."
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 text-sm font-bold outline-none bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                        onChange={() => setSelectedFavId("")} // รีเซ็ต Dropdown ถ้ามีการพิมพ์ค้นหาใหม่
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4 px-1">
+                      <div className="flex-1 border-b border-gray-300"></div>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">
+                        หรือ
+                      </span>
+                      <div className="flex-1 border-b border-gray-300"></div>
+                    </div>
+
+                    {/* 3. วางลิงก์ Manual */}
+                    <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">
+                        3. วางพิกัด หรือลิงก์ Maps เอง (Manual)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="วางลิงก์ Maps แบบยาว หรือ พิกัด (เช่น 13.123, 100.456)"
+                        className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white mb-2"
+                        value={formData.maps_url}
+                        onChange={(e) => {
+                          handleMapsUrlParse(e.target.value);
+                          setSelectedFavId("");
+                        }}
+                      />
+                    </div>
+
+                    {/* ช่องแสดง Lat / Lng */}
                     <div className="flex gap-4 mt-2">
                       <input
                         type="text"
@@ -662,6 +797,25 @@ export default function AttendanceAdminPage() {
                         readOnly
                       />
                     </div>
+
+                    {/* 🌟 Checkbox สำหรับ Save Favorite ทันที */}
+                    {!selectedFavId && !editingId && (
+                      <label className="flex items-center gap-2 text-sm font-bold text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-100 cursor-pointer mt-4 transition-all hover:bg-orange-100">
+                        <input
+                          type="checkbox"
+                          checked={formData.saveFavorite}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              saveFavorite: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 accent-orange-600"
+                        />
+                        <Star className="w-4 h-4" /> บันทึกพิกัดนี้เข้า
+                        "สถานที่ประจำ" ไว้ใช้รอบหน้า
+                      </label>
+                    )}
                   </div>
 
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
