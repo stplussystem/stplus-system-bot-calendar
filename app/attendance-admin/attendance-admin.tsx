@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   CalendarDays,
@@ -23,18 +23,7 @@ import {
   MapPinHouse,
   Trash2,
   Link as LinkIcon,
-  Search,
-  Star,
-  Map,
 } from "lucide-react";
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,15 +34,13 @@ export default function AttendanceAdminPage() {
   const [authStatus, setAuthStatus] = useState<
     "checking" | "allowed" | "denied"
   >("checking");
-  const [activeTab, setActiveTab] = useState<"form" | "list" | "favorites">(
-    "form",
-  );
+  const [activeTab, setActiveTab] = useState<"form" | "list">("form");
   const [loading, setLoading] = useState(false);
 
   const [activeTopics, setActiveTopics] = useState<any[]>([]);
   const [pastTopics, setPastTopics] = useState<any[]>([]);
+
   const [employeeList, setEmployeeList] = useState<any[]>([]);
-  const [allFavorites, setAllFavorites] = useState<any[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,8 +52,7 @@ export default function AttendanceAdminPage() {
   });
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
-    id: null as string | null,
-    type: "topic" as "topic" | "favorite",
+    topicId: null as string | null,
     title: "",
     message: "",
   });
@@ -77,7 +63,7 @@ export default function AttendanceAdminPage() {
     start_time: "09:00",
     end_time: "18:00",
     work_type: "onsite",
-    team_type: "team_all",
+    team_type: "team_all", // ค่าเริ่มต้นเป็นทั้งหมดทุกคน
     radius_meters: 100,
     photo_mode: "none",
     start_date: new Date().toISOString().split("T")[0],
@@ -89,9 +75,7 @@ export default function AttendanceAdminPage() {
     allowed_users: [] as string[],
   });
 
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const autocompleteInputRef = useRef<HTMLInputElement>(null);
-
+  // ข้อความแสดงชื่อหัวหน้าทีมในตารางหน้า List
   const teamLabels: { [key: string]: string } = {
     team_all: "ทั้งหมดทุกคน",
     team_n: "พี่นุ",
@@ -106,56 +90,10 @@ export default function AttendanceAdminPage() {
   };
 
   useEffect(() => {
-    if (!window.google && GOOGLE_MAPS_API_KEY) {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      document.body.appendChild(script);
-      script.onload = () => setGoogleMapsLoaded(true);
-    } else if (window.google) {
-      setGoogleMapsLoaded(true);
-    }
-
     checkUserRole();
     fetchTopics();
     fetchEmployees();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === "favorites") {
-      fetchAllFavorites();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (
-      activeTab === "form" &&
-      googleMapsLoaded &&
-      autocompleteInputRef.current
-    ) {
-      const autocomplete = new window.google.maps.places.Autocomplete(
-        autocompleteInputRef.current,
-        {
-          fields: ["formatted_address", "geometry", "name"],
-        },
-      );
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (place.geometry && place.geometry.location) {
-          const newLat = place.geometry.location.lat();
-          const newLng = place.geometry.location.lng();
-          setFormData((prev) => ({
-            ...prev,
-            lat: newLat.toString(),
-            lng: newLng.toString(),
-            maps_url: `https://maps.google.com/?q=${newLat},${newLng}`,
-          }));
-          showToast("ดึงพิกัดจาก Google Maps สำเร็จ!", "success");
-        }
-      });
-    }
-  }, [activeTab, googleMapsLoaded]);
 
   const checkUserRole = async () => {
     setAuthStatus("allowed");
@@ -167,10 +105,12 @@ export default function AttendanceAdminPage() {
         .from("users")
         .select("line_user_id, nickname")
         .order("nickname", { ascending: true });
+
       if (error) {
         setFetchError(`ดึงข้อมูลพนักงานไม่ได้: ${error.message}`);
         return;
       }
+
       if (data) {
         setEmployeeList(data);
         setFetchError(null);
@@ -188,22 +128,18 @@ export default function AttendanceAdminPage() {
       .order("created_at", { ascending: false });
 
     if (data) {
+      // 🌟 กรองเอาหัวข้อที่เป็น "office" ออกไปซ่อนไว้ก่อน (รอทำหน้า Setting แยก)
       const filteredData = data.filter((t) => t.team_type !== "office");
-      setActiveTopics(
-        filteredData.filter((t) => t.is_active && t.end_date >= todayStr),
-      );
-      setPastTopics(
-        filteredData.filter((t) => !t.is_active || t.end_date < todayStr),
-      );
-    }
-  };
 
-  const fetchAllFavorites = async () => {
-    const { data } = await supabase
-      .from("saved_locations")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) setAllFavorites(data);
+      const active = filteredData.filter(
+        (t) => t.is_active && t.end_date >= todayStr,
+      );
+      const past = filteredData.filter(
+        (t) => !t.is_active || t.end_date < todayStr,
+      );
+      setActiveTopics(active);
+      setPastTopics(past);
+    }
   };
 
   const showToast = (
@@ -218,6 +154,7 @@ export default function AttendanceAdminPage() {
     setFormData((prev) => ({ ...prev, maps_url: input }));
     if (!input) return;
 
+    // 🌟 อัปเกรด Regex ให้รองรับทั้ง URL และ ตัวเลขพิกัดตรงๆ
     const regex =
       /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)|^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
     const match = input.match(regex);
@@ -233,12 +170,14 @@ export default function AttendanceAdminPage() {
   const toggleUserAccess = (userId: string) => {
     setFormData((prev) => {
       const isSelected = prev.allowed_users.includes(userId);
-      if (isSelected)
+      if (isSelected) {
         return {
           ...prev,
           allowed_users: prev.allowed_users.filter((id) => id !== userId),
         };
-      return { ...prev, allowed_users: [...prev.allowed_users, userId] };
+      } else {
+        return { ...prev, allowed_users: [...prev.allowed_users, userId] };
+      }
     });
   };
 
@@ -266,10 +205,9 @@ export default function AttendanceAdminPage() {
   };
 
   const handleDeleteClick = (
-    id: string,
-    title: string,
-    type: "topic" | "favorite",
-    isOffice: boolean = false,
+    topicId: string,
+    topicTitle: string,
+    isOffice: boolean,
   ) => {
     if (isOffice) {
       showToast(
@@ -280,43 +218,26 @@ export default function AttendanceAdminPage() {
     }
     setConfirmModal({
       isOpen: true,
-      id: id,
-      type: type,
-      title: type === "topic" ? "ยืนยันการลบหัวข้องาน" : "ยืนยันลบสถานที่ประจำ",
-      message: `คุณแน่ใจหรือไม่ว่าต้องการลบ "${title}" ?`,
+      topicId: topicId,
+      title: "ยืนยันการลบข้อมูล",
+      message: `คุณแน่ใจหรือไม่ว่าต้องการลบหัวข้อ "${topicTitle}" ?`,
     });
   };
 
   const confirmDelete = async () => {
-    if (!confirmModal.id) return;
+    if (!confirmModal.topicId) return;
     try {
-      if (confirmModal.type === "topic") {
-        const { error } = await supabase
-          .from("attendance_topics")
-          .delete()
-          .eq("id", confirmModal.id);
-        if (error) throw error;
-        showToast("ลบหัวข้อเรียบร้อยแล้ว", "success");
-        fetchTopics();
-      } else {
-        const { error } = await supabase
-          .from("saved_locations")
-          .delete()
-          .eq("id", confirmModal.id);
-        if (error) throw error;
-        showToast("ลบสถานที่ประจำเรียบร้อยแล้ว", "success");
-        fetchAllFavorites();
-      }
+      const { error } = await supabase
+        .from("attendance_topics")
+        .delete()
+        .eq("id", confirmModal.topicId);
+      if (error) throw error;
+      showToast("ลบข้อมูลสำเร็จเรียบร้อยแล้ว", "success");
+      fetchTopics();
     } catch (error: any) {
       showToast("ลบไม่สำเร็จ: " + error.message, "error");
     } finally {
-      setConfirmModal({
-        isOpen: false,
-        id: null,
-        type: "topic",
-        title: "",
-        message: "",
-      });
+      setConfirmModal({ isOpen: false, topicId: null, title: "", message: "" });
     }
   };
 
@@ -381,11 +302,6 @@ export default function AttendanceAdminPage() {
     return names.join(", ");
   };
 
-  const getUserNameForFav = (userId: string) => {
-    const emp = employeeList.find((e) => e.line_user_id === userId);
-    return emp ? emp.nickname : "พนักงาน (ไม่ระบุ)";
-  };
-
   if (authStatus === "checking")
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -439,25 +355,20 @@ export default function AttendanceAdminPage() {
       )}
 
       <div className="max-w-2xl w-full mb-6">
-        <div className="flex space-x-1.5 bg-gray-200/50 p-1.5 rounded-2xl overflow-x-auto custom-scrollbar">
+        <div className="flex space-x-2 bg-gray-200/50 p-1.5 rounded-2xl">
           <button
             onClick={() => setActiveTab("form")}
-            className={`flex-1 min-w-[120px] flex justify-center items-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "form" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            className={`flex-1 flex justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === "form" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
-            <PlusCircle className="w-4 h-4 shrink-0" />{" "}
+            <PlusCircle className="w-4 h-4" />
             {editingId ? "แก้ไขหัวข้อ" : "สร้างหัวข้อใหม่"}
           </button>
           <button
             onClick={() => setActiveTab("list")}
-            className={`flex-1 min-w-[120px] flex justify-center items-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "list" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            className={`flex-1 flex justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === "list" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
-            <List className="w-4 h-4 shrink-0" /> รายการหัวข้อ
-          </button>
-          <button
-            onClick={() => setActiveTab("favorites")}
-            className={`flex-1 min-w-[120px] flex justify-center items-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "favorites" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-          >
-            <Star className="w-4 h-4 shrink-0" /> สถานที่ประจำ
+            <List className="w-4 h-4" />
+            รายการหัวข้องาน
           </button>
         </div>
       </div>
@@ -494,14 +405,15 @@ export default function AttendanceAdminPage() {
                     type="checkbox"
                     className="w-4 h-4 text-blue-600 rounded border-gray-300"
                     checked={isPermanent}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        end_date: e.target.checked
-                          ? "2099-12-31"
-                          : formData.start_date,
-                      })
-                    }
+                    onChange={(e) => {
+                      if (e.target.checked)
+                        setFormData({ ...formData, end_date: "2099-12-31" });
+                      else
+                        setFormData({
+                          ...formData,
+                          end_date: formData.start_date,
+                        });
+                    }}
                   />
                   <Infinity className="h-4 w-4 text-blue-600" /> หัวข้องานประจำ
                   (ไม่มีวันหมดอายุ)
@@ -590,6 +502,7 @@ export default function AttendanceAdminPage() {
 
               {formData.work_type === "onsite" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  {/* 🌟 1. ช่องเลือกหัวหน้าทีมประจำหน้างาน (Dropdown ที่ต้องการ) */}
                   <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
                       <Users className="h-4 w-4" />{" "}
@@ -616,47 +529,57 @@ export default function AttendanceAdminPage() {
                   </div>
 
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
-                      <LinkIcon className="h-4 w-4" /> พิกัดสถานที่
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+                      <LinkIcon className="h-4 w-4" /> วางลิงก์ Google Maps หรือ
+                      พิกัด
                     </label>
-
-                    {/* 🌟 ค้นหาด้วย Google Maps */}
-                    <div className="relative mb-3">
-                      <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500" />
-                      <input
-                        type="text"
-                        ref={autocompleteInputRef}
-                        placeholder="🔍 ค้นหาสถานที่ด้วย Google Maps..."
-                        className="w-full border border-blue-300 rounded-lg p-3 pl-10 text-sm font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-3 px-1">
-                      <div className="flex-1 border-b border-gray-300"></div>
-                      <span className="text-xs text-gray-500 font-bold">
-                        หรือวางลิงก์เอง
-                      </span>
-                      <div className="flex-1 border-b border-gray-300"></div>
-                    </div>
-
+                    {/* 🌟 เพิ่มคู่มือแบบพับเก็บได้ (Accordion) */}
+                    <details className="mb-3 group">
+                      <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
+                        <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
+                          ?
+                        </span>
+                        วิธีดูพิกัดจากมือถือ (คลิก)
+                      </summary>
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
+                        <p>
+                          1. เปิดแอป <b>Google Maps</b>
+                        </p>
+                        <p>
+                          2. <b>แตะค้าง</b> (Long Press)
+                          ตรงจุดที่ต้องการให้ขึ้นหมุดสีแดง (Dropped Pin)
+                        </p>
+                        <p>
+                          3. เลื่อนดูรายละเอียดด้านล่าง จะเห็นตัวเลขพิกัด (เช่น{" "}
+                          <code className="bg-white px-1.5 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm font-mono">
+                            13.7563, 100.5018
+                          </code>
+                          ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                        </p>
+                        <p>
+                          4. *** ห้ามใส่วงเล็บในกรณีก็อบเฉพาะตัวเลขมา
+                          ให้เอาวงเล็บออก <b>13.7563, 100.5018</b>
+                        </p>
+                      </div>
+                    </details>
                     <input
                       type="text"
-                      placeholder="วางลิงก์ Maps แบบยาว หรือ พิกัด (เช่น 13.123, 100.456)"
+                      placeholder="วางลิงก์ Maps แบบยาว หรือ วางพิกัด (เช่น 13.123, 100.456)"
                       className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white mb-2"
                       value={formData.maps_url}
                       onChange={(e) => handleMapsUrlParse(e.target.value)}
                     />
-                    <div className="flex gap-4 mt-2">
+                    <div className="flex gap-4">
                       <input
                         type="text"
-                        placeholder="Lat (ละติจูด)"
+                        placeholder="ละติจูด (Lat)"
                         className="w-1/2 border border-gray-300 rounded-lg p-2 text-xs bg-gray-100 text-gray-600 font-mono"
                         value={formData.lat}
                         readOnly
                       />
                       <input
                         type="text"
-                        placeholder="Lng (ลองจิจูด)"
+                        placeholder="ลองจิจูด (Lng)"
                         className="w-1/2 border border-gray-300 rounded-lg p-2 text-xs bg-gray-100 text-gray-600 font-mono"
                         value={formData.lng}
                         readOnly
@@ -664,16 +587,19 @@ export default function AttendanceAdminPage() {
                     </div>
                   </div>
 
+                  {/* 🌟 2. แสดงพนักงานที่เข้าร่วมรายบุคคล (ดึงจาก Supabase) */}
                   <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
                     <label className="flex items-center gap-2 text-sm font-semibold text-orange-900 mb-3">
                       <Users className="h-4 w-4" /> พนักงานที่เข้าร่วมไซต์นี้
                       (เว้นว่าง = เข้าร่วมทุกคน)
                     </label>
+
                     {fetchError && (
                       <div className="mb-3 p-3 bg-red-100 text-red-700 text-xs rounded-lg border border-red-200">
                         <strong>⚠️ แจ้งเตือน:</strong> {fetchError}
                       </div>
                     )}
+
                     <div className="flex flex-wrap gap-2">
                       {employeeList.map((emp) => (
                         <label
@@ -691,6 +617,11 @@ export default function AttendanceAdminPage() {
                           {emp.nickname}
                         </label>
                       ))}
+                      {!fetchError && employeeList.length === 0 && (
+                        <p className="text-xs text-orange-600/60 font-semibold">
+                          กำลังโหลดข้อมูลพนักงาน...
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -699,6 +630,7 @@ export default function AttendanceAdminPage() {
 
             <hr className="border-gray-100" />
 
+            {/* 🌟 ส่วนเลือกกะเวลาทำงาน (ที่เติมกลับเข้ามาให้) */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
                 <Clock className="h-4 w-4" /> ระบุกะเวลาทำงาน
@@ -728,6 +660,7 @@ export default function AttendanceAdminPage() {
                     09:00 - 18:00
                   </span>
                 </label>
+
                 <label
                   className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "afternoon" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
                 >
@@ -752,6 +685,7 @@ export default function AttendanceAdminPage() {
                     13:00 - 22:00
                   </span>
                 </label>
+
                 <label
                   className={`border p-3 rounded-xl cursor-pointer text-center transition-all ${formData.shift_type === "custom" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 hover:bg-gray-50"}`}
                 >
@@ -773,6 +707,7 @@ export default function AttendanceAdminPage() {
                 </label>
               </div>
 
+              {/* 🌟 แสดงช่องกรอกเวลา เมื่อกดเลือกแท็บ "ระบุเอง" */}
               {formData.shift_type === "custom" && (
                 <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
                   <div>
@@ -821,6 +756,7 @@ export default function AttendanceAdminPage() {
                 <label className="flex justify-between items-center text-sm font-semibold text-gray-700 mb-3">
                   <span className="flex items-center gap-2">
                     <Radar className="w-4 h-4 text-blue-600" /> ระยะบังคับ GPS
+                    (เมตร)
                   </span>
                   <span className="text-blue-700 font-bold bg-white px-3 py-1 rounded-md shadow-sm text-xs border border-blue-100">
                     {formData.radius_meters === 0
@@ -920,6 +856,7 @@ export default function AttendanceAdminPage() {
                     key={topic.id}
                     className="p-4 flex flex-row items-center justify-between hover:bg-gray-50 transition-colors gap-3"
                   >
+                    {/* ข้อมูลด้านซ้าย */}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-gray-900 text-base truncate">
                         {topic.title}
@@ -941,6 +878,8 @@ export default function AttendanceAdminPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* ปุ่มแก้ไข/ลบ ด้านขวา */}
                     <div className="flex flex-row items-center gap-2 shrink-0">
                       <button
                         onClick={() => handleEditClick(topic)}
@@ -953,7 +892,6 @@ export default function AttendanceAdminPage() {
                           handleDeleteClick(
                             topic.id,
                             topic.title,
-                            "topic",
                             topic.team_type === "office",
                           )
                         }
@@ -967,6 +905,7 @@ export default function AttendanceAdminPage() {
               )}
             </div>
           </div>
+
           <div className="opacity-60 grayscale">
             <h2 className="text-sm font-bold text-gray-500 mb-3 pl-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-gray-400"></div>{" "}
@@ -994,79 +933,6 @@ export default function AttendanceAdminPage() {
                   </button>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= แท็บ 3: สถานที่ประจำ (Favorites) ================= */}
-      {activeTab === "favorites" && (
-        <div className="max-w-2xl w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100 flex items-center gap-3">
-              <Star className="w-5 h-5 text-blue-600" />
-              <div>
-                <h3 className="font-bold text-gray-900 text-sm">
-                  จัดการสถานที่ประจำ
-                </h3>
-                <p className="text-[10px] text-gray-500 mt-0.5">
-                  ลบหมุดขยะหรือสถานที่ที่ไม่ใช้งานแล้วที่พนักงานบันทึกไว้
-                </p>
-              </div>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {allFavorites.length === 0 ? (
-                <div className="p-10 flex flex-col items-center justify-center text-gray-400">
-                  <MapPinHouse className="w-10 h-10 mb-3 opacity-50 text-gray-300" />
-                  <p className="text-sm font-bold">
-                    ยังไม่มีพนักงานบันทึกสถานที่ประจำ
-                  </p>
-                </div>
-              ) : (
-                allFavorites.map((fav) => (
-                  <div
-                    key={fav.id}
-                    className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-900 text-sm truncate">
-                          {fav.title}
-                        </h4>
-                        <div className="flex flex-col gap-1 mt-1.5">
-                          <p className="text-[10px] text-gray-500 flex items-center gap-1">
-                            <Users className="w-3 h-3" /> บันทึกโดย:{" "}
-                            <span className="font-bold text-gray-700">
-                              {getUserNameForFav(fav.user_id)}
-                            </span>
-                          </p>
-                          <a
-                            href={`https://www.google.com/maps?q=${fav.lat},${fav.lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-500 hover:underline w-fit"
-                          >
-                            ดูบนแผนที่ ({fav.lat.toFixed(4)},{" "}
-                            {fav.lng.toFixed(4)})
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        handleDeleteClick(fav.id, fav.title, "favorite")
-                      }
-                      className="bg-white border border-red-100 hover:bg-red-50 hover:border-red-500 text-red-500 p-2.5 rounded-xl transition-colors shadow-sm shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         </div>

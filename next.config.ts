@@ -9,11 +9,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 🔥 สั่งให้ระบบข้ามการตรวจ ESLint ตอน Build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // 🔥 สั่งให้ระบบข้ามการตรวจ TypeScript ตอน Build
+  // สั่งให้ระบบข้ามการตรวจ TypeScript ตอน Build
   typescript: {
     ignoreBuildErrors: true,
   },

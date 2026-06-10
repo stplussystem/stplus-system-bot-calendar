@@ -980,6 +980,304 @@ export const getAttendanceMessage = (
   return flexObj;
 };
 
+export const generateCheckinTimelineFlex = (
+  workDate: string,
+  teamName: string,
+  topicName: string,
+  checkInTime: string,
+  checkOutTime: string | null = null,
+  checkpoints: { time: string; location: string }[] = [],
+  liffUrl: string,
+) => {
+  // สร้างเส้นคั่นแนวตั้ง (Timeline Line)
+  const verticalLine = {
+    type: "box",
+    layout: "vertical",
+    width: "2px",
+    backgroundColor: "#E5E7EB",
+    height: "24px",
+    margin: "sm",
+  };
+
+  const contentsList: any[] = [];
+
+  // --- Node 1: ลงชื่อเข้างาน ---
+  contentsList.push({
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    contents: [
+      {
+        type: "text",
+        text: checkInTime,
+        size: "sm",
+        color: "#6b7280",
+        flex: 1,
+        align: "center",
+        gravity: "center",
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            cornerRadius: "30px",
+            width: "12px",
+            height: "12px",
+            borderColor: "#10B981",
+            borderWidth: "2px",
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 3,
+        contents: [
+          {
+            type: "text",
+            text: "ลงชื่อเข้างาน",
+            size: "sm",
+            weight: "bold",
+            color: "#10B981",
+          },
+          { type: "text", text: "ประจำออฟฟิศ", size: "xs", color: "#9ca3af" },
+        ],
+      },
+    ],
+  });
+
+  // --- Node 2: แทรก Checkpoints ตรงกลาง (ถ้ามีการแวะระหว่างวัน) ---
+  checkpoints.forEach((cp) => {
+    // เส้นเชื่อม
+    contentsList.push({
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      contents: [
+        { type: "text", text: "", flex: 1 },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          alignItems: "center",
+          contents: [verticalLine],
+        },
+        { type: "text", text: "", flex: 3 },
+      ],
+    });
+
+    // จุด Checkpoint
+    contentsList.push({
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      contents: [
+        {
+          type: "text",
+          text: cp.time,
+          size: "sm",
+          color: "#6b7280",
+          flex: 1,
+          align: "center",
+          gravity: "center",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          alignItems: "center",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              cornerRadius: "30px",
+              width: "12px",
+              height: "12px",
+              borderColor: "#3B82F6",
+              borderWidth: "2px",
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 3,
+          contents: [
+            {
+              type: "text",
+              text: "จุดแวะ",
+              size: "sm",
+              weight: "bold",
+              color: "#3B82F6",
+            },
+            { type: "text", text: cp.location, size: "xs", color: "#9ca3af" },
+          ],
+        },
+      ],
+    });
+  });
+
+  // --- Node 3: ลงชื่อออกงาน ---
+  // เส้นเชื่อมก่อนจุดออกงาน
+  contentsList.push({
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    contents: [
+      { type: "text", text: "", flex: 1 },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        alignItems: "center",
+        contents: [verticalLine],
+      },
+      { type: "text", text: "", flex: 3 },
+    ],
+  });
+
+  // จุดออกงาน
+  contentsList.push({
+    type: "box",
+    layout: "horizontal",
+    spacing: "md",
+    contents: [
+      {
+        type: "text",
+        text: checkOutTime || "ยังไม่...",
+        size: "sm",
+        color: "#9ca3af",
+        flex: 1,
+        align: "center",
+        gravity: "center",
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            cornerRadius: "30px",
+            width: "12px",
+            height: "12px",
+            borderColor: checkOutTime ? "#EF4444" : "#D1D5DB",
+            borderWidth: "2px",
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 3,
+        contents: [
+          {
+            type: "text",
+            text: "ลงชื่อออกงาน",
+            size: "sm",
+            weight: "bold",
+            color: checkOutTime ? "#EF4444" : "#9ca3af",
+          },
+        ],
+      },
+    ],
+  });
+
+  // ส่งกลับเป็นรูปแบบ Flex Message JSON
+  return {
+    type: "flex",
+    altText: "สถานะการลงเวลาทำงาน",
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#16A34A", // สีเขียวสไตล์ Modern SaaS
+        paddingAll: "20px",
+        contents: [
+          {
+            type: "text",
+            text: "กะการทำงาน : เช้า",
+            color: "#ffffffcc",
+            size: "sm",
+            mb: "sm",
+          },
+          {
+            type: "text",
+            text: workDate,
+            color: "#ffffff",
+            size: "xl",
+            weight: "bold",
+          },
+          {
+            type: "text",
+            text: `ทีม : ${teamName}`,
+            color: "#ffffffcc",
+            size: "sm",
+            mt: "sm",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "20px",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            mb: "xl",
+            contents: [
+              {
+                type: "text",
+                text: "ชื่องาน :",
+                color: "#9ca3af",
+                size: "sm",
+                flex: 1,
+              },
+              {
+                type: "text",
+                text: topicName,
+                color: "#111827",
+                size: "sm",
+                weight: "bold",
+                flex: 3,
+                wrap: true,
+              },
+            ],
+          },
+          ...contentsList,
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "20px",
+        paddingTop: "0px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: checkOutTime ? "#E5E7EB" : "#EF4444", // ถ้าออกงานแล้วปุ่มจะเป็นสีเทา
+            action: {
+              type: "uri",
+              label: checkOutTime ? "ลงเวลาเรียบร้อยแล้ว" : "ลงเวลาออกงาน",
+              uri: `${liffUrl}/checkin`,
+            },
+          },
+        ],
+      },
+    },
+  };
+};
+
 // ==========================================
 // ส่วนที่ 3: ระบบลางาน (Leave Requests)
 // ==========================================

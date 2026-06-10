@@ -18,21 +18,10 @@ import {
   X,
   LogOut,
   MapPinHouse,
-  Search,
-  Star,
-  Map,
 } from "lucide-react";
 
+// 🌟 นำเข้า ProfileSettings สำหรับด่านสกัด
 import ProfileSettings from "@/components/ProfileSettings";
-
-// ประกาศ type เพื่อไม่ให้ TypeScript แจ้งเตือนเวลาเรียกใช้ google.maps
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,6 +67,7 @@ export default function CheckinPage() {
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  // 🌟 เพิ่ม State สำหรับด่านสกัด
   const [dbUser, setDbUser] = useState<any>(null);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
@@ -113,35 +103,7 @@ export default function CheckinPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
-  // ==========================================
-  // 🌟 State & Refs สำหรับ Checkpoint & Favorites
-  // ==========================================
-  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
-  const [checkpointTab, setCheckpointTab] = useState<"search" | "favorites">(
-    "search",
-  );
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const autocompleteInputRef = useRef<HTMLInputElement>(null);
-  const [cpData, setCpData] = useState({
-    title: "",
-    lat: 0,
-    lng: 0,
-    saveFavorite: false,
-  });
-
   useEffect(() => {
-    // โหลด Google Maps Script
-    if (!window.google && GOOGLE_MAPS_API_KEY) {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      document.body.appendChild(script);
-      script.onload = () => setGoogleMapsLoaded(true);
-    } else if (window.google) {
-      setGoogleMapsLoaded(true);
-    }
-
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "history") setActiveTab("history");
 
@@ -156,6 +118,7 @@ export default function CheckinPage() {
           const profile = await liff.getProfile();
           setUserProfile(profile);
 
+          // 🌟 1. ดึงข้อมูลและสร้าง User ถ้ายังไม่มี
           const { data: userData } = await supabase
             .from("users")
             .select("*")
@@ -181,6 +144,7 @@ export default function CheckinPage() {
 
           setDbUser(currentUser || {});
 
+          // 🌟 2. ด่านสกัด: บังคับกรอกชื่อ
           const hasName =
             currentUser?.full_name && currentUser.full_name.trim() !== "";
           const hasNick =
@@ -190,6 +154,7 @@ export default function CheckinPage() {
             return;
           }
 
+          // 🌟 3. ด่านสกัด: รออนุมัติ
           if (currentUser.is_active === false) {
             setIsPendingApproval(true);
             return;
@@ -218,17 +183,13 @@ export default function CheckinPage() {
       if (activeTab === "checkin") {
         checkTodayStatus();
         fetchActiveTopics();
-        fetchFavorites(); // โหลดสถานที่ประจำ
-        if (navigator.geolocation) {
+        if (navigator.geolocation)
           navigator.geolocation.getCurrentPosition(
             () => {},
             () => {},
             { enableHighAccuracy: true, maximumAge: 0 },
           );
-        }
-      } else {
-        fetchHistory();
-      }
+      } else fetchHistory();
     }
   }, [
     activeTab,
@@ -241,55 +202,10 @@ export default function CheckinPage() {
     isPendingApproval,
   ]);
 
-  // ตั้งค่า Google Places Autocomplete เมื่อเปิด Modal Checkpoint
   useEffect(() => {
-    if (
-      showCheckpointModal &&
-      checkpointTab === "search" &&
-      googleMapsLoaded &&
-      autocompleteInputRef.current
-    ) {
-      const autocomplete = new window.google.maps.places.Autocomplete(
-        autocompleteInputRef.current,
-        {
-          fields: ["formatted_address", "geometry", "name"],
-        },
-      );
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (place.geometry && place.geometry.location) {
-          setCpData((prev) => ({
-            ...prev,
-            title:
-              place.name ||
-              place.formatted_address ||
-              "จุดแวะ (ไม่ได้ระบุชื่อ)",
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-          }));
-        }
-      });
-    }
-  }, [showCheckpointModal, checkpointTab, googleMapsLoaded]);
-
-  const showToast = (
-    message: string,
-    type: "success" | "error" = "success",
-  ) => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
-  };
-
-  const fetchFavorites = async () => {
-    if (!userProfile) return;
-    const { data } = await supabase
-      .from("saved_locations")
-      .select("*")
-      .eq("user_id", userProfile.userId)
-      .order("created_at", { ascending: false });
-    if (data) setFavorites(data);
-  };
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  }, [selectedTopic, checkoutTopic, activeTab]);
 
   const checkTodayStatus = async () => {
     setIsCheckingStatus(true);
@@ -300,7 +216,7 @@ export default function CheckinPage() {
     const startOfDayStr = `${y}-${m}-${d}T00:00:00+07:00`;
     const endOfDayStr = `${y}-${m}-${d}T23:59:59+07:00`;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("attendance_logs")
       .select(`*, attendance_topics ( title, photo_mode )`)
       .eq("user_id", userProfile.userId)
@@ -313,9 +229,7 @@ export default function CheckinPage() {
     if (data && !data.check_out_time) {
       setTodayLog(data);
       setCheckoutTopic(data.topic_id);
-    } else {
-      setTodayLog(null);
-    }
+    } else setTodayLog(null);
     setIsCheckingStatus(false);
   };
 
@@ -344,6 +258,14 @@ export default function CheckinPage() {
         if (visibleTopics.length > 0) setSelectedTopic(visibleTopics[0].id);
       }
     } else setTopics([]);
+  };
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success",
+  ) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,63 +297,6 @@ export default function CheckinPage() {
       .data.publicUrl;
   };
 
-  // ==========================================
-  // 📍 จัดการ Checkpoint ระหว่างวัน
-  // ==========================================
-  const submitCheckpoint = async () => {
-    if (!cpData.title || cpData.lat === 0 || cpData.lng === 0) {
-      return showToast(
-        "กรุณาค้นหาและเลือกสถานที่จากแผนที่ หรือ สถานที่ประจำ",
-        "error",
-      );
-    }
-    setLoading(true);
-    try {
-      // 1. ถ้าติ๊กบันทึกเป็นที่ประจำ
-      if (cpData.saveFavorite) {
-        await supabase
-          .from("saved_locations")
-          .insert([
-            {
-              user_id: userProfile.userId,
-              title: cpData.title,
-              lat: cpData.lat,
-              lng: cpData.lng,
-            },
-          ]);
-        fetchFavorites();
-      }
-
-      // 2. บันทึกลงตาราง Checkpoint
-      const { error } = await supabase.from("attendance_checkpoints").insert([
-        {
-          log_id: todayLog.id,
-          lat: cpData.lat,
-          lng: cpData.lng,
-          note: `แวะจุด: ${cpData.title}`,
-        },
-      ]);
-      if (error) throw error;
-
-      showToast("บันทึกจุด Checkpoint เรียบร้อย!", "success");
-      setShowCheckpointModal(false);
-      setCpData({ title: "", lat: 0, lng: 0, saveFavorite: false });
-
-      // 3. ส่งข้อความเข้า LINE (Bot จะจับ Text นี้แล้วยิง Timeline Flex กลับมา)
-      const liff = (await import("@line/liff")).default;
-      if (liff.isInClient()) {
-        await liff.sendMessages([
-          { type: "text", text: `📍 แวะ Checkpoint: ${cpData.title}` },
-        ]);
-        liff.closeWindow();
-      }
-    } catch (err: any) {
-      showToast(err.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCheckIn = async () => {
     if (!selectedTopic)
       return showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
@@ -447,9 +312,8 @@ export default function CheckinPage() {
           const accuracy = position.coords.accuracy;
           if (accuracy > 150)
             throw new Error(
-              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.)`,
+              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.) กรุณารอ 3 วินาที หรือ อยู่ในในที่โล่ง แล้วกดใหม่ครับ`,
             );
-
           if (
             selectedTopicData.radius_meters > 0 &&
             selectedTopicData.lat &&
@@ -462,8 +326,13 @@ export default function CheckinPage() {
               selectedTopicData.lng,
             );
             if (distance > selectedTopicData.radius_meters) {
+              const distanceText =
+                distance < 1000
+                  ? `${Math.ceil(distance)} เมตร`
+                  : `${(distance / 1000).toFixed(2)} กิโลเมตร`;
+
               throw new Error(
-                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
+                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
               );
             }
           }
@@ -502,7 +371,7 @@ export default function CheckinPage() {
           setLoading(false);
         }
       },
-      () => {
+      (error) => {
         showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
         setLoading(false);
       },
@@ -573,7 +442,7 @@ export default function CheckinPage() {
           setLoading(false);
         }
       },
-      () => {
+      (error) => {
         showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
         setLoading(false);
       },
@@ -648,6 +517,7 @@ export default function CheckinPage() {
     );
   }
 
+  // 🌟 ด่านที่ 1: บังคับกรอกข้อมูล
   if (isNewUser || showProfileSettings) {
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
@@ -668,6 +538,7 @@ export default function CheckinPage() {
     );
   }
 
+  // 🌟 ด่านที่ 2: รอแอดมินอนุมัติ
   if (isPendingApproval) {
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
@@ -682,6 +553,17 @@ export default function CheckinPage() {
             ข้อมูลถูกบันทึกแล้ว
             กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การใช้งานครับ
           </p>
+          <button
+            onClick={() => {
+              import("@line/liff").then((liff) => {
+                if (liff.default.isInClient()) liff.default.closeWindow();
+                else window.history.back();
+              });
+            }}
+            className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-black transition-colors"
+          >
+            ปิดหน้าต่าง
+          </button>
         </div>
       </div>
     );
@@ -703,142 +585,6 @@ export default function CheckinPage() {
             <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
           )}
           <p className="text-sm font-bold leading-relaxed">{toast.message}</p>
-        </div>
-      )}
-
-      {/* 🌟 Modal Checkpoint */}
-      {showCheckpointModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-gray-900/40 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 flex flex-col max-h-[85vh]">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                <MapPinHouse className="w-5 h-5 text-blue-500" /> แวะจุด
-                Checkpoint
-              </h3>
-              <button
-                onClick={() => setShowCheckpointModal(false)}
-                className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Tabs Modal */}
-            <div className="flex px-4 pt-3 gap-2 bg-white sticky top-[65px] z-10">
-              <button
-                onClick={() => setCheckpointTab("search")}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${checkpointTab === "search" ? "bg-blue-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-              >
-                <Search className="w-3.5 h-3.5 inline mr-1" /> ค้นหาแผนที่
-              </button>
-              <button
-                onClick={() => setCheckpointTab("favorites")}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${checkpointTab === "favorites" ? "bg-blue-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-              >
-                <Star className="w-3.5 h-3.5 inline mr-1" /> สถานที่ประจำ
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
-              {checkpointTab === "search" ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                  <div className="relative">
-                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      ref={autocompleteInputRef}
-                      placeholder="พิมพ์ชื่อสถานที่เพื่อค้นหา..."
-                      className="w-full bg-white border border-gray-300 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
-                    />
-                  </div>
-                  {cpData.title && (
-                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 mb-0.5">
-                          พิกัดที่เลือก
-                        </p>
-                        <p className="text-sm font-bold text-blue-900 leading-snug">
-                          {cpData.title}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 text-sm font-bold text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={cpData.saveFavorite}
-                      onChange={(e) =>
-                        setCpData({ ...cpData, saveFavorite: e.target.checked })
-                      }
-                      className="w-4 h-4 accent-orange-600"
-                    />
-                    <Star className="w-4 h-4" /> บันทึกเป็นสถานที่ประจำ
-                    (ครั้งหน้าไม่ต้องค้นหา)
-                  </label>
-                </div>
-              ) : (
-                <div className="space-y-3 animate-in fade-in slide-in-from-left-4">
-                  {favorites.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400">
-                      <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-xs font-bold">ยังไม่มีสถานที่ประจำ</p>
-                    </div>
-                  ) : (
-                    favorites.map((fav) => (
-                      <button
-                        key={fav.id}
-                        onClick={() =>
-                          setCpData({
-                            title: fav.title,
-                            lat: fav.lat,
-                            lng: fav.lng,
-                            saveFavorite: false,
-                          })
-                        }
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${cpData.title === fav.title ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-blue-200"}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${cpData.title === fav.title ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-500"}`}
-                          >
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p
-                              className={`text-sm font-bold ${cpData.title === fav.title ? "text-blue-900" : "text-gray-800"}`}
-                            >
-                              {fav.title}
-                            </p>
-                          </div>
-                        </div>
-                        {cpData.title === fav.title && (
-                          <CheckCircle2 className="w-5 h-5 text-blue-500" />
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 z-10">
-              <button
-                onClick={submitCheckpoint}
-                disabled={loading || !cpData.title}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-transform active:scale-95 shadow-sm disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <MapPinHouse className="w-5 h-5" /> ยืนยันบันทึกจุด
-                    Checkpoint
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -887,39 +633,24 @@ export default function CheckinPage() {
             </div>
           ) : todayLog ? (
             <div className="bg-white rounded-3xl shadow-sm border border-red-100 overflow-hidden ring-1 ring-red-50">
-              <div className="bg-red-50 p-6 border-b border-red-100 flex flex-col items-center text-center relative overflow-hidden">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-red-500 relative z-10">
+              <div className="bg-red-50 p-6 border-b border-red-100 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-red-500">
                   <Clock className="w-8 h-8" />
                 </div>
-                <h2 className="text-red-800 font-bold text-lg relative z-10">
+                <h2 className="text-red-800 font-bold text-lg">
                   กำลังปฏิบัติงาน
                 </h2>
-                <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-red-100 text-sm font-bold text-gray-700 shadow-sm relative z-10">
+                <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-red-100 text-sm font-bold text-gray-700 shadow-sm">
                   เข้างานเวลา:{" "}
                   <span className="text-red-600">
                     {formatTime(todayLog.check_in_time)}
                   </span>
                 </div>
               </div>
-
-              {/* 🌟 ปุ่มใหม่: แวะจุด Checkpoint */}
-              <div className="p-5 bg-blue-50 border-b border-blue-100">
-                <button
-                  onClick={() => setShowCheckpointModal(true)}
-                  className="w-full bg-white border-2 border-blue-500 text-blue-600 hover:bg-blue-600 hover:text-white font-bold py-3.5 px-4 rounded-2xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-sm"
-                >
-                  <MapPinHouse className="h-5 w-5" /> 📍 แวะจุด Checkpoint
-                  ระหว่างวัน
-                </button>
-                <p className="text-center text-[10px] text-blue-600/70 mt-2 font-bold">
-                  * ใช้สำหรับแวะไซต์งานหรือจุดตรวจสอบ โดยไม่ต้องลงชื่อออกงาน
-                </p>
-              </div>
-
               <div className="p-6 pb-2 border-b border-gray-100">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
-                  <LogOut className="h-5 w-5 text-red-500" />{" "}
-                  เลือกสถานที่จบงานวันนี้
+                  <MapPinHouse className="h-5 w-5 text-orange-500" />{" "}
+                  เลือกสถานที่จบงานวันนี้ (เผื่อออกไซต์)
                 </label>
                 <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                   {topics.map((topic) => (
@@ -1175,7 +906,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* TAB 2: ประวัติ (คงเดิม) */}
+      {/* TAB 2: ประวัติ */}
       {activeTab === "history" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
@@ -1290,6 +1021,7 @@ export default function CheckinPage() {
         </div>
       )}
 
+      {/* 🌟 โค้ดส่วน Modal แสดงรายละเอียด */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
