@@ -989,43 +989,30 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
 ) => {
-  const verticalLine = {
-    type: "box",
-    layout: "vertical",
-    width: "2px",
-    backgroundColor: "#E5E7EB",
-    height: "24px",
-    contents: [{ type: "filler" }],
-  };
-
-  const createEmptySpace = (flexRatio: number) => ({
-    type: "box",
-    layout: "vertical",
-    flex: flexRatio,
-    contents: [{ type: "filler" }],
-  });
-
   const contentsList: any[] = [];
 
   // --- Node 1: ลงชื่อเข้างาน ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
-    spacing: "md",
+    spacing: "sm",
     contents: [
       {
         type: "text",
         text: checkInTime || "-",
         size: "sm",
         color: "#6b7280",
-        flex: 1,
-        align: "center",
+        flex: 0,
+        width: "60px",
+        align: "end",
         gravity: "center",
+        weight: "bold",
       },
       {
         type: "box",
         layout: "vertical",
         flex: 0,
+        width: "24px",
         alignItems: "center",
         contents: [
           {
@@ -1043,7 +1030,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 3,
+        flex: 1,
         contents: [
           {
             type: "text",
@@ -1058,43 +1045,66 @@ export const generateCheckinTimelineFlex = (
     ],
   });
 
-  // --- Node 2: จุด Checkpoint ---
+  // --- Node 2: จุด Checkpoint (ถ้ามี) ---
   checkpoints.forEach((cp) => {
     contentsList.push({
       type: "box",
       layout: "horizontal",
-      spacing: "md",
+      spacing: "sm",
       contents: [
-        createEmptySpace(1),
         {
           type: "box",
           layout: "vertical",
           flex: 0,
-          alignItems: "center",
-          contents: [verticalLine],
+          width: "60px",
+          contents: [{ type: "filler" }],
         },
-        createEmptySpace(3),
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          width: "24px",
+          alignItems: "center",
+          contents: [
+            {
+              type: "box",
+              layout: "vertical",
+              width: "2px",
+              backgroundColor: "#E5E7EB",
+              height: "24px",
+              contents: [{ type: "filler" }],
+            },
+          ],
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 1,
+          contents: [{ type: "filler" }],
+        },
       ],
     });
-
     contentsList.push({
       type: "box",
       layout: "horizontal",
-      spacing: "md",
+      spacing: "sm",
       contents: [
         {
           type: "text",
           text: cp.time || "-",
           size: "sm",
           color: "#6b7280",
-          flex: 1,
-          align: "center",
+          flex: 0,
+          width: "60px",
+          align: "end",
           gravity: "center",
+          weight: "bold",
         },
         {
           type: "box",
           layout: "vertical",
           flex: 0,
+          width: "24px",
           alignItems: "center",
           contents: [
             {
@@ -1112,7 +1122,7 @@ export const generateCheckinTimelineFlex = (
         {
           type: "box",
           layout: "vertical",
-          flex: 3,
+          flex: 1,
           contents: [
             {
               type: "text",
@@ -1138,17 +1148,38 @@ export const generateCheckinTimelineFlex = (
   contentsList.push({
     type: "box",
     layout: "horizontal",
-    spacing: "md",
+    spacing: "sm",
     contents: [
-      createEmptySpace(1),
       {
         type: "box",
         layout: "vertical",
         flex: 0,
-        alignItems: "center",
-        contents: [verticalLine],
+        width: "60px",
+        contents: [{ type: "filler" }],
       },
-      createEmptySpace(3),
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        width: "24px",
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            width: "2px",
+            backgroundColor: "#E5E7EB",
+            height: "24px",
+            contents: [{ type: "filler" }],
+          },
+        ],
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 1,
+        contents: [{ type: "filler" }],
+      },
     ],
   });
 
@@ -1156,21 +1187,24 @@ export const generateCheckinTimelineFlex = (
   contentsList.push({
     type: "box",
     layout: "horizontal",
-    spacing: "md",
+    spacing: "sm",
     contents: [
       {
         type: "text",
         text: checkOutTime || "ยังไม่...",
         size: "sm",
         color: "#9ca3af",
-        flex: 1,
-        align: "center",
+        flex: 0,
+        width: "60px",
+        align: "end",
         gravity: "center",
+        weight: "bold",
       },
       {
         type: "box",
         layout: "vertical",
         flex: 0,
+        width: "24px",
         alignItems: "center",
         contents: [
           {
@@ -1188,7 +1222,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 3,
+        flex: 1,
         contents: [
           {
             type: "text",

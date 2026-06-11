@@ -1356,6 +1356,36 @@ export default function CheckinPage() {
                         : "ยังไม่ลงชื่อออก"}
                     </p>
                   </div>
+                  {/* 🌟 แสดงจุด Checkpoint ในหน้าประวัติ */}
+                  {selectedLog.attendance_checkpoints &&
+                    selectedLog.attendance_checkpoints.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-gray-500">
+                          📍 จุดแวะระหว่างวัน
+                        </p>
+                        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 space-y-3">
+                          {selectedLog.attendance_checkpoints
+                            .sort(
+                              (a: any, b: any) =>
+                                new Date(a.checkpoint_time).getTime() -
+                                new Date(b.checkpoint_time).getTime(),
+                            )
+                            .map((cp: any, idx: number) => (
+                              <div key={idx} className="flex items-start gap-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+                                <div>
+                                  <p className="text-xs font-bold text-blue-900">
+                                    {cp.note.replace("แวะจุด: ", "")}
+                                  </p>
+                                  <p className="text-[10px] text-blue-600">
+                                    {formatTime(cp.checkpoint_time)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
               {selectedLog.check_in_lat && selectedLog.check_in_lng && (

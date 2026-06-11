@@ -556,12 +556,12 @@ export default function AttendanceAdminPage() {
           >
             <List className="w-4 h-4 shrink-0" /> รายการหัวข้อ
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab("favorites")}
             className={`flex-1 min-w-[120px] flex justify-center items-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "favorites" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
             <Star className="w-4 h-4 shrink-0" /> สถานที่ประจำ
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -731,14 +731,14 @@ export default function AttendanceAdminPage() {
                         1. เลือกจากสถานที่ประจำ (Favorites)
                       </label>
                       <select
-                        className="w-full border border-gray-300 rounded-lg p-3 text-sm font-bold text-gray-700 outline-none bg-white focus:ring-2 focus:ring-indigo-500"
+                        className="w-full border border-gray-300 rounded-lg p-3 text-xs text-gray-700 outline-none bg-white focus:ring-2 focus:ring-indigo-500"
                         value={selectedFavId}
                         onChange={(e) => handleSelectFavorite(e.target.value)}
                       >
                         <option value="">-- ไม่เลือก (สร้างใหม่) --</option>
                         {allFavorites.map((fav) => (
                           <option key={fav.id} value={fav.id}>
-                            📍 {fav.title}
+                            {fav.title}
                           </option>
                         ))}
                       </select>
@@ -1166,7 +1166,7 @@ export default function AttendanceAdminPage() {
       )}
 
       {/* ================= แท็บ 3: สถานที่ประจำ (Favorites) ================= */}
-      {activeTab === "favorites" && (
+      {/* {activeTab === "favorites" && (
         <div className="max-w-2xl w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100 flex items-center gap-3">
@@ -1254,7 +1254,7 @@ export default function AttendanceAdminPage() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

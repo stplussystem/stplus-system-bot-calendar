@@ -63,22 +63,19 @@ export async function POST(request: Request) {
         const userId = event.source.userId;
 
         // ==========================================
-        // 🌟 เพิ่มระบบตรวจจับข้อความ "แวะ Checkpoint"
+        // 🌟 1. ระบบแวะจุด Checkpoint ระหว่างวัน
         // ==========================================
         if (userMessage.startsWith("📍 แวะ Checkpoint:")) {
           await startLoading(userId);
 
-          // 1. หาวันนี้ (เวลาเริ่ม - สิ้นสุดวัน)
           const now = new Date();
           const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
           const y = thaiNow.getUTCFullYear();
           const m = String(thaiNow.getUTCMonth() + 1).padStart(2, "0");
           const d = String(thaiNow.getUTCDate()).padStart(2, "0");
-
           const startOfDay = `${y}-${m}-${d}T00:00:00+07:00`;
           const endOfDay = `${y}-${m}-${d}T23:59:59+07:00`;
 
-          // 2. ดึงข้อมูลการเข้างานวันนี้ของพนักงานคนนี้
           const { data: todayLog } = await supabase
             .from("attendance_logs")
             .select(`*, attendance_topics(title, team_type)`)
@@ -90,18 +87,12 @@ export async function POST(request: Request) {
             .single();
 
           if (todayLog) {
-            // 3. 🌟 ดึงข้อมูล Checkpoint (แก้ชื่อคอลัมน์เป็น created_at)
-            const { data: checkpointsData, error: cpError } = await supabase
+            const { data: checkpointsData } = await supabase
               .from("attendance_checkpoints")
               .select("*")
               .eq("log_id", todayLog.id)
-              .order("created_at", { ascending: true });
+              .order("checkpoint_time", { ascending: true }); // ดึงจาก checkpoint_time
 
-            if (cpError) {
-              console.error("Error fetching checkpoints:", cpError.message);
-            }
-
-            // 4. แปลงเวลาและเตรียมข้อมูลให้ Flex Message
             const formatTime = (isoString: string) => {
               if (!isoString) return "-";
               return (
@@ -133,10 +124,9 @@ export async function POST(request: Request) {
               ? formatTime(todayLog.check_out_time)
               : null;
 
-            // 🌟 แก้จาก cp.checkpoint_time เป็น cp.created_at
             const cpList =
               checkpointsData?.map((cp: any) => ({
-                time: formatTime(cp.created_at),
+                time: formatTime(cp.checkpoint_time),
                 location: cp.note ? cp.note.replace("แวะจุด: ", "") : "จุดแวะ",
               })) || [];
 
@@ -145,7 +135,6 @@ export async function POST(request: Request) {
               todayLog.attendance_topics?.team_type ||
               "ทั่วไป";
 
-            // 5. สร้าง Flex Message
             const flexMessage = flex.generateCheckinTimelineFlex(
               workDate,
               teamStr,
@@ -153,24 +142,19 @@ export async function POST(request: Request) {
               checkInTimeStr,
               checkOutTimeStr,
               cpList,
-              checkinLiffUrl,
+              liffUrl,
             );
-
-            // 6. ส่งข้อความกลับไปที่ LINE
             await replyToLine(replyToken, [flexMessage]);
           } else {
             await replyToLine(replyToken, [
-              {
-                type: "text",
-                text: "ไม่พบประวัติการเข้างานในวันนี้ครับ กรุณาเข้างานก่อนแวะ Checkpoint",
-              },
+              { type: "text", text: "ไม่พบประวัติการเข้างานในวันนี้ครับ" },
             ]);
           }
           continue;
         }
 
         // ==========================================
-        // 1. ระบบลงเวลาทำงาน (Check-in / Check-out)
+        // 🌟 2. ระบบลงเวลาเข้า/ออกงาน (แสดง Timeline เสมอ)
         // ==========================================
         if (
           userMessage === "🕘 ลงชื่อเข้างาน" ||
@@ -179,24 +163,38 @@ export async function POST(request: Request) {
           await startLoading(userId);
           const isCheckin = userMessage === "🕘 ลงชื่อเข้างาน";
 
-          const { data: logs, error } = await supabase
+          const { data: logs } = await supabase
             .from("attendance_logs")
             .select(`*, attendance_topics ( title, shift_type, team_type )`)
             .eq("user_id", userId)
-            .order("created_at", { ascending: false }) // 🌟 เรียงจากเวลาที่สร้างล่าสุด
+            .order("check_in_time", { ascending: false })
             .limit(1);
 
           const log = logs && logs.length > 0 ? logs[0] : null;
 
           if (log && log.attendance_topics) {
-            // 🌟 1. ปรับ Timezone ของวันที่ให้เป็นเวลาไทย (+7) เพื่อป้องกันปัญหาวันที่ข้ามไปเมื่อวาน
-            const rawDate = new Date(
-              isCheckin ? log.check_in_time : log.check_out_time || new Date(),
-            );
+            // ดึง Checkpoint มาโชว์ด้วยเสมอ
+            const { data: checkpointsData } = await supabase
+              .from("attendance_checkpoints")
+              .select("*")
+              .eq("log_id", log.id)
+              .order("checkpoint_time", { ascending: true });
+
+            const formatTime = (isoString: string) => {
+              if (!isoString) return "-";
+              return (
+                new Date(isoString).toLocaleTimeString("th-TH", {
+                  timeZone: "Asia/Bangkok",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }) + " น."
+              );
+            };
+
+            const rawDate = new Date(log.check_in_time);
             const thaiDateObj = new Date(
               rawDate.getTime() + 7 * 60 * 60 * 1000,
             );
-
             const dayNames = [
               "อาทิตย์",
               "จันทร์",
@@ -206,58 +204,32 @@ export async function POST(request: Request) {
               "ศุกร์",
               "เสาร์",
             ];
-            const dateStr = `${dayNames[thaiDateObj.getUTCDay()]}ที่ ${String(thaiDateObj.getUTCDate()).padStart(2, "0")}/${String(thaiDateObj.getUTCMonth() + 1).padStart(2, "0")}/${thaiDateObj.getUTCFullYear() + 543}`;
+            const workDate = `${dayNames[thaiDateObj.getUTCDay()]}ที่ ${String(thaiDateObj.getUTCDate()).padStart(2, "0")}/${String(thaiDateObj.getUTCMonth() + 1).padStart(2, "0")}/${thaiDateObj.getUTCFullYear() + 543}`;
 
-            const shiftStr =
-              log.attendance_topics.shift_type === "afternoon"
-                ? "บ่าย"
-                : log.attendance_topics.shift_type === "custom"
-                  ? "กำหนดเอง"
-                  : "เช้า";
+            const checkInTimeStr = formatTime(log.check_in_time);
+            const checkOutTimeStr = log.check_out_time
+              ? formatTime(log.check_out_time)
+              : null;
+
+            const cpList =
+              checkpointsData?.map((cp: any) => ({
+                time: formatTime(cp.checkpoint_time),
+                location: cp.note ? cp.note.replace("แวะจุด: ", "") : "จุดแวะ",
+              })) || [];
 
             const teamStr =
               teamLabels[log.attendance_topics.team_type] ||
-              log.attendance_topics.team_type;
+              log.attendance_topics.team_type ||
+              "ทั่วไป";
 
-            // 🌟 2. บังคับ Timezone เวลาเข้า-ออกงาน เป็น Asia/Bangkok และเติม " น."
-            const inTime =
-              new Date(log.check_in_time).toLocaleTimeString("th-TH", {
-                timeZone: "Asia/Bangkok",
-                hour: "2-digit",
-                minute: "2-digit",
-              }) + " น.";
-
-            const outTime = log.check_out_time
-              ? new Date(log.check_out_time).toLocaleTimeString("th-TH", {
-                  timeZone: "Asia/Bangkok",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }) + " น."
-              : "-";
-
-            const inLocation =
-              log.attendance_topics.team_type === "office"
-                ? "ประจำออฟฟิศ"
-                : log.attendance_topics.title || "ไซต์งาน";
-            const outLocation = log.check_out_time
-              ? log.attendance_topics.team_type === "office"
-                ? "ประจำออฟฟิศ"
-                : log.attendance_topics.title || "ไซต์งาน"
-              : "-";
-
-            const flexMessage = flex.getAttendanceMessage(
-              isCheckin,
-              {
-                shift: shiftStr,
-                date: dateStr,
-                team: teamStr,
-                topic: log.attendance_topics.title,
-                inTime,
-                inLocation,
-                outTime,
-                outLocation,
-              },
-              checkinLiffUrl,
+            const flexMessage = flex.generateCheckinTimelineFlex(
+              workDate,
+              teamStr,
+              log.attendance_topics.title || "ไม่ทราบสถานที่",
+              checkInTimeStr,
+              checkOutTimeStr,
+              cpList,
+              liffUrl,
             );
 
             await replyToLine(replyToken, [
