@@ -1215,8 +1215,8 @@ export default function AttendanceAdminPage() {
                             rel="noreferrer"
                             className="text-[10px] text-blue-500 hover:underline w-fit"
                           >
-                            ดูบนแผนที่ ({fav.lat.toFixed(4)},{" "}
-                            {fav.lng.toFixed(4)})
+                            ดูบนแผนที่ ({Number(fav.lat).toFixed(4)},{" "}
+                            {Number(fav.lng).toFixed(4)})
                           </a>
                         </div>
                       </div>

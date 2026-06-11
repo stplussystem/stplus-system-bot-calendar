@@ -63,6 +63,115 @@ export async function POST(request: Request) {
         const userId = event.source.userId;
 
         // ==========================================
+        // 🌟 เพิ่มระบบตรวจจับข้อความ "แวะ Checkpoint"
+        // ==========================================
+        if (userMessage.startsWith("📍 แวะ Checkpoint:")) {
+          await startLoading(userId);
+
+          // 1. หาวันนี้ (เวลาเริ่ม - สิ้นสุดวัน)
+          const now = new Date();
+          // แปลงเป็นเวลาไทย
+          const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+          const y = thaiNow.getUTCFullYear();
+          const m = String(thaiNow.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(thaiNow.getUTCDate()).padStart(2, "0");
+
+          const startOfDay = `${y}-${m}-${d}T00:00:00+07:00`;
+          const endOfDay = `${y}-${m}-${d}T23:59:59+07:00`;
+
+          // 2. ดึงข้อมูลการเข้างานวันนี้ของพนักงานคนนี้
+          const { data: todayLog } = await supabase
+            .from("attendance_logs")
+            .select(`*, attendance_topics(title, team_type)`)
+            .eq("user_id", userId)
+            .gte("check_in_time", startOfDay)
+            .lte("check_in_time", endOfDay)
+            .order("check_in_time", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (todayLog) {
+            // 3. ดึงข้อมูล Checkpoint ทั้งหมดของวันนี้
+            const { data: checkpointsData } = await supabase
+              .from("attendance_checkpoints")
+              .select("*")
+              .eq("log_id", todayLog.id)
+              .order("checkpoint_time", { ascending: true });
+
+            // 4. แปลงเวลาและเตรียมข้อมูลให้ Flex Message
+            const formatTime = (isoString: string) => {
+              return (
+                new Date(isoString).toLocaleTimeString("th-TH", {
+                  timeZone: "Asia/Bangkok",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }) + " น."
+              );
+            };
+
+            const rawDate = new Date(todayLog.check_in_time);
+            const thaiDateObj = new Date(
+              rawDate.getTime() + 7 * 60 * 60 * 1000,
+            );
+            const dayNames = [
+              "อาทิตย์",
+              "จันทร์",
+              "อังคาร",
+              "พุธ",
+              "พฤหัสบดี",
+              "ศุกร์",
+              "เสาร์",
+            ];
+            const workDate = `${dayNames[thaiDateObj.getUTCDay()]}ที่ ${String(thaiDateObj.getUTCDate()).padStart(2, "0")}/${String(thaiDateObj.getUTCMonth() + 1).padStart(2, "0")}/${thaiDateObj.getUTCFullYear() + 543}`;
+
+            const checkInTimeStr = formatTime(todayLog.check_in_time);
+            const checkOutTimeStr = todayLog.check_out_time
+              ? formatTime(todayLog.check_out_time)
+              : null;
+
+            // จัดระเบียบจุดแวะ
+            const cpList =
+              checkpointsData?.map((cp: any) => ({
+                time: formatTime(cp.checkpoint_time),
+                location: cp.note ? cp.note.replace("แวะจุด: ", "") : "จุดแวะ",
+              })) || [];
+
+            const teamStr =
+              teamLabels[todayLog.attendance_topics?.team_type] ||
+              todayLog.attendance_topics?.team_type ||
+              "ทั่วไป";
+
+            // 5. สร้าง Flex Message
+            const flexMessage = flex.generateCheckinTimelineFlex(
+              workDate,
+              teamStr,
+              todayLog.attendance_topics?.title || "ไม่ทราบสถานที่",
+              checkInTimeStr,
+              checkOutTimeStr,
+              cpList,
+              checkinLiffUrl,
+            );
+
+            // 6. ส่งข้อความกลับไปที่ LINE
+            await replyToLine(replyToken, [
+              {
+                type: "flex",
+                altText: "อัปเดตจุด Checkpoint เรียบร้อย",
+                contents: flexMessage,
+              },
+            ]);
+          } else {
+            await replyToLine(replyToken, [
+              {
+                type: "text",
+                text: "ไม่พบประวัติการเข้างานในวันนี้ครับ กรุณาเข้างานก่อนแวะ Checkpoint",
+              },
+            ]);
+          }
+          continue;
+        }
+
+        // ==========================================
         // 1. ระบบลงเวลาทำงาน (Check-in / Check-out)
         // ==========================================
         if (
