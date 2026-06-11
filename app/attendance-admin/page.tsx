@@ -1190,19 +1190,13 @@ export default function AttendanceAdminPage() {
                   </p>
                 </div>
               ) : (
-                allFavorites.map((fav) => {
-                  // ป้องกัน Error 100% ถ้าไม่มีข้อมูลข้ามทันที
-                  if (!fav || !fav.id) return null;
+                allFavorites.map((fav, index) => {
+                  if (!fav) return null;
 
-                  // แสดงตัวเลขพิกัดแบบธรรมดา ตัดปัญหาจุดทศนิยมทำให้แอปพัง
-                  const latStr = fav.lat
-                    ? String(fav.lat).substring(0, 8)
-                    : "0";
-                  const lngStr = fav.lng
-                    ? String(fav.lng).substring(0, 8)
-                    : "0";
+                  // ไม้ตาย: ดึงค่าดิบๆ มาโชว์เลย ไม่ต้องคำนวณ ไม่ต้อง .toFixed
+                  const rawLat = fav.lat ? String(fav.lat) : "0";
+                  const rawLng = fav.lng ? String(fav.lng) : "0";
 
-                  // ดึงชื่อพนักงานแบบปลอดภัย
                   let userName = "พนักงาน (ไม่ระบุ)";
                   if (fav.user_id === "admin_system") {
                     userName = "ส่วนกลาง (แอดมิน)";
@@ -1215,7 +1209,7 @@ export default function AttendanceAdminPage() {
 
                   return (
                     <div
-                      key={fav.id}
+                      key={fav.id || index}
                       className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -1234,12 +1228,13 @@ export default function AttendanceAdminPage() {
                               </span>
                             </p>
                             <a
-                              href={`https://www.google.com/maps?q=${fav.lat},${fav.lng}`}
+                              href={`https://www.google.com/maps?q=$${rawLat},${rawLng}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] text-blue-500 hover:underline w-fit"
                             >
-                              ดูบนแผนที่ ({latStr}, {lngStr})
+                              ดูบนแผนที่ ({rawLat.substring(0, 8)},{" "}
+                              {rawLng.substring(0, 8)})
                             </a>
                           </div>
                         </div>

@@ -1274,7 +1274,7 @@ export const generateCheckinTimelineFlex = (
             action: {
               type: "uri",
               label: checkOutTime ? "ลงเวลาเรียบร้อยแล้ว" : "ลงเวลาออกงาน",
-              uri: `${liffUrl}/checkin`,
+              uri: liffUrl,
             },
           },
         ],
