@@ -989,7 +989,7 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
 ) => {
-  // สร้างเส้นคั่นแนวตั้ง (Timeline Line)
+  // 🌟 เพิ่ม contents: [{ type: "filler" }] เข้าไปให้ถูกต้องตามกฎของ LINE API
   const verticalLine = {
     type: "box",
     layout: "vertical",
@@ -997,11 +997,11 @@ export const generateCheckinTimelineFlex = (
     backgroundColor: "#E5E7EB",
     height: "24px",
     margin: "sm",
+    contents: [{ type: "filler" }],
   };
 
   const contentsList: any[] = [];
 
-  // --- Node 1: ลงชื่อเข้างาน ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
@@ -1030,6 +1030,7 @@ export const generateCheckinTimelineFlex = (
             height: "12px",
             borderColor: "#10B981",
             borderWidth: "2px",
+            contents: [{ type: "filler" }],
           },
         ],
       },
@@ -1051,9 +1052,7 @@ export const generateCheckinTimelineFlex = (
     ],
   });
 
-  // --- Node 2: แทรก Checkpoints ตรงกลาง (ถ้ามีการแวะระหว่างวัน) ---
   checkpoints.forEach((cp) => {
-    // เส้นเชื่อม
     contentsList.push({
       type: "box",
       layout: "horizontal",
@@ -1071,7 +1070,6 @@ export const generateCheckinTimelineFlex = (
       ],
     });
 
-    // จุด Checkpoint
     contentsList.push({
       type: "box",
       layout: "horizontal",
@@ -1100,6 +1098,7 @@ export const generateCheckinTimelineFlex = (
               height: "12px",
               borderColor: "#3B82F6",
               borderWidth: "2px",
+              contents: [{ type: "filler" }],
             },
           ],
         },
@@ -1122,8 +1121,6 @@ export const generateCheckinTimelineFlex = (
     });
   });
 
-  // --- Node 3: ลงชื่อออกงาน ---
-  // เส้นเชื่อมก่อนจุดออกงาน
   contentsList.push({
     type: "box",
     layout: "horizontal",
@@ -1141,7 +1138,6 @@ export const generateCheckinTimelineFlex = (
     ],
   });
 
-  // จุดออกงาน
   contentsList.push({
     type: "box",
     layout: "horizontal",
@@ -1170,6 +1166,7 @@ export const generateCheckinTimelineFlex = (
             height: "12px",
             borderColor: checkOutTime ? "#EF4444" : "#D1D5DB",
             borderWidth: "2px",
+            contents: [{ type: "filler" }],
           },
         ],
       },
@@ -1190,7 +1187,6 @@ export const generateCheckinTimelineFlex = (
     ],
   });
 
-  // ส่งกลับเป็นรูปแบบ Flex Message JSON
   return {
     type: "flex",
     altText: "สถานะการลงเวลาทำงาน",
@@ -1199,7 +1195,7 @@ export const generateCheckinTimelineFlex = (
       header: {
         type: "box",
         layout: "vertical",
-        backgroundColor: "#16A34A", // สีเขียวสไตล์ Modern SaaS
+        backgroundColor: "#16A34A",
         paddingAll: "20px",
         contents: [
           {
@@ -1265,7 +1261,7 @@ export const generateCheckinTimelineFlex = (
           {
             type: "button",
             style: "primary",
-            color: checkOutTime ? "#E5E7EB" : "#EF4444", // ถ้าออกงานแล้วปุ่มจะเป็นสีเทา
+            color: checkOutTime ? "#E5E7EB" : "#EF4444",
             action: {
               type: "uri",
               label: checkOutTime ? "ลงเวลาเรียบร้อยแล้ว" : "ลงเวลาออกงาน",

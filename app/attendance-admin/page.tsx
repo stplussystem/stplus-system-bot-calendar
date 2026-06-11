@@ -1210,13 +1210,14 @@ export default function AttendanceAdminPage() {
                             </span>
                           </p>
                           <a
-                            href={`https://www.google.com/maps?q=${fav.lat || 0},${fav.lng || 0}`}
+                            href={`https://www.google.com/maps?q=${fav.lat},${fav.lng}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-blue-500 hover:underline w-fit"
                           >
-                            ดูบนแผนที่ ({Number(fav.lat || 0).toFixed(4)},{" "}
-                            {Number(fav.lng || 0).toFixed(4)})
+                            ดูบนแผนที่ (
+                            {parseFloat(fav.lat?.toString() || "0").toFixed(4)},{" "}
+                            {parseFloat(fav.lng?.toString() || "0").toFixed(4)})
                           </a>
                         </div>
                       </div>
