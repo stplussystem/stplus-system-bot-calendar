@@ -70,7 +70,6 @@ export async function POST(request: Request) {
 
           // 1. หาวันนี้ (เวลาเริ่ม - สิ้นสุดวัน)
           const now = new Date();
-          // แปลงเป็นเวลาไทย
           const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
           const y = thaiNow.getUTCFullYear();
           const m = String(thaiNow.getUTCMonth() + 1).padStart(2, "0");
@@ -91,15 +90,20 @@ export async function POST(request: Request) {
             .single();
 
           if (todayLog) {
-            // 3. ดึงข้อมูล Checkpoint ทั้งหมดของวันนี้
-            const { data: checkpointsData } = await supabase
+            // 3. 🌟 ดึงข้อมูล Checkpoint (แก้ชื่อคอลัมน์เป็น created_at)
+            const { data: checkpointsData, error: cpError } = await supabase
               .from("attendance_checkpoints")
               .select("*")
               .eq("log_id", todayLog.id)
-              .order("checkpoint_time", { ascending: true });
+              .order("created_at", { ascending: true });
+
+            if (cpError) {
+              console.error("Error fetching checkpoints:", cpError.message);
+            }
 
             // 4. แปลงเวลาและเตรียมข้อมูลให้ Flex Message
             const formatTime = (isoString: string) => {
+              if (!isoString) return "-";
               return (
                 new Date(isoString).toLocaleTimeString("th-TH", {
                   timeZone: "Asia/Bangkok",
@@ -129,10 +133,10 @@ export async function POST(request: Request) {
               ? formatTime(todayLog.check_out_time)
               : null;
 
-            // จัดระเบียบจุดแวะ
+            // 🌟 แก้จาก cp.checkpoint_time เป็น cp.created_at
             const cpList =
               checkpointsData?.map((cp: any) => ({
-                time: formatTime(cp.checkpoint_time),
+                time: formatTime(cp.created_at),
                 location: cp.note ? cp.note.replace("แวะจุด: ", "") : "จุดแวะ",
               })) || [];
 
