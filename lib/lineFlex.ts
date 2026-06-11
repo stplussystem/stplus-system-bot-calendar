@@ -439,7 +439,7 @@ export const generateCheckinTimelineFlex = (
     },
   };
 
-  // ถ้ายังไม่ออกงาน ให้โชว์ปุ่มลงเวลาออกงาน
+  // ถ้ายังไม่ออกงาน ให้โชว์ปุ่มลงเวลาออกงานส่วนท้าย
   if (!checkOutTime) {
     flexObj.footer = {
       type: "box",
