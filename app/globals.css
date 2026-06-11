@@ -39,3 +39,10 @@ body {
 .pac-item:hover {
   background-color: #f3f4f6 !important;
 }
+
+/* 🌟 ป้องกัน iOS ซูมหน้าจอเวลาแตะช่องพิมพ์ข้อความ */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

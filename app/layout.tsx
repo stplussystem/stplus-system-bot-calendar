@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   description: "ระบบออฟฟิศ ST PLUS SYSTEM ลงชื่อเข้า-ออก งาน ปฏิทิน และอื่นๆ",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false, // 🌟 ตัวนี้คือพระเอกที่สั่งห้ามซูมครับ
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
