@@ -1182,7 +1182,7 @@ export default function AttendanceAdminPage() {
             </div>
 
             <div className="divide-y divide-gray-100">
-              {!allFavorites || allFavorites.length === 0 ? (
+              {!Array.isArray(allFavorites) || allFavorites.length === 0 ? (
                 <div className="p-10 flex flex-col items-center justify-center text-gray-400">
                   <MapPinHouse className="w-10 h-10 mb-3 opacity-50 text-gray-300" />
                   <p className="text-sm font-bold">
@@ -1190,17 +1190,32 @@ export default function AttendanceAdminPage() {
                   </p>
                 </div>
               ) : (
-                allFavorites.map((fav, index) => {
-                  // 🌟 ป้องกัน Error 100%: ถ้าไม่มีข้อมูลแถวนี้ ให้ข้ามไปเลย
-                  if (!fav) return null;
+                allFavorites.map((fav) => {
+                  // ป้องกัน Error 100% ถ้าไม่มีข้อมูลข้ามทันที
+                  if (!fav || !fav.id) return null;
 
-                  const lat = Number(fav.lat) || 0;
-                  const lng = Number(fav.lng) || 0;
-                  const hasValidCoords = lat !== 0 && lng !== 0;
+                  // แสดงตัวเลขพิกัดแบบธรรมดา ตัดปัญหาจุดทศนิยมทำให้แอปพัง
+                  const latStr = fav.lat
+                    ? String(fav.lat).substring(0, 8)
+                    : "0";
+                  const lngStr = fav.lng
+                    ? String(fav.lng).substring(0, 8)
+                    : "0";
+
+                  // ดึงชื่อพนักงานแบบปลอดภัย
+                  let userName = "พนักงาน (ไม่ระบุ)";
+                  if (fav.user_id === "admin_system") {
+                    userName = "ส่วนกลาง (แอดมิน)";
+                  } else if (Array.isArray(employeeList)) {
+                    const emp = employeeList.find(
+                      (e) => e.line_user_id === fav.user_id,
+                    );
+                    if (emp) userName = emp.nickname || "พนักงาน";
+                  }
 
                   return (
                     <div
-                      key={fav.id || index}
+                      key={fav.id}
                       className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -1215,23 +1230,17 @@ export default function AttendanceAdminPage() {
                             <p className="text-[10px] text-gray-500 flex items-center gap-1">
                               <Users className="w-3 h-3" /> บันทึกโดย:{" "}
                               <span className="font-bold text-gray-700">
-                                {getUserNameForFav(fav.user_id)}
+                                {userName}
                               </span>
                             </p>
-                            {hasValidCoords ? (
-                              <a
-                                href={`https://www.google.com/maps?q=${lat},${lng}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] text-blue-500 hover:underline w-fit"
-                              >
-                                ดูบนแผนที่ ({lat.toFixed(4)}, {lng.toFixed(4)})
-                              </a>
-                            ) : (
-                              <span className="text-[10px] text-red-400">
-                                ⚠️ ไม่มีพิกัด GPS
-                              </span>
-                            )}
+                            <a
+                              href={`https://www.google.com/maps?q=${fav.lat},${fav.lng}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-500 hover:underline w-fit"
+                            >
+                              ดูบนแผนที่ ({latStr}, {lngStr})
+                            </a>
                           </div>
                         </div>
                       </div>

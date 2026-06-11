@@ -995,11 +995,9 @@ export const generateCheckinTimelineFlex = (
     width: "2px",
     backgroundColor: "#E5E7EB",
     height: "24px",
-    margin: "sm",
-    contents: [{ type: "filler" }], // 🌟 ใส่ filler เสมอ
+    contents: [{ type: "filler" }],
   };
 
-  // 🌟 ฟังก์ชันสร้างช่องว่างแบบถูกต้องตามกฎ LINE API
   const createEmptySpace = (flexRatio: number) => ({
     type: "box",
     layout: "vertical",
@@ -1067,7 +1065,7 @@ export const generateCheckinTimelineFlex = (
       layout: "horizontal",
       spacing: "md",
       contents: [
-        createEmptySpace(1), // 🌟 ใช้ filler สร้างช่องว่างแทน text: ""
+        createEmptySpace(1),
         {
           type: "box",
           layout: "vertical",
@@ -1215,13 +1213,7 @@ export const generateCheckinTimelineFlex = (
         backgroundColor: "#16A34A",
         paddingAll: "20px",
         contents: [
-          {
-            type: "text",
-            text: "วันที่ :",
-            color: "#ffffffcc",
-            size: "sm",
-            mb: "sm",
-          },
+          { type: "text", text: "วันที่ :", color: "#ffffffcc", size: "sm" },
           {
             type: "text",
             text: workDate || "-",
@@ -1234,7 +1226,7 @@ export const generateCheckinTimelineFlex = (
             text: `ทีม : ${teamName || "-"}`,
             color: "#ffffffcc",
             size: "sm",
-            mt: "sm",
+            margin: "sm",
           },
         ],
       },
@@ -1246,7 +1238,7 @@ export const generateCheckinTimelineFlex = (
           {
             type: "box",
             layout: "horizontal",
-            mb: "xl",
+            margin: "md",
             contents: [
               {
                 type: "text",
