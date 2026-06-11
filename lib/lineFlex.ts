@@ -1002,8 +1002,7 @@ export const generateCheckinTimelineFlex = (
         text: checkInTime || "-",
         size: "sm",
         color: "#6b7280",
-        flex: 0,
-        width: "60px",
+        flex: 2,
         align: "end",
         gravity: "center",
         weight: "bold",
@@ -1011,8 +1010,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 0,
-        width: "24px",
+        flex: 1,
         alignItems: "center",
         contents: [
           {
@@ -1030,7 +1028,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 1,
+        flex: 6,
         contents: [
           {
             type: "text",
@@ -1055,15 +1053,13 @@ export const generateCheckinTimelineFlex = (
         {
           type: "box",
           layout: "vertical",
-          flex: 0,
-          width: "60px",
+          flex: 2,
           contents: [{ type: "filler" }],
         },
         {
           type: "box",
           layout: "vertical",
-          flex: 0,
-          width: "24px",
+          flex: 1,
           alignItems: "center",
           contents: [
             {
@@ -1079,7 +1075,7 @@ export const generateCheckinTimelineFlex = (
         {
           type: "box",
           layout: "vertical",
-          flex: 1,
+          flex: 6,
           contents: [{ type: "filler" }],
         },
       ],
@@ -1094,8 +1090,7 @@ export const generateCheckinTimelineFlex = (
           text: cp.time || "-",
           size: "sm",
           color: "#6b7280",
-          flex: 0,
-          width: "60px",
+          flex: 2,
           align: "end",
           gravity: "center",
           weight: "bold",
@@ -1103,8 +1098,7 @@ export const generateCheckinTimelineFlex = (
         {
           type: "box",
           layout: "vertical",
-          flex: 0,
-          width: "24px",
+          flex: 1,
           alignItems: "center",
           contents: [
             {
@@ -1122,7 +1116,7 @@ export const generateCheckinTimelineFlex = (
         {
           type: "box",
           layout: "vertical",
-          flex: 1,
+          flex: 6,
           contents: [
             {
               type: "text",
@@ -1153,15 +1147,13 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 0,
-        width: "60px",
+        flex: 2,
         contents: [{ type: "filler" }],
       },
       {
         type: "box",
         layout: "vertical",
-        flex: 0,
-        width: "24px",
+        flex: 1,
         alignItems: "center",
         contents: [
           {
@@ -1177,7 +1169,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 1,
+        flex: 6,
         contents: [{ type: "filler" }],
       },
     ],
@@ -1194,8 +1186,7 @@ export const generateCheckinTimelineFlex = (
         text: checkOutTime || "ยังไม่...",
         size: "sm",
         color: "#9ca3af",
-        flex: 0,
-        width: "60px",
+        flex: 2,
         align: "end",
         gravity: "center",
         weight: "bold",
@@ -1203,8 +1194,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 0,
-        width: "24px",
+        flex: 1,
         alignItems: "center",
         contents: [
           {
@@ -1222,7 +1212,7 @@ export const generateCheckinTimelineFlex = (
       {
         type: "box",
         layout: "vertical",
-        flex: 1,
+        flex: 6,
         contents: [
           {
             type: "text",

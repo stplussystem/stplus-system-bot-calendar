@@ -124,6 +124,7 @@ export default function AttendanceAdminPage() {
 
   const [formData, setFormData] = useState({
     title: "",
+    location_name: "",
     shift_type: "morning",
     start_time: "09:00",
     end_time: "18:00",
@@ -204,8 +205,9 @@ export default function AttendanceAdminPage() {
             lat: newLat.toString(),
             lng: newLng.toString(),
             maps_url: `https://maps.google.com/?q=${newLat},${newLng}`,
+            location_name: place.name || place.formatted_address || "", // 🌟 ดึงชื่อสถานที่จาก Google เก็บไว้
           }));
-          setSelectedFavId(""); // รีเซ็ต Dropdown เมื่อค้นหาใหม่
+          setSelectedFavId("");
           showToast("ดึงพิกัดจาก Google Maps สำเร็จ!", "success");
         }
       });
@@ -401,11 +403,13 @@ export default function AttendanceAdminPage() {
     try {
       // 🌟 ระบบบันทึก Favorite อัตโนมัติ (พร้อมเช็คซ้ำ)
       if (formData.saveFavorite && formData.lat && formData.lng && !editingId) {
-        // เช็คว่ามีสถานที่ชื่อนี้ในระบบส่วนกลางหรือยัง
+        // ใช้ชื่อสถานที่จาก Google ถ้าไม่มีให้ใช้ชื่อหัวข้อแทน
+        const favTitleToSave = formData.location_name || formData.title;
+
         const { data: existingFav } = await supabase
           .from("saved_locations")
           .select("id")
-          .eq("title", formData.title);
+          .eq("title", favTitleToSave);
 
         if (existingFav && existingFav.length > 0) {
           showToast(
@@ -416,7 +420,7 @@ export default function AttendanceAdminPage() {
           await supabase.from("saved_locations").insert([
             {
               user_id: "admin_system",
-              title: formData.title,
+              title: favTitleToSave, // 🌟 บันทึกเป็นชื่อสถานที่
               lat: parseFloat(formData.lat),
               lng: parseFloat(formData.lng),
             },
