@@ -157,13 +157,7 @@ export async function POST(request: Request) {
             );
 
             // 6. ส่งข้อความกลับไปที่ LINE
-            await replyToLine(replyToken, [
-              {
-                type: "flex",
-                altText: "อัปเดตจุด Checkpoint เรียบร้อย",
-                contents: flexMessage,
-              },
-            ]);
+            await replyToLine(replyToken, [flexMessage]);
           } else {
             await replyToLine(replyToken, [
               {

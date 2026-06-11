@@ -1173,10 +1173,10 @@ export default function AttendanceAdminPage() {
               <Star className="w-5 h-5 text-blue-600" />
               <div>
                 <h3 className="font-bold text-gray-900 text-sm">
-                  จัดการสถานที่ประจำ (ทั้งหมด)
+                  จัดการสถานที่ประจำ (ส่วนกลาง)
                 </h3>
                 <p className="text-[10px] text-gray-500 mt-0.5">
-                  ลบหมุดขยะหรือสถานที่ที่ไม่ใช้งานแล้วที่พนักงานบันทึกไว้
+                  สถานที่เหล่านี้พนักงานทุกคนสามารถเลือกใช้ได้
                 </p>
               </div>
             </div>
@@ -1190,15 +1190,17 @@ export default function AttendanceAdminPage() {
                   </p>
                 </div>
               ) : (
-                allFavorites.map((fav) => {
-                  // 🌟 ป้องกันพัง: เช็คค่า Lat/Lng แบบ 100% ปลอดภัย
-                  const safeLat = parseFloat(fav?.lat) || 0;
-                  const safeLng = parseFloat(fav?.lng) || 0;
-                  const hasValidCoords = safeLat !== 0 && safeLng !== 0;
+                allFavorites.map((fav, index) => {
+                  // 🌟 ป้องกัน Error 100%: ถ้าไม่มีข้อมูลแถวนี้ ให้ข้ามไปเลย
+                  if (!fav) return null;
+
+                  const lat = Number(fav.lat) || 0;
+                  const lng = Number(fav.lng) || 0;
+                  const hasValidCoords = lat !== 0 && lng !== 0;
 
                   return (
                     <div
-                      key={fav.id || Math.random()}
+                      key={fav.id || index}
                       className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -1207,24 +1209,23 @@ export default function AttendanceAdminPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-gray-900 text-sm truncate">
-                            {fav?.title || "ไม่มีชื่อสถานที่"}
+                            {fav.title || "ไม่มีชื่อสถานที่"}
                           </h4>
                           <div className="flex flex-col gap-1 mt-1.5">
                             <p className="text-[10px] text-gray-500 flex items-center gap-1">
                               <Users className="w-3 h-3" /> บันทึกโดย:{" "}
                               <span className="font-bold text-gray-700">
-                                {getUserNameForFav(fav?.user_id)}
+                                {getUserNameForFav(fav.user_id)}
                               </span>
                             </p>
                             {hasValidCoords ? (
                               <a
-                                href={`https://www.google.com/maps?q=${safeLat},${safeLng}`}
+                                href={`https://www.google.com/maps?q=${lat},${lng}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="text-[10px] text-blue-500 hover:underline w-fit"
                               >
-                                ดูบนแผนที่ ({safeLat.toFixed(4)},{" "}
-                                {safeLng.toFixed(4)})
+                                ดูบนแผนที่ ({lat.toFixed(4)}, {lng.toFixed(4)})
                               </a>
                             ) : (
                               <span className="text-[10px] text-red-400">

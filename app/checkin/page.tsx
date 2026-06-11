@@ -282,12 +282,13 @@ export default function CheckinPage() {
   };
 
   const fetchFavorites = async () => {
-    // 🌟 ดึงข้อมูลสถานที่ประจำทั้งหมดมาให้ทุกคนเห็น
+    // 🌟 ดึงสถานที่ประจำทั้งหมดโดยไม่สนว่าใครเป็นคนสร้าง
     const { data } = await supabase
       .from("saved_locations")
       .select("*")
       .order("created_at", { ascending: false });
-    if (data) setFavorites(data);
+
+    if (data) setFavorites(data || []);
   };
 
   const checkTodayStatus = async () => {
