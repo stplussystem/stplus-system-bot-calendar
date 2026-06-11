@@ -483,8 +483,9 @@ export default function AttendanceAdminPage() {
   };
 
   const getUserNameForFav = (userId: string) => {
+    if (!userId) return "พนักงาน (ไม่ระบุ)"; // กัน Error ค่าว่าง
     if (userId === "admin_system") return "ส่วนกลาง (แอดมิน)";
-    const emp = employeeList.find((e) => e.line_user_id === userId);
+    const emp = employeeList?.find((e) => e.line_user_id === userId);
     return emp ? emp.nickname : "พนักงาน (ไม่ระบุ)";
   };
 
@@ -1172,7 +1173,7 @@ export default function AttendanceAdminPage() {
               <Star className="w-5 h-5 text-blue-600" />
               <div>
                 <h3 className="font-bold text-gray-900 text-sm">
-                  จัดการสถานที่ประจำ
+                  จัดการสถานที่ประจำ (ทั้งหมด)
                 </h3>
                 <p className="text-[10px] text-gray-500 mt-0.5">
                   ลบหมุดขยะหรือสถานที่ที่ไม่ใช้งานแล้วที่พนักงานบันทึกไว้
@@ -1181,57 +1182,69 @@ export default function AttendanceAdminPage() {
             </div>
 
             <div className="divide-y divide-gray-100">
-              {allFavorites.length === 0 ? (
+              {!allFavorites || allFavorites.length === 0 ? (
                 <div className="p-10 flex flex-col items-center justify-center text-gray-400">
                   <MapPinHouse className="w-10 h-10 mb-3 opacity-50 text-gray-300" />
                   <p className="text-sm font-bold">
-                    ยังไม่มีพนักงานบันทึกสถานที่ประจำ
+                    ยังไม่มีข้อมูลสถานที่ประจำ
                   </p>
                 </div>
               ) : (
-                allFavorites.map((fav) => (
-                  <div
-                    key={fav.id}
-                    className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-900 text-sm truncate">
-                          {fav.title}
-                        </h4>
-                        <div className="flex flex-col gap-1 mt-1.5">
-                          <p className="text-[10px] text-gray-500 flex items-center gap-1">
-                            <Users className="w-3 h-3" /> บันทึกโดย:{" "}
-                            <span className="font-bold text-gray-700">
-                              {getUserNameForFav(fav.user_id)}
-                            </span>
-                          </p>
-                          <a
-                            href={`https://www.google.com/maps?q=${fav.lat},${fav.lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-500 hover:underline w-fit"
-                          >
-                            ดูบนแผนที่ (
-                            {parseFloat(fav.lat?.toString() || "0").toFixed(4)},{" "}
-                            {parseFloat(fav.lng?.toString() || "0").toFixed(4)})
-                          </a>
+                allFavorites.map((fav) => {
+                  // 🌟 ป้องกันพัง: เช็คค่า Lat/Lng แบบ 100% ปลอดภัย
+                  const safeLat = parseFloat(fav?.lat) || 0;
+                  const safeLng = parseFloat(fav?.lng) || 0;
+                  const hasValidCoords = safeLat !== 0 && safeLng !== 0;
+
+                  return (
+                    <div
+                      key={fav.id || Math.random()}
+                      className="p-5 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                          <MapPin className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-900 text-sm truncate">
+                            {fav?.title || "ไม่มีชื่อสถานที่"}
+                          </h4>
+                          <div className="flex flex-col gap-1 mt-1.5">
+                            <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                              <Users className="w-3 h-3" /> บันทึกโดย:{" "}
+                              <span className="font-bold text-gray-700">
+                                {getUserNameForFav(fav?.user_id)}
+                              </span>
+                            </p>
+                            {hasValidCoords ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${safeLat},${safeLng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-blue-500 hover:underline w-fit"
+                              >
+                                ดูบนแผนที่ ({safeLat.toFixed(4)},{" "}
+                                {safeLng.toFixed(4)})
+                              </a>
+                            ) : (
+                              <span className="text-[10px] text-red-400">
+                                ⚠️ ไม่มีพิกัด GPS
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() =>
+                          handleDeleteClick(fav.id, fav.title, "favorite")
+                        }
+                        className="bg-white border border-red-100 hover:bg-red-50 hover:border-red-500 text-red-500 p-2.5 rounded-xl transition-colors shadow-sm shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() =>
-                        handleDeleteClick(fav.id, fav.title, "favorite")
-                      }
-                      className="bg-white border border-red-100 hover:bg-red-50 hover:border-red-500 text-red-500 p-2.5 rounded-xl transition-colors shadow-sm shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

@@ -989,7 +989,6 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
 ) => {
-  // 🌟 เพิ่ม contents: [{ type: "filler" }] เข้าไปให้ถูกต้องตามกฎของ LINE API
   const verticalLine = {
     type: "box",
     layout: "vertical",
@@ -997,11 +996,20 @@ export const generateCheckinTimelineFlex = (
     backgroundColor: "#E5E7EB",
     height: "24px",
     margin: "sm",
-    contents: [{ type: "filler" }],
+    contents: [{ type: "filler" }], // 🌟 ใส่ filler เสมอ
   };
+
+  // 🌟 ฟังก์ชันสร้างช่องว่างแบบถูกต้องตามกฎ LINE API
+  const createEmptySpace = (flexRatio: number) => ({
+    type: "box",
+    layout: "vertical",
+    flex: flexRatio,
+    contents: [{ type: "filler" }],
+  });
 
   const contentsList: any[] = [];
 
+  // --- Node 1: ลงชื่อเข้างาน ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
@@ -1009,7 +1017,7 @@ export const generateCheckinTimelineFlex = (
     contents: [
       {
         type: "text",
-        text: checkInTime,
+        text: checkInTime || "-",
         size: "sm",
         color: "#6b7280",
         flex: 1,
@@ -1052,13 +1060,14 @@ export const generateCheckinTimelineFlex = (
     ],
   });
 
+  // --- Node 2: จุด Checkpoint ---
   checkpoints.forEach((cp) => {
     contentsList.push({
       type: "box",
       layout: "horizontal",
       spacing: "md",
       contents: [
-        { type: "text", text: "", flex: 1 },
+        createEmptySpace(1), // 🌟 ใช้ filler สร้างช่องว่างแทน text: ""
         {
           type: "box",
           layout: "vertical",
@@ -1066,7 +1075,7 @@ export const generateCheckinTimelineFlex = (
           alignItems: "center",
           contents: [verticalLine],
         },
-        { type: "text", text: "", flex: 3 },
+        createEmptySpace(3),
       ],
     });
 
@@ -1077,7 +1086,7 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "text",
-          text: cp.time,
+          text: cp.time || "-",
           size: "sm",
           color: "#6b7280",
           flex: 1,
@@ -1114,19 +1123,26 @@ export const generateCheckinTimelineFlex = (
               weight: "bold",
               color: "#3B82F6",
             },
-            { type: "text", text: cp.location, size: "xs", color: "#9ca3af" },
+            {
+              type: "text",
+              text: cp.location || "-",
+              size: "xs",
+              color: "#9ca3af",
+              wrap: true,
+            },
           ],
         },
       ],
     });
   });
 
+  // --- เส้นเชื่อมก่อน Check Out ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
     spacing: "md",
     contents: [
-      { type: "text", text: "", flex: 1 },
+      createEmptySpace(1),
       {
         type: "box",
         layout: "vertical",
@@ -1134,10 +1150,11 @@ export const generateCheckinTimelineFlex = (
         alignItems: "center",
         contents: [verticalLine],
       },
-      { type: "text", text: "", flex: 3 },
+      createEmptySpace(3),
     ],
   });
 
+  // --- Node 3: ลงชื่อออกงาน ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
@@ -1200,21 +1217,21 @@ export const generateCheckinTimelineFlex = (
         contents: [
           {
             type: "text",
-            text: "กะการทำงาน : เช้า",
+            text: "วันที่ :",
             color: "#ffffffcc",
             size: "sm",
             mb: "sm",
           },
           {
             type: "text",
-            text: workDate,
+            text: workDate || "-",
             color: "#ffffff",
             size: "xl",
             weight: "bold",
           },
           {
             type: "text",
-            text: `ทีม : ${teamName}`,
+            text: `ทีม : ${teamName || "-"}`,
             color: "#ffffffcc",
             size: "sm",
             mt: "sm",
@@ -1240,7 +1257,7 @@ export const generateCheckinTimelineFlex = (
               },
               {
                 type: "text",
-                text: topicName,
+                text: topicName || "-",
                 color: "#111827",
                 size: "sm",
                 weight: "bold",

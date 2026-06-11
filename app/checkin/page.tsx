@@ -282,11 +282,10 @@ export default function CheckinPage() {
   };
 
   const fetchFavorites = async () => {
-    if (!userProfile) return;
+    // 🌟 ดึงข้อมูลสถานที่ประจำทั้งหมดมาให้ทุกคนเห็น
     const { data } = await supabase
       .from("saved_locations")
       .select("*")
-      .eq("user_id", userProfile.userId)
       .order("created_at", { ascending: false });
     if (data) setFavorites(data);
   };
@@ -387,30 +386,25 @@ export default function CheckinPage() {
     }
     setLoading(true);
     try {
-      // 🌟 1. ถ้าติ๊กบันทึกเป็นที่ประจำ (พร้อมเช็คซ้ำของ User ตัวเอง)
+      // 🌟 1. เช็คสถานที่ซ้ำ "แบบภาพรวม" (ไม่สนใจว่าเป็นของ User ไหน)
       if (cpData.saveFavorite) {
         const { data: existingFav } = await supabase
           .from("saved_locations")
           .select("id")
-          .eq("user_id", userProfile.userId)
-          .eq("title", cpData.title);
+          .eq("title", cpData.title); // ดึงเช็คแค่ชื่อ (Title) เท่านั้น!
 
         if (existingFav && existingFav.length > 0) {
-          showToast(
-            "คุณมีสถานที่นี้ในรายการโปรดแล้ว ระบบจะไม่บันทึกซ้ำครับ",
-            "error",
-          );
+          showToast("มีสถานที่ชื่อนี้ในระบบแล้ว จะใช้ข้อมูลเดิมครับ", "error");
         } else {
-          await supabase
-            .from("saved_locations")
-            .insert([
-              {
-                user_id: userProfile.userId,
-                title: cpData.title,
-                lat: cpData.lat,
-                lng: cpData.lng,
-              },
-            ]);
+          // ถ้าไม่ซ้ำ ถึงจะบันทึกเพิ่มลงส่วนกลาง
+          await supabase.from("saved_locations").insert([
+            {
+              user_id: userProfile.userId,
+              title: cpData.title,
+              lat: cpData.lat,
+              lng: cpData.lng,
+            },
+          ]);
           fetchFavorites();
         }
       }
