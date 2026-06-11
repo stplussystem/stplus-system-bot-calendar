@@ -232,15 +232,11 @@ export async function POST(request: Request) {
               liffUrl,
             );
 
-            await replyToLine(replyToken, [
-              {
-                type: "flex",
-                altText: isCheckin
-                  ? "บันทึกเวลาเข้างานเรียบร้อย"
-                  : "บันทึกเวลาออกงานเรียบร้อย",
-                contents: flexMessage,
-              },
-            ]);
+            // เปลี่ยนแค่ข้อความแจ้งเตือนด้านนอก แล้วส่งเลย (ไม่ซ้อนกล่องแล้ว!)
+            flexMessage.altText = isCheckin
+              ? "บันทึกเวลาเข้างานเรียบร้อย"
+              : "บันทึกเวลาออกงานเรียบร้อย";
+            await replyToLine(replyToken, [flexMessage]);
           }
           continue;
         }
