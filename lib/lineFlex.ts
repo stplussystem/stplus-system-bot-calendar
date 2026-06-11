@@ -63,7 +63,11 @@ export const getEmptyAppointment = (queryTitle: string, liffUrl: string) => ({
           type: "button",
           style: "primary",
           color: "#1f2937",
-          action: { type: "uri", label: "+ เพิ่มคิวงานใหม่", uri: liffUrl },
+          action: {
+            type: "uri",
+            label: "+ เพิ่มคิวงานใหม่",
+            uri: `${liffUrl}/calendar`,
+          },
         },
       ],
     },
@@ -291,7 +295,11 @@ export const getDateCarousel = (
           {
             type: "button",
             style: "secondary",
-            action: { type: "uri", label: "+ เพิ่มคิวงาน", uri: liffUrl },
+            action: {
+              type: "uri",
+              label: "+ เพิ่มคิวงาน",
+              uri: `${liffUrl}/calendar`,
+            },
           },
           {
             type: "button",
@@ -300,7 +308,7 @@ export const getDateCarousel = (
             action: {
               type: "uri",
               label: "ดูรายการ",
-              uri: `${liffUrl}?tab=list&filter=${filterParam}`,
+              uri: `${liffUrl}/calendar?tab=list&filter=${filterParam}`,
             },
           },
         ],
@@ -351,7 +359,7 @@ export const getDateCarousel = (
             action: {
               type: "uri",
               label: "ดูรายการทั้งหมด",
-              uri: `${liffUrl}?tab=list&filter=${filterParam}`,
+              uri: `${liffUrl}/calendar?tab=list&filter=${filterParam}`,
             },
           },
         ],
@@ -539,8 +547,8 @@ export const getSuccessMessage = (
       type: "box",
       layout: "vertical",
       paddingAll: "6px",
-      paddingTop: "0px",
-      spacing: "sm",
+      paddingTop: "2px",
+      spacing: "md", // 🌟 เปลี่ยนจาก "sm" เป็น "md" (หรือ "lg") เพื่อเพิ่มระยะห่าง
       contents: [
         {
           type: "button",
@@ -549,13 +557,17 @@ export const getSuccessMessage = (
           action: {
             type: "uri",
             label: "📋 ดูรายการคิวงาน",
-            uri: `${liffUrl}?tab=list`,
+            uri: `${liffUrl}/calendar?tab=list`, // 🌟 อัปเดต Path เป็นหน้า List
           },
         },
         {
           type: "button",
           style: "secondary",
-          action: { type: "uri", label: "📝 เพิ่มบันทึกคิวงาน", uri: liffUrl },
+          action: {
+            type: "uri",
+            label: "📝 เพิ่มบันทึกคิวงาน",
+            uri: `${liffUrl}/calendar?tab=book`, // 🌟 อัปเดต Path เป็นหน้า Book
+          },
         },
       ],
     },
@@ -625,7 +637,7 @@ export const getOpenForm = (liffUrl: string) => ({
           action: {
             type: "uri",
             label: "📝 เปิดฟอร์มสร้างคิวงาน",
-            uri: liffUrl,
+            uri: `${liffUrl}/calendar`,
           },
         },
       ],
@@ -636,8 +648,6 @@ export const getOpenForm = (liffUrl: string) => ({
 // ==========================================
 // ส่วนที่ 2: ระบบลงเวลาเข้า-ออกงาน (Attendance)
 // ==========================================
-
-// ฟังก์ชันแบบเก่า (เผื่อจำเป็น)
 export const getAttendanceMessage = (
   isCheckin: boolean,
   data: {
@@ -652,18 +662,324 @@ export const getAttendanceMessage = (
   },
   actionUrl: string,
 ) => {
-  return generateCheckinTimelineFlex(
-    data.date,
-    data.team,
-    data.topic,
-    data.inTime,
-    isCheckin ? null : data.outTime,
-    [],
-    actionUrl,
-  );
+  const headerColor = isCheckin ? "#009900" : "#EF454D";
+
+  // 🌟 ตั้งค่าสีและข้อความของกล่องขาออกให้เปลี่ยนตามสถานะ
+  const outStatusColor = isCheckin ? "#b7b7b7" : "#EF454D";
+  const outTimeText = isCheckin ? "ยังไม่..." : data.outTime;
+  const outTimeFontColor = isCheckin ? "#b7b7b7" : "#000000";
+
+  const flexObj: any = {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "20px",
+      backgroundColor: headerColor,
+      spacing: "md",
+      height: "110px",
+      paddingTop: "22px",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: "กะการทำงาน :",
+                  color: "#ffffff66",
+                  size: "md",
+                  flex: 0,
+                },
+                {
+                  type: "text",
+                  text: data.shift,
+                  color: "#ffffff",
+                  size: "md",
+                  flex: 1,
+                  margin: "md",
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: data.date,
+              color: "#ffffff",
+              size: "lg",
+              flex: 4,
+              weight: "bold",
+              margin: "md",
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "text",
+                  text: "ทีม :",
+                  color: "#ffffff66",
+                  size: "md",
+                  flex: 0,
+                },
+                {
+                  type: "text",
+                  text: data.team,
+                  color: "#ffffff",
+                  size: "md",
+                  flex: 1,
+                  margin: "md",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "box",
+          layout: "baseline",
+          contents: [
+            {
+              type: "text",
+              text: "ชื่องาน :",
+              color: "#b7b7b7",
+              size: "sm",
+              flex: 0,
+            },
+            {
+              type: "text",
+              text: data.topic,
+              color: "#000000",
+              size: "sm",
+              flex: 1,
+              margin: "md",
+              wrap: true,
+            },
+          ],
+        },
+
+        // 🟢 กล่องเวลาเข้างาน (วงกลมเขียว)
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "lg",
+          cornerRadius: "30px",
+          margin: "xl",
+          contents: [
+            { type: "text", text: data.inTime, size: "sm", gravity: "center" },
+            {
+              type: "box",
+              layout: "vertical",
+              flex: 0,
+              margin: "xs",
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  cornerRadius: "30px",
+                  height: "12px",
+                  width: "12px",
+                  borderWidth: "2px",
+                  borderColor: "#008000",
+                },
+                { type: "filler" },
+              ],
+            },
+            {
+              type: "text",
+              text: "ลงชื่อเข้างาน",
+              gravity: "center",
+              flex: 4,
+              size: "sm",
+              color: "#008000",
+            },
+          ],
+        },
+
+        // ➖ เส้นเชื่อมต่อระหว่างจุดเข้ากับจุดออก
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "lg",
+          height: isCheckin ? "40px" : "64px",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              flex: 1,
+              contents: [{ type: "filler" }],
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              width: "12px",
+              margin: "xs",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  flex: 1,
+                  contents: [
+                    { type: "filler" },
+                    {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [],
+                      width: "2px",
+                      backgroundColor: "#B7B7B7",
+                    },
+                    { type: "filler" },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "text",
+              text: data.inLocation,
+              gravity: "top",
+              flex: 4,
+              size: "xs",
+              color: "#8c8c8c",
+              wrap: true,
+            },
+          ],
+        },
+
+        // 🔴/⚪ กล่องเวลาออกงาน (วงกลมเปลี่ยนสีตามสถานะ)
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "lg",
+          cornerRadius: "30px",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              flex: 1,
+              contents: [
+                {
+                  type: "text",
+                  text: outTimeText,
+                  gravity: "center",
+                  size: "sm",
+                  color: outTimeFontColor,
+                },
+              ],
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              flex: 0,
+              margin: "xs",
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  cornerRadius: "30px",
+                  width: "12px",
+                  height: "12px",
+                  borderWidth: "2px",
+                  borderColor: outStatusColor,
+                },
+                { type: "filler" },
+              ],
+            },
+            {
+              type: "text",
+              text: "ลงชื่อออกงาน",
+              gravity: "center",
+              flex: 4,
+              size: "sm",
+              color: outStatusColor,
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  // 🔴 ถ้าเป็นการออกงานแล้ว (Check-out) ให้เพิ่มสถานที่ขาออกต่อท้ายสุด
+  if (!isCheckin) {
+    flexObj.body.contents.push({
+      type: "box",
+      layout: "horizontal",
+      spacing: "lg",
+      height: "35px",
+      contents: [
+        {
+          type: "box",
+          layout: "baseline",
+          flex: 1,
+          contents: [{ type: "filler" }],
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          width: "12px",
+          margin: "xs",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              flex: 1,
+              contents: [
+                { type: "filler" },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  contents: [],
+                  width: "0px",
+                  backgroundColor: "#6486E3",
+                  height: "30px",
+                },
+                { type: "filler" },
+              ],
+            },
+          ],
+        },
+        {
+          type: "text",
+          text: data.outLocation,
+          gravity: "top",
+          flex: 4,
+          size: "xs",
+          color: "#8c8c8c",
+          wrap: true,
+        },
+      ],
+    });
+  } else {
+    // 🟢 ถ้าเพิ่งเข้างาน (Check-in) ให้ใส่ปุ่มสีแดงไว้กดออกงานด้านล่างสุด
+    flexObj.footer = {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "button",
+          action: { type: "uri", label: "ลงเวลาออกงาน", uri: actionUrl },
+          color: "#EF454D",
+          style: "primary",
+        },
+      ],
+    };
+  }
+
+  return flexObj;
 };
 
-// 🌟 ฟังก์ชันสร้าง Timeline ฉบับปรับแก้ สัดส่วนเป๊ะตามต้นฉบับ 100%
 export const generateCheckinTimelineFlex = (
   workDate: string,
   teamName: string,
@@ -1121,7 +1437,11 @@ export const generateCheckinTimelineFlex = (
     };
   }
 
-  return flexObj;
+  return {
+    type: "flex",
+    altText: "สถานะการลงเวลาทำงาน",
+    contents: flexObj,
+  };
 };
 
 // ==========================================
