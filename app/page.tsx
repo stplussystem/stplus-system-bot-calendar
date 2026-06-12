@@ -1,10 +1,34 @@
 "use client";
 
-import React, { useState } from "react";
-import { Download, Users, Calendar, MapPin, Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Download, Users, Calendar, MapPin, Menu, X, Power } from "lucide-react";
+
 
 export default function AdminDashboardPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false); // 🌟 เพิ่มสถานะ
+  const router = useRouter(); // 🌟 สำหรับเด้งเปลี่ยนหน้า
+
+  // 🌟 ตรวจสอบว่าเคย Login ไว้หรือยัง
+  useEffect(() => {
+    const isAuth = localStorage.getItem("stplus_admin_auth");
+    if (isAuth !== "true") {
+      router.push("/login"); // ถ้ายังไม่ Login เตะไปหน้า Login
+    } else {
+      setIsAuthorized(true); // อนุญาตให้แสดงผล
+    }
+  }, [router]);
+
+  // ฟังก์ชันออกจากระบบ
+  const handleLogout = () => {
+    localStorage.removeItem("stplus_admin_auth");
+    localStorage.removeItem("stplus_admin_user");
+    router.push("/login");
+  };
+
+  // 🌟 ระหว่างโหลด หรือคนแปลกหน้า ให้ซ่อนหน้าเว็บไว้ก่อน
+  if (!isAuthorized) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-gray-500">Authenticating...</div>;
 
   // ฟังก์ชันจำลองการโหลด Excel (CSV)
   const exportToExcel = () => {
@@ -64,6 +88,11 @@ export default function AdminDashboardPage() {
             <MapPin className="w-5 h-5" /> จัดการหัวข้องาน
           </a>
         </nav>
+        <div className="p-4 mt-auto absolute bottom-0 w-full md:w-64 border-t border-gray-100 bg-white">
+          <button onClick={handleLogout} className="flex items-center justify-center w-full gap-2 p-3 text-red-600 hover:bg-red-50 rounded-xl font-bold transition-colors">
+            <Power className="w-4 h-4" /> ออกจากระบบ
+          </button>
+        </div>
       </aside>
 
       {/* ================= MAIN CONTENT (เนื้อหาหลัก) ================= */}
