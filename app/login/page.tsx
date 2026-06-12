@@ -15,34 +15,32 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      // 🌟 ตัดช่องว่าง (Spacebar) เผื่อเผลอกดเว้นวรรค
       const cleanUsername = username.trim();
       const cleanPassword = password.trim();
 
-      // ค้นหาข้อมูลในตาราง admin_users
+      // 🌟 เปลี่ยนจาก .single() เป็น .maybeSingle() เพื่อไม่ให้ระบบฟ้อง Error เวลาพิมพ์รหัสผิด
       const { data, error: fetchError } = await supabase
         .from("admin_users")
         .select("*")
         .eq("username", cleanUsername)
         .eq("password", cleanPassword)
-        .single();
+        .maybeSingle();
 
-      // 🌟 ดักจับ Error เพื่อให้รู้สาเหตุที่แท้จริง
-      if (fetchError || !data) {
-        console.error("Supabase Error:", fetchError); // ปริ้นลง Console ให้ตรวจสอบได้
-        if (fetchError?.code === "PGRST116") {
-          setError("รหัสผ่านผิด หรือ ไม่มีชื่อผู้ใช้นี้ในระบบ");
-        } else {
-          setError(
-            `เชื่อมต่อฐานข้อมูลไม่ได้: ${fetchError?.message || "ไม่ทราบสาเหตุ"}`,
-          );
-        }
+      if (fetchError) {
+        setError(`เชื่อมต่อฐานข้อมูลไม่ได้: ${fetchError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      // 🌟 ถ้าไม่มีข้อมูล (พิมพ์ผิด หรือไม่มีชื่อในระบบ)
+      if (!data) {
+        setError("ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้องครับ");
         setLoading(false);
         return;
       }
@@ -50,9 +48,10 @@ export default function AdminLoginPage() {
       // ถ้าถูกต้อง ให้บันทึกสถานะลง Browser (localStorage)
       localStorage.setItem("stplus_admin_auth", "true");
       localStorage.setItem("stplus_admin_user", data.username);
-
+      
       // เด้งไปหน้า Dashboard ทันที
       window.location.href = "/";
+      
     } catch (err) {
       setError("เกิดข้อผิดพลาดในระบบเครือข่าย");
       setLoading(false);
