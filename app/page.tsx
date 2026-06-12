@@ -1,238 +1,150 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import liff from "@line/liff";
-import { supabase } from "@/lib/supabase"; // ตรวจสอบ path ให้ตรงกับโปรเจกตของพี่แม็ค
-import {
-  LayoutDashboard,
-  CalendarDays,
-  MapPin,
-  ClipboardCheck,
-  Settings,
-} from "lucide-react";
+import React, { useState } from "react";
+import { Download, Users, Calendar, MapPin, Menu, X } from "lucide-react";
 
-// 🌟 นำเข้า Component ProfileSettings
-import ProfileSettings from "@/components/ProfileSettings"; // ตรวจสอบ path ให้ตรงกับโปรเจกต์ของพี่แม็ค
+export default function AdminDashboardPage() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-export default function DashboardPage() {
-  // --- 🌟 State สำหรับจัดการข้อมูล LIFF และ User ---
-  const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
-  const [dbUser, setDbUser] = useState<any>(null);
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  // ฟังก์ชันจำลองการโหลด Excel (CSV)
+  const exportToExcel = () => {
+    // โค้ดสำหรับดึงข้อมูลและ Export จะอยู่ตรงนี้
+    alert("กำลังดาวน์โหลดไฟล์ Excel...");
+  };
 
-  // --- 🌟 ดักจับข้อมูลตอนโหลดหน้าเว็บ ---
-  useEffect(() => {
-    const initApp = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        if (liff.isLoggedIn()) {
-          const userProfile = await liff.getProfile();
-          setProfile(userProfile);
-
-          // เช็คข้อมูลใน Supabase
-          const { data: userData } = await supabase
-            .from("users")
-            .select("*")
-            .eq("line_user_id", userProfile.userId)
-            .single();
-
-          let currentUser = userData;
-
-          // ถ้าไม่มีข้อมูลเลย (เข้ามาครั้งแรกสุดๆ) ให้สร้าง record เปล่าๆ รอไว้ก่อน
-          if (!currentUser) {
-            const { data: newUser } = await supabase
-              .from("users")
-              .insert([
-                {
-                  line_user_id: userProfile.userId,
-                  display_name: userProfile.displayName,
-                  picture_url: userProfile.pictureUrl,
-                  is_active: false,
-                },
-              ])
-              .select()
-              .single();
-
-            currentUser = newUser;
-          }
-
-          setDbUser(currentUser || {});
-
-          // 🚨 จุดดักจับ: ถ้าข้อมูลสำคัญยังว่างเปล่า ให้เด้งไปหน้า Profile
-          if (
-            !currentUser?.full_name ||
-            !currentUser?.nickname ||
-            !currentUser?.department
-          ) {
-            setIsNewUser(true);
-          } else {
-            setIsNewUser(false);
-          }
-          if (typeof window !== "undefined") {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get("action") === "profile") {
-              setShowProfileSettings(true); // สั่งให้เปิดหน้าโปรไฟล์ทันที
-            }
-          }
-        } else {
-          liff.login();
-        }
-      } catch (err) {
-        console.error("LIFF Init Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initApp();
-  }, []);
-
-  // --- 🌟 1. หน้าจอ Loading (ระหว่างรอดึงข้อมูล) ---
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
-        <div className="relative flex items-center justify-center w-24 h-24 mb-4">
-          <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
-        </div>
-        <span className="text-slate-500 font-medium text-sm animate-pulse">
-          กำลังตรวจสอบข้อมูลผู้ใช้งาน...
-        </span>
-      </div>
-    );
-  }
-
-  // --- 🌟 2. หน้าจอ Profile (กรณีข้อมูลไม่ครบ) ---
-  if (profile && dbUser && (isNewUser || showProfileSettings)) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-8 font-sans pb-10">
-        <ProfileSettings
-          profile={profile}
-          dbUser={dbUser}
-          isNewUser={isNewUser}
-          setShowProfileSettings={setShowProfileSettings}
-          supabase={supabase}
-          onSaveSuccess={(updated) => {
-            // พอบันทึกเสร็จ อัปเดต State ให้หลุดออกจากหน้า Profile
-            setDbUser(updated);
-            setIsNewUser(false);
-            setShowProfileSettings(false);
-          }}
-        />
-      </div>
-    );
-  }
-
-  // --- 🌟 3. หน้าจอ Dashboard หลัก (กรณีข้อมูลครบถ้วนแล้ว) ---
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans selection:bg-blue-100">
-      {/* Header Section */}
-      <div className="bg-white border-b border-gray-100 px-6 py-5 sticky top-0 z-50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <LayoutDashboard className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black text-gray-900 tracking-tight">
-              ST PLUS SYSTEM
-            </h1>
-            <p className="text-xs font-bold text-gray-500">
-              Workspace & Portal
-            </p>
-          </div>
-        </div>
-
-        {/* เพิ่มปุ่มตั้งค่า Profile ที่มุมขวาบน เพื่อให้คนที่เข้าได้แล้วกลับไปแก้ข้อมูลได้ */}
-        <button
-          onClick={() => setShowProfileSettings(true)}
-          className="w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center text-slate-500 transition-colors"
-        >
-          <img
-            src={profile?.pictureUrl}
-            alt="profile"
-            className="w-8 h-8 rounded-full border border-slate-200"
-          />
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
+      {/* ================= HEADER สำหรับมือถือ ================= */}
+      <div className="md:hidden bg-[#0033a0] text-white p-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <h1 className="font-bold text-lg">ST PLUS ADMIN</h1>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+          {isMobileMenuOpen ? (
+            <X className="w-6 h-6" />
+          ) : (
+            <Menu className="w-6 h-6" />
+          )}
         </button>
       </div>
 
-      {/* Menu Grid Section */}
-      <div className="flex-1 max-w-3xl w-full mx-auto px-6 py-10">
-        <div className="mb-8">
-          <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-            ยินดีต้อนรับ, {dbUser?.nickname || "ผู้ใช้งาน"}
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            กรุณาเลือกระบบที่ต้องการเข้าใช้งาน
-          </p>
+      {/* ================= SIDEBAR (เมนูด้านซ้าย) ================= */}
+      {/* ซ่อนบนมือถือถ้าไม่ได้กดเปิด, แสดงตลอดเวลาบนคอม (md:block) */}
+      <aside
+        className={`
+        ${isMobileMenuOpen ? "block" : "hidden"} 
+        md:block w-full md:w-64 bg-white border-r border-gray-200 shadow-sm z-40
+        md:sticky md:top-0 md:h-screen overflow-y-auto
+      `}
+      >
+        <div className="p-6 hidden md:block">
+          <h1 className="text-2xl font-black text-[#0033a0]">
+            ST PLUS
+            <br />
+            <span className="text-sm text-gray-500 font-medium">
+              System Admin
+            </span>
+          </h1>
+        </div>
+        <nav className="p-4 space-y-2">
+          <a
+            href="#"
+            className="flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold transition-colors"
+          >
+            <Users className="w-5 h-5" /> สรุปข้อมูลลงเวลา
+          </a>
+          <a
+            href="/calendar-admin"
+            className="flex items-center gap-3 p-3 text-gray-600 hover:bg-gray-50 rounded-xl font-bold transition-colors"
+          >
+            <Calendar className="w-5 h-5" /> จัดการคิวงาน
+          </a>
+          <a
+            href="/attendance-admin"
+            className="flex items-center gap-3 p-3 text-gray-600 hover:bg-gray-50 rounded-xl font-bold transition-colors"
+          >
+            <MapPin className="w-5 h-5" /> จัดการหัวข้องาน
+          </a>
+        </nav>
+      </aside>
+
+      {/* ================= MAIN CONTENT (เนื้อหาหลัก) ================= */}
+      <main className="flex-1 p-4 md:p-8 w-full overflow-hidden">
+        {/* หัวข้อ และปุ่ม Export */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
+              สรุปข้อมูลการลงเวลาทำงาน
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              ข้อมูลทั้งหมดสามารถส่งออกเป็น Excel ได้
+            </p>
+          </div>
+          <button
+            onClick={exportToExcel}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+          >
+            <Download className="w-5 h-5" /> Export Excel
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card: Calendar */}
-          <Link
-            href="/calendar"
-            className="group bg-white border border-gray-200 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 rounded-2xl p-6 transition-all duration-300"
-          >
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-              <CalendarDays className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">
-              ปฏิทินและคิวงาน
-            </h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              บันทึกนัดหมาย จัดการตารางงานส่วนตัว และปฏิทินทีม
-            </p>
-          </Link>
-
-          {/* Card: Check-in */}
-          <Link
-            href="/checkin"
-            className="group bg-white border border-gray-200 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10 rounded-2xl p-6 transition-all duration-300"
-          >
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-              <MapPin className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">
-              ลงเวลาเข้า-ออกงาน
-            </h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              บันทึกพิกัดสถานที่ปฏิบัติงาน และดูประวัติการเข้างาน
-            </p>
-          </Link>
-
-          {/* Card: Leave */}
-          <Link
-            href="/leave"
-            className="group bg-white border border-gray-200 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10 rounded-2xl p-6 transition-all duration-300"
-          >
-            <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-              <ClipboardCheck className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">ระบบลางาน</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              ยื่นขออนุมัติลางาน ตรวจสอบสถิติ และพิจารณาอนุมัติ
-            </p>
-          </Link>
-
-          {/* Card: Settings */}
-          <Link
-            href="/settings"
-            className="group bg-white border border-gray-200 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 rounded-2xl p-6 transition-all duration-300"
-          >
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-              <Settings className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">
-              การตั้งค่าระบบ
-            </h3>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              จัดการผู้ใช้งาน กำหนดสิทธิ์ และตั้งค่าระบบแจ้งเตือน
-            </p>
-          </Link>
+        {/* การ์ดสรุปข้อมูล (สถิติ) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {["พนักงานทั้งหมด", "เข้างานวันนี้", "ออกไซต์งาน", "ลางาน"].map(
+            (title, i) => (
+              <div
+                key={i}
+                className="bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm"
+              >
+                <p className="text-xs md:text-sm text-gray-500 font-bold mb-1">
+                  {title}
+                </p>
+                <h3 className="text-2xl md:text-3xl font-black text-gray-800">
+                  0
+                </h3>
+              </div>
+            ),
+          )}
         </div>
-      </div>
+
+        {/* ตารางข้อมูล (รองรับการปัดซ้ายขวาบนมือถือ) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-5 border-b border-gray-100 bg-gray-50">
+            <h3 className="font-bold text-gray-800">ข้อมูลล่าสุด</h3>
+          </div>
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-white border-b border-gray-100 text-sm text-gray-500">
+                  <th className="p-4 font-bold">วันที่</th>
+                  <th className="p-4 font-bold">ชื่อพนักงาน</th>
+                  <th className="p-4 font-bold">หัวข้องาน</th>
+                  <th className="p-4 font-bold text-center">เวลาเข้า</th>
+                  <th className="p-4 font-bold text-center">เวลาออก</th>
+                  <th className="p-4 font-bold">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {/* ตัวอย่างข้อมูล Mockup */}
+                <tr className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="p-4">12/06/2569</td>
+                  <td className="p-4 font-bold">สมชาย ใจดี</td>
+                  <td className="p-4">ออฟฟิศ ST Plus</td>
+                  <td className="p-4 text-center text-green-600 font-bold">
+                    08:45
+                  </td>
+                  <td className="p-4 text-center text-red-500 font-bold">-</td>
+                  <td className="p-4">
+                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-bold">
+                      เข้างานแล้ว
+                    </span>
+                  </td>
+                </tr>
+                {/* ถ้าไม่มีข้อมูล */}
+                {/* <tr><td colSpan={6} className="p-8 text-center text-gray-400">ยังไม่มีข้อมูล</td></tr> */}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

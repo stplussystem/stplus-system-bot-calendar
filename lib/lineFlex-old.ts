@@ -988,7 +988,6 @@ export const generateCheckinTimelineFlex = (
   checkOutTime: string | null = null,
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
-  Shift: string,
 ) => {
   const contentsList: any[] = [];
 
@@ -1012,10 +1011,8 @@ export const generateCheckinTimelineFlex = (
         type: "box",
         layout: "vertical",
         flex: 1,
-        // alignItems: "center",
-        margin: "xs",
+        alignItems: "center",
         contents: [
-          { type: "filler" },
           {
             type: "box",
             layout: "vertical",
@@ -1024,9 +1021,8 @@ export const generateCheckinTimelineFlex = (
             height: "12px",
             borderColor: "#10B981",
             borderWidth: "2px",
-            // contents: [{ type: "filler" }],
+            contents: [{ type: "filler" }],
           },
-          { type: "filler" },
         ],
       },
       {
@@ -1241,28 +1237,7 @@ export const generateCheckinTimelineFlex = (
         backgroundColor: "#16A34A",
         paddingAll: "20px",
         contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            contents: [
-              {
-                type: "text",
-                text: "กะการทำงาน :",
-                color: "#ffffffcc",
-                size: "md",
-                flex: 0,
-              },
-              {
-                type: "text",
-                text: Shift,
-                color: "#ffffff",
-                size: "md",
-                flex: 1,
-                margin: "md",
-              },
-            ],
-          },
-          // { type: "text", text: "วันที่ :", color: "#ffffffcc", size: "sm" },
+          { type: "text", text: "วันที่ :", color: "#ffffffcc", size: "sm" },
           {
             type: "text",
             text: workDate || "-",
