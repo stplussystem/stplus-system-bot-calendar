@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Menu,
-  X,
   Activity,
 } from "lucide-react";
 
@@ -54,13 +53,11 @@ export default function AdminDashboard() {
     shift: "",
   });
 
-  // --- Profile States ---
+  // --- Profile & Admin Management States ---
   const [profileForm, setProfileForm] = useState({
     full_name: "",
     password: "",
   });
-
-  // --- Admin Management States ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminForm, setAdminForm] = useState({
     id: "",
@@ -68,6 +65,14 @@ export default function AdminDashboard() {
     password: "",
     full_name: "",
     role: "admin",
+  });
+
+  // --- 🌟 Employee Quota Management States ---
+  const [showEmpModal, setShowEmpModal] = useState(false);
+  const [empForm, setEmpForm] = useState({
+    id: "",
+    full_name: "",
+    annual_leave_quota: 6,
   });
 
   useEffect(() => {
@@ -117,14 +122,12 @@ export default function AdminDashboard() {
 
   const fetchAllData = async () => {
     setLoading(true);
-    // 1. Fetch Employees
     const { data: usersData } = await supabase
       .from("users")
       .select("*")
       .order("full_name");
     if (usersData) setEmployees(usersData);
 
-    // 2. Fetch Attendance
     const { data: logsData } = await supabase
       .from("attendance_logs")
       .select(
@@ -133,14 +136,12 @@ export default function AdminDashboard() {
       .order("check_in_time", { ascending: false });
     if (logsData) setLogs(logsData);
 
-    // 3. Fetch Leaves
     const { data: leavesData } = await supabase
       .from("leave_requests")
       .select(`*, users(full_name, nickname)`)
       .eq("status", "approved");
     if (leavesData) setLeaves(leavesData);
 
-    // 4. Fetch Admins
     const { data: adminsData } = await supabase
       .from("admin_users")
       .select("*")
@@ -268,7 +269,6 @@ export default function AdminDashboard() {
       `${totalHours} ชม. ${totalMins} นาที`,
     ]);
 
-    // สร้างไฟล์ CSV แบบรองรับภาษาไทย (BOM)
     const csvContent =
       "\uFEFF" +
       csvRows.map((e) => e.map((item) => `"${item}"`).join(",")).join("\n");
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
   }, [leaves, employees]);
 
   // =====================================
-  // Handlers: Save Profile & Admins
+  // Handlers: Save Profile & Admins & Employee Quota
   // =====================================
   const handleSaveProfile = async () => {
     if (!profileForm.full_name || !profileForm.password)
@@ -341,7 +341,6 @@ export default function AdminDashboard() {
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
 
     if (adminForm.id) {
-      // แก้ไข
       await supabase
         .from("admin_users")
         .update({
@@ -353,7 +352,6 @@ export default function AdminDashboard() {
         .eq("id", adminForm.id);
       showToastMsg("แก้ไขข้อมูลผู้ดูแลระบบสำเร็จ");
     } else {
-      // เพิ่มใหม่
       const { data: exist } = await supabase
         .from("admin_users")
         .select("id")
@@ -380,6 +378,18 @@ export default function AdminDashboard() {
     await supabase.from("admin_users").delete().eq("id", id);
     showToastMsg("ลบผู้ดูแลระบบสำเร็จ");
     fetchAllData();
+  };
+
+  // 🌟 Handler: บันทึกโควตาวันลาพนักงาน
+  const handleSaveEmployeeQuota = async () => {
+    if (!empForm.id) return;
+    await supabase
+      .from("users")
+      .update({ annual_leave_quota: empForm.annual_leave_quota })
+      .eq("id", empForm.id);
+    showToastMsg(`อัปเดตโควตาของ ${empForm.full_name} สำเร็จ`);
+    setShowEmpModal(false);
+    fetchAllData(); // โหลดข้อมูลพนักงานใหม่
   };
 
   if (loading || !adminUser)
@@ -409,7 +419,6 @@ export default function AdminDashboard() {
         className={`bg-[#0f172a] text-slate-300 w-64 flex-shrink-0 flex flex-col transition-all duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full absolute h-full z-50"}`}
       >
         <div className="h-16 flex items-center px-6 bg-[#0b1120] border-b border-slate-800 gap-3">
-          {/* 🌟 โลโก้บริษัทแทนข้อความ */}
           <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Activity className="w-5 h-5 text-white" />
           </div>
@@ -477,7 +486,6 @@ export default function AdminDashboard() {
 
       {/* --- Main Content --- */}
       <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
-        {/* Header */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-4">
             <button
@@ -513,11 +521,8 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-auto p-4 lg:p-8 custom-scrollbar">
-          {/* ========================================================= */}
           {/* TAB 1: ตารางลงเวลา (Attendance) */}
-          {/* ========================================================= */}
           {activeMenu === "attendance" && (
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
@@ -696,9 +701,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ========================================================= */}
           {/* TAB 2: สรุปการขาดลามาสาย (Leaves) */}
-          {/* ========================================================= */}
           {activeMenu === "leaves" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in">
               <div className="overflow-x-auto custom-scrollbar">
@@ -761,9 +764,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ========================================================= */}
           {/* TAB 3: รายชื่อพนักงาน (Employees) */}
-          {/* ========================================================= */}
           {activeMenu === "employees" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in">
               <div className="overflow-x-auto custom-scrollbar">
@@ -774,19 +775,21 @@ export default function AdminDashboard() {
                       <th className="px-6 py-4">ชื่อ-สกุล</th>
                       <th className="px-6 py-4">ชื่อเล่น</th>
                       <th className="px-6 py-4">โควตาพักร้อน</th>
+                      <th className="px-6 py-4 text-center">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {employees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-center">
+                          {/* 🌟 อัปเดต CSS ล็อคความกว้าง-สูง และบังคับไม่ให้หด (shrink-0) */}
                           <img
                             src={
                               emp.picture_url ||
                               "https://cdn-icons-png.flaticon.com/512/847/847969.png"
                             }
                             alt="profile"
-                            className="w-10 h-10 rounded-full mx-auto border border-gray-200 object-cover"
+                            className="w-10 h-10 min-w-[40px] rounded-full mx-auto border border-gray-200 object-cover shrink-0"
                           />
                         </td>
                         <td className="px-6 py-3 font-bold text-gray-800">
@@ -798,17 +801,81 @@ export default function AdminDashboard() {
                         <td className="px-6 py-3 font-bold text-purple-600">
                           {emp.annual_leave_quota || 6} วัน
                         </td>
+                        <td className="px-6 py-3 text-center">
+                          {/* 🌟 ปุ่มแก้ไขโควตาวันลา */}
+                          <button
+                            onClick={() => {
+                              setEmpForm({
+                                id: emp.id,
+                                full_name: emp.full_name,
+                                annual_leave_quota: emp.annual_leave_quota || 6,
+                              });
+                              setShowEmpModal(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-bold text-[11px] transition-colors"
+                          >
+                            <Edit className="w-3 h-3" /> แก้โควตา
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {/* 🌟 Modal สำหรับแก้ไขโควตาวันลาพักร้อน */}
+              {showEmpModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+                  <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">
+                      แก้ไขโควตาพักร้อน
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-5">
+                      พนักงาน:{" "}
+                      <span className="font-bold text-gray-800">
+                        {empForm.full_name}
+                      </span>
+                    </p>
+
+                    <div className="mb-6">
+                      <label className="text-xs font-bold text-gray-500 mb-1.5 block">
+                        จำนวนโควตาต่อปี (วัน)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={empForm.annual_leave_quota}
+                        onChange={(e) =>
+                          setEmpForm({
+                            ...empForm,
+                            annual_leave_quota: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full border border-gray-300 p-3 rounded-xl text-lg font-black text-purple-600 focus:ring-2 focus:ring-purple-500 outline-none text-center"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowEmpModal(false)}
+                        className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        onClick={handleSaveEmployeeQuota}
+                        className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-purple-700"
+                      >
+                        อัปเดตโควตา
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ========================================================= */}
           {/* TAB 4: ข้อมูลส่วนตัว (Profile) */}
-          {/* ========================================================= */}
           {activeMenu === "profile" && (
             <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-in zoom-in-95">
               <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -857,9 +924,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ========================================================= */}
-          {/* TAB 5: จัดการผู้ดูแลระบบ (Admins - Superadmin Only) */}
-          {/* ========================================================= */}
+          {/* TAB 5: จัดการผู้ดูแลระบบ (Admins) */}
           {activeMenu === "admins" && adminUser.role === "superadmin" && (
             <div className="space-y-4 animate-in fade-in">
               <div className="flex justify-end">
