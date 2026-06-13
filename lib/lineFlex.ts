@@ -717,7 +717,7 @@ export const generateCheckinTimelineFlex = (
   });
 
   // --- วนลูปสร้างจุด Checkpoint ---
-  let previousLocation = "ประจำออฟฟิศ";
+  let previousLocation = "ประจำออฟฟิศ2026";
 
   checkpoints.forEach((cp) => {
     // 1. สร้างเส้นเชื่อม
@@ -725,7 +725,7 @@ export const generateCheckinTimelineFlex = (
       type: "box",
       layout: "horizontal",
       spacing: "lg",
-      height: "40px",
+      height: "45px",
       contents: [
         {
           type: "box",
@@ -818,7 +818,7 @@ export const generateCheckinTimelineFlex = (
             },
             {
               type: "text",
-              // text: cp.location || "-",
+              text: cp.location || "-",
               size: "xs",
               color: "#9ca3af",
               wrap: true,
@@ -836,7 +836,7 @@ export const generateCheckinTimelineFlex = (
     type: "box",
     layout: "horizontal",
     spacing: "lg",
-    height: "40px",
+    height: "45px",
     contents: [
       {
         type: "box",
@@ -979,8 +979,7 @@ export const generateCheckinTimelineFlex = (
         },
         {
           type: "text",
-          // text: "ลงชื่อออกงานเรียบร้อย",
-          text: outTimeText,
+          text: "ลงชื่อออกงานเรียบร้อย",
           gravity: "top",
           flex: 4,
           size: "xs",
