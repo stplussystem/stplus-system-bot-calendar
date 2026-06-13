@@ -710,7 +710,7 @@ export const generateCheckinTimelineFlex = (
             weight: "bold",
             color: "#009900",
           },
-          { type: "text", text: "ประจำออฟฟิศ", size: "xs", color: "#9ca3af" },
+          // { type: "text", text: "ประจำออฟฟิศ", size: "xs", color: "#9ca3af" },
         ],
       },
     ],
@@ -818,7 +818,7 @@ export const generateCheckinTimelineFlex = (
             },
             {
               type: "text",
-              text: cp.location || "-",
+              // text: cp.location || "-",
               size: "xs",
               color: "#9ca3af",
               wrap: true,
@@ -979,7 +979,8 @@ export const generateCheckinTimelineFlex = (
         },
         {
           type: "text",
-          text: "ลงชื่อออกงานเรียบร้อย",
+          // text: "ลงชื่อออกงานเรียบร้อย",
+          text: outTimeText,
           gravity: "top",
           flex: 4,
           size: "xs",
