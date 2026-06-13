@@ -738,11 +738,17 @@ export const generateCheckinTimelineFlex = (
         contents: [
           {
             type: "text",
-            text: inLocation, // เปลี่ยน 1: ใช้สถานที่เข้างานแทน "ลงชื่อเข้างาน"
-            // text: "ลงชื่อเข้างาน",
+            text: "ลงชื่อเข้างาน", // บรรทัดบน: ตายตัว
             size: "sm",
             weight: "bold",
             color: "#009900",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: inLocation, // บรรทัดล่าง: ดึงสถานที่เข้างานมาโชว์
+            size: "xs",
+            color: "#9ca3af",
             wrap: true,
           },
         ],
@@ -910,8 +916,6 @@ export const generateCheckinTimelineFlex = (
   const outStatusColor = checkOutTime ? "#EF454D" : "#B7B7B7";
   const outTimeText = formatTimeStr(checkOutTime); // ใส่ น.
   const outTimeFontColor = checkOutTime ? "#000000" : "#B7B7B7";
-  // เปลี่ยน 3: ใช้สถานที่ออกงาน ถ้าไม่มีให้ใช้ "ลงชื่อออกงาน"
-  const outNodeText = outLocation ? outLocation : "ลงชื่อออกงาน";
 
   contentsList.push({
     type: "box",
@@ -955,12 +959,24 @@ export const generateCheckinTimelineFlex = (
         contents: [
           {
             type: "text",
-            text: outNodeText, // เปลี่ยน 3
+            text: "ลงชื่อออกงาน", // บรรทัดบน: ตายตัว
             size: "sm",
             weight: "bold",
             color: outStatusColor,
             wrap: true,
           },
+          ...(checkOutTime && outLocation
+            ? [
+                {
+                  // แสดงบรรทัดที่ 2 เฉพาะตอนที่ลงชื่อออกงานแล้ว และมีสถานที่
+                  type: "text",
+                  text: outLocation, // บรรทัดล่าง: ดึงสถานที่ออกงานมาโชว์
+                  size: "xs",
+                  color: "#9ca3af",
+                  wrap: true,
+                },
+              ]
+            : []),
         ],
       },
     ],
@@ -1006,13 +1022,10 @@ export const generateCheckinTimelineFlex = (
           ],
         },
         {
-          type: "text",
-          text: outLocation || "ลงชื่อออกงานเรียบร้อย",
-          gravity: "top",
+          type: "box",
+          layout: "vertical",
           flex: 4,
-          size: "xs",
-          color: "#8c8c8c",
-          wrap: true,
+          contents: [{ type: "filler" }], // เอาคำว่า ลงชื่อออกงานเรียบร้อย ออกแล้วให้ว่างๆแทน
         },
       ],
     });
