@@ -143,7 +143,16 @@ export default function CheckinPage() {
     }
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "history") setActiveTab("history");
+
+    // ดักจับ URL เพื่อเปิดหน้าประวัติ (รองรับทั้ง ?tab=history และ ?action=history)
+    if (params.get("tab") === "history" || params.get("action") === "history") {
+      setActiveTab("history");
+    }
+
+    // 🌟 ดักจับ URL เพื่อเปิดหน้าข้อมูลส่วนตัว (รองรับลิงก์ ?action=profile ของพี่แม็ค!)
+    if (params.get("tab") === "profile" || params.get("action") === "profile") {
+      setShowProfileSettings(true);
+    }
 
     const initLiff = async () => {
       try {
