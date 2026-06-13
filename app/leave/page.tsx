@@ -42,7 +42,6 @@ export default function LeavePage() {
   const currentYearThai = (new Date().getFullYear() + 543).toString();
 
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
-  // 🌟 เพิ่มสถานะเก็บโควตาพักร้อน (annual)
   const [leaveStats, setLeaveStats] = useState({
     personal: 0,
     sick: 0,
@@ -50,7 +49,6 @@ export default function LeavePage() {
     absent: 0,
   });
 
-  // 🌟 State เก็บโควตารวมของบริษัท และพักร้อนของแต่ละคน
   const [leaveQuotas, setLeaveQuotas] = useState({
     personal: 6,
     sick: 30,
@@ -61,7 +59,7 @@ export default function LeavePage() {
   const [allLeaves, setAllLeaves] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    leaveType: "personal", // personal, sick, annual
+    leaveType: "personal",
     startDate: new Date().toISOString().split("T")[0],
     endDate: new Date().toISOString().split("T")[0],
     isHourly: false,
@@ -101,7 +99,6 @@ export default function LeavePage() {
           const userProfile = await liff.getProfile();
           setProfile(userProfile);
 
-          // 🌟 ดึงข้อมูล User รวมถึงโควตาพักร้อนส่วนตัว (annual_leave_quota)
           const { data: user } = await supabase
             .from("users")
             .select("*")
@@ -116,7 +113,6 @@ export default function LeavePage() {
             },
           );
 
-          // 🌟 ดึงข้อมูล Company Settings
           const { data: settings } = await supabase
             .from("company_settings")
             .select("personal_leave_quota, sick_leave_quota")
@@ -126,7 +122,7 @@ export default function LeavePage() {
           setLeaveQuotas({
             personal: settings?.personal_leave_quota || 6,
             sick: settings?.sick_leave_quota || 30,
-            annual: user?.annual_leave_quota || 6, // ดึงจากรายบุคคล
+            annual: user?.annual_leave_quota || 6,
           });
 
           if (typeof window !== "undefined") {
@@ -339,28 +335,18 @@ export default function LeavePage() {
   const handleSubmitLeave = async () => {
     if (!formData.reason) return showToast("กรุณาระบุเหตุผลการลา", "error");
 
-    // Check Quota
     const duration = calculateDuration();
+    // 🌟 Comment: ปิดการเช็คโควตาไว้ก่อนตามที่ต้องการยังไม่ใช้งาน
+    /*
     if (!formData.isHourly) {
-      if (
-        formData.leaveType === "personal" &&
-        leaveStats.personal + duration.days > leaveQuotas.personal
-      ) {
-        return showToast(
-          `โควตาลากิจไม่พอ (คงเหลือ ${leaveQuotas.personal - leaveStats.personal} วัน)`,
-          "error",
-        );
-      }
-      if (
-        formData.leaveType === "annual" &&
-        leaveStats.annual + duration.days > leaveQuotas.annual
-      ) {
-        return showToast(
-          `โควตาลาพักร้อนไม่พอ (คงเหลือ ${leaveQuotas.annual - leaveStats.annual} วัน)`,
-          "error",
-        );
-      }
+        if (formData.leaveType === "personal" && leaveStats.personal + duration.days > leaveQuotas.personal) {
+             return showToast(`โควตาลากิจไม่พอ (คงเหลือ ${leaveQuotas.personal - leaveStats.personal} วัน)`, "error");
+        }
+        if (formData.leaveType === "annual" && leaveStats.annual + duration.days > leaveQuotas.annual) {
+            return showToast(`โควตาลาพักร้อนไม่พอ (คงเหลือ ${leaveQuotas.annual - leaveStats.annual} วัน)`, "error");
+       }
     }
+    */
 
     setSubmitting(true);
     try {
@@ -503,7 +489,6 @@ export default function LeavePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-20">
-      {/* 🔴 MODAL: Toast Notification */}
       {toast.show && (
         <div
           className={`fixed top-4 left-4 right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-2xl px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
@@ -517,7 +502,6 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* 🔴 MODALs ... */}
       {liffAlertModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95 text-center">
@@ -538,7 +522,6 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* 🔹 ส่วนหัว Header */}
       <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-12 pb-16 px-6 text-white text-center rounded-b-[40px] shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
         <CalendarRange className="w-12 h-12 mx-auto mb-3 opacity-90" />
@@ -549,7 +532,6 @@ export default function LeavePage() {
       </div>
 
       <div className="px-4 md:px-6 -mt-8 max-w-2xl w-full mx-auto relative z-10 space-y-4">
-        {/* เมนูสลับหน้า */}
         {(dbUser?.role === "admin" ||
           dbUser?.role === "manager" ||
           dbUser?.role === "hr") &&
@@ -575,7 +557,6 @@ export default function LeavePage() {
             </div>
           )}
 
-        {/* 🔹 ส่วนฟอร์มขอลางาน */}
         {showForm && (
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 animate-in fade-in slide-in-from-right-4">
             <button
@@ -622,7 +603,6 @@ export default function LeavePage() {
                 </div>
               </div>
 
-              {/* ส่วนกรอกวันที่ เหมือนเดิม... */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
                 <label className="flex items-center justify-between text-sm font-bold text-gray-800 cursor-pointer mb-4">
                   <span className="flex items-center gap-2">
@@ -770,15 +750,13 @@ export default function LeavePage() {
         {/* 🔹 การลางานของฉัน (My Leave) */}
         {activeTab === "my_leave" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
-            {/* 🌟 ปรับปรุงการ์ดสรุปวันลาใหม่ */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* 🌟 ปรับปรุงการ์ดสรุปวันลาใหม่ (เพิ่มขาดงาน และ Comment Quota) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลากิจ</p>
                 <p className="text-xl font-black text-blue-600">
                   {leaveStats.personal}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.personal}
-                  </span>
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.personal}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -788,9 +766,7 @@ export default function LeavePage() {
                 <p className="text-xs font-bold text-gray-500 mb-1">พักร้อน</p>
                 <p className="text-xl font-black text-purple-600">
                   {leaveStats.annual}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.annual}
-                  </span>
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.annual}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -800,12 +776,19 @@ export default function LeavePage() {
                 <p className="text-xs font-bold text-gray-500 mb-1">ลาป่วย</p>
                 <p className="text-xl font-black text-orange-600">
                   {leaveStats.sick}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.sick}
-                  </span>
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.sick}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
+                </p>
+              </div>
+              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-gray-500 mb-1">ขาดงาน</p>
+                <p className="text-xl font-black text-red-600">
+                  {leaveStats.absent}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  ครั้ง
                 </p>
               </div>
             </div>
@@ -880,9 +863,10 @@ export default function LeavePage() {
           </div>
         )}
 
-        {/* 🔹 ศูนย์อนุมัติ (Approval Center) เหมือนเดิม... */}
+        {/* 🔹 ศูนย์อนุมัติ (Approval Center) */}
         {activeTab === "approval" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
+            {/* ยืนยันอนุมัติลางาน */}
             <div className="bg-white rounded-3xl shadow-sm border border-blue-200 overflow-hidden">
               <div className="p-5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
