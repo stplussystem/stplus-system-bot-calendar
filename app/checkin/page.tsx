@@ -1326,7 +1326,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal รายละเอียดประวัติ (อัปเกรดแผนที่ + รูปกล้อง + เรียงบรรทัดใหม่) */}
+      {/* 🌟 Modal รายละเอียดประวัติ (แก้ปัญหาปุ่มล้นขอบ + ตัดคำสวยๆ) */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -1343,7 +1343,7 @@ export default function CheckinPage() {
             </div>
 
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
-              {/* 🌟 1. รูปถ่าย (เพิ่ม Icon กล้องถ้าไม่มีรูป) */}
+              {/* 🌟 1. รูปถ่าย */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อ
@@ -1363,7 +1363,7 @@ export default function CheckinPage() {
                 )}
               </div>
 
-              {/* 🌟 2. รายละเอียดเข้า-ออก-จุดแวะ (เรียงบรรทัดตามรูป) */}
+              {/* 🌟 2. รายละเอียดเข้า-ออก-จุดแวะ */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-4 shadow-inner">
                 {/* หัวข้องาน */}
                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
@@ -1378,10 +1378,10 @@ export default function CheckinPage() {
                 <div className="space-y-3">
                   {/* --- บรรทัดที่ 1: เข้างาน --- */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-green-100 shadow-sm">
-                    <div>
+                    <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
-                        <span className="text-xs font-bold text-gray-600">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0"></div>
+                        <span className="text-xs font-bold text-gray-600 truncate">
                           ลงชื่อเข้างาน
                         </span>
                       </div>
@@ -1394,14 +1394,14 @@ export default function CheckinPage() {
                         href={`https://maps.google.com/?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
+                        className="flex shrink-0 items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
                       >
                         <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
                       </a>
                     )}
                   </div>
 
-                  {/* --- บรรทัดกลาง: จุดแวะ (ใช้ตัวแปร checkpoint_time จากฐานข้อมูลโดยตรง) --- */}
+                  {/* --- บรรทัดกลาง: จุดแวะ (แก้ปัญหาล้นขอบ + ตัดคำ) --- */}
                   {selectedLog.attendance_checkpoints &&
                     selectedLog.attendance_checkpoints.length > 0 &&
                     selectedLog.attendance_checkpoints
@@ -1413,12 +1413,19 @@ export default function CheckinPage() {
                       .map((cp: any, idx: number) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm ml-4"
+                          className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm ml-6 relative"
                         >
-                          <div className="flex-1 pr-2">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                              <span className="text-xs font-bold text-gray-600 truncate">
+                          {/* ขีดเส้นเชื่อมด้านซ้ายเพื่อให้ดูเป็น sub-item */}
+                          <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-dashed border-gray-300"></div>
+
+                          <div className="flex-1 pr-2 min-w-0">
+                            {" "}
+                            {/* 🌟 min-w-0 บังคับไม่ให้ดันกล่องขยาย */}
+                            <div className="flex items-start gap-1.5 mb-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1"></div>
+                              <span className="text-xs font-bold text-gray-600 line-clamp-2">
+                                {" "}
+                                {/* 🌟 line-clamp-2 ตัดคำขึ้นบรรทัดใหม่ + จุดไข่ปลา */}
                                 {cp.note
                                   ? cp.note.replace("แวะจุด: ", "")
                                   : "จุดแวะ"}
@@ -1443,10 +1450,10 @@ export default function CheckinPage() {
 
                   {/* --- บรรทัดสุดท้าย: ออกงาน --- */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-red-100 shadow-sm">
-                    <div>
+                    <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                        <span className="text-xs font-bold text-gray-600">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></div>
+                        <span className="text-xs font-bold text-gray-600 truncate">
                           ลงชื่อออกงาน
                         </span>
                       </div>
@@ -1461,7 +1468,7 @@ export default function CheckinPage() {
                         href={`https://maps.google.com/?q=${selectedLog.check_out_lat},${selectedLog.check_out_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-[11px] font-bold border border-red-100 transition-colors shadow-sm"
+                        className="flex shrink-0 items-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-[11px] font-bold border border-red-100 transition-colors shadow-sm"
                       >
                         <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
                       </a>
