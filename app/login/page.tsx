@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Lock, User, LogIn, AlertCircle } from "lucide-react";
+import { Lock, User, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react"; // 🌟 เพิ่ม Eye, EyeOff
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,6 +15,19 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 🌟 State ใหม่สำหรับฟีเจอร์แสดงรหัสผ่าน และ จำชื่อผู้ใช้
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // 🌟 ดึงชื่อผู้ใช้ที่จำไว้ตอนโหลดหน้าเว็บ
+  useEffect(() => {
+    const savedUsername = localStorage.getItem("stplus_admin_saved_username");
+    if (savedUsername) {
+      setUsername(savedUsername);
+      setRememberMe(true);
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -24,7 +37,6 @@ export default function AdminLoginPage() {
       const cleanUsername = username.trim();
       const cleanPassword = password.trim();
 
-      // 🌟 เปลี่ยนจาก .single() เป็น .maybeSingle() เพื่อไม่ให้ระบบฟ้อง Error เวลาพิมพ์รหัสผิด
       const { data, error: fetchError } = await supabase
         .from("admin_users")
         .select("*")
@@ -38,18 +50,23 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // 🌟 ถ้าไม่มีข้อมูล (พิมพ์ผิด หรือไม่มีชื่อในระบบ)
       if (!data) {
         setError("ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้องครับ");
         setLoading(false);
         return;
       }
 
-      // ถ้าถูกต้อง ให้บันทึกสถานะลง Browser (localStorage)
+      // 🌟 ระบบ Remember Me (จำ/ลบ ชื่อผู้ใช้)
+      if (rememberMe) {
+        localStorage.setItem("stplus_admin_saved_username", cleanUsername);
+      } else {
+        localStorage.removeItem("stplus_admin_saved_username");
+      }
+
+      // บันทึกสถานะเข้าสู่ระบบ
       localStorage.setItem("stplus_admin_auth", "true");
       localStorage.setItem("stplus_admin_user", data.username);
 
-      // เด้งไปหน้า Dashboard ทันที
       window.location.href = "/admin-stplus";
     } catch (err) {
       setError("เกิดข้อผิดพลาดในระบบเครือข่าย");
@@ -100,15 +117,43 @@ export default function AdminLoginPage() {
             <label className="text-sm font-bold text-gray-700">Password</label>
             <div className="relative">
               <Lock className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              {/* 🌟 เปลี่ยน type ตามสถานะ showPassword */}
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              {/* 🌟 ปุ่มรูปตาสำหรับสลับเปิด/ปิดรหัสผ่าน */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
             </div>
+          </div>
+
+          {/* 🌟 กล่องตัวเลือก Remember me */}
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-600 group-hover:text-black select-none transition-colors">
+                Remember me
+              </span>
+            </label>
           </div>
 
           <button
@@ -117,7 +162,7 @@ export default function AdminLoginPage() {
             className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-2 disabled:opacity-70"
           >
             {loading ? (
-              "Authenticating..."
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             ) : (
               <>
                 <LogIn className="w-4 h-4" /> Sign In

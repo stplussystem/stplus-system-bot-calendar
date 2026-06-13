@@ -2,148 +2,94 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import imageCompression from "browser-image-compression";
 import {
   MapPin,
   Clock,
-  Navigation,
+  Camera,
+  History,
+  Send,
   CheckCircle2,
   AlertTriangle,
-  History,
-  CalendarDays,
-  Calendar as CalendarIcon,
-  XCircle,
-  Camera,
-  ImagePlus,
   X,
+  ChevronRight,
   LogOut,
-  MapPinHouse,
-  Search,
-  Star,
-  Map,
-  Users,
+  ChevronLeft,
+  CalendarRange,
+  UserCog,
+  RefreshCw,
 } from "lucide-react";
-
-import ProfileSettings from "@/components/ProfileSettings";
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+import { getAttendanceMessage } from "@/lib/lineFlex";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-const teamLabels: { [key: string]: string } = {
-  team_all: "ทั้งหมดทุกคน",
-  team_n: "พี่นุ",
-  team_a: "พี่หนุ่ม",
-  team_b: "พี่หนึ่ง",
-  team_c: "พี่บาส",
-  team_d: "แคมป์",
-  team_e: "หนึ่ง",
-  team_f: "ทิ",
-  team_g: "พี่แม็ค",
-  team_other: "อื่นๆ",
-};
-
-const calculateDistance = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-) => {
-  const R = 6371e3;
-  const p1 = (lat1 * Math.PI) / 180;
-  const p2 = (lat2 * Math.PI) / 180;
-  const deltaP = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(deltaP / 2) * Math.sin(deltaP / 2) +
-    Math.cos(p1) *
-      Math.cos(p2) *
-      Math.sin(deltaLon / 2) *
-      Math.sin(deltaLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 export default function CheckinPage() {
-  const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
+  // ==========================================
+  // 1. Core States
+  // ==========================================
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
-
   const [dbUser, setDbUser] = useState<any>(null);
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [showProfileSettings, setShowProfileSettings] = useState(false);
-  const [isPendingApproval, setIsPendingApproval] = useState(false);
+  const [activeTab, setActiveTab] = useState<"menu" | "checkin" | "history">(
+    "menu",
+  );
 
+  // ==========================================
+  // 2. Check-in States
+  // ==========================================
   const [topics, setTopics] = useState<any[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState("");
-  const [checkoutTopic, setCheckoutTopic] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState<string>("");
+  const [shift, setShift] = useState<string>("เช้า");
+  const [location, setLocation] = useState<{
+    lat: number;
+    lng: number;
+    address: string;
+  } | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentLog, setCurrentLog] = useState<any>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
-  const [todayLog, setTodayLog] = useState<any>(null);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  // ==========================================
+  // 3. History States
+  // ==========================================
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("month"); // "week", "month", "custom"
+  const [selectedLog, setSelectedLog] = useState<any>(null);
+
+  // ==========================================
+  // 4. UI/Modal States
+  // ==========================================
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [toast, setToast] = useState({
     show: false,
     message: "",
     type: "success",
   });
-
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [logs, setLogs] = useState<any[]>([]);
-  const [historyFilter, setHistoryFilter] = useState<
-    "today" | "week" | "month" | "custom"
-  >("today");
-  const [customStartDate, setCustomStartDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [customEndDate, setCustomEndDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [selectedLog, setSelectedLog] = useState<any>(null);
-
-  // ==========================================
-  // 🌟 State & Refs สำหรับ Checkpoint & Favorites
-  // ==========================================
-  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
-  const [checkpointTab, setCheckpointTab] = useState<"search" | "favorites">(
-    "search",
-  );
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const autocompleteInputRef = useRef<HTMLInputElement>(null);
-  const [cpData, setCpData] = useState({
-    title: "",
-    lat: 0,
-    lng: 0,
-    saveFavorite: false,
+  const [profileForm, setProfileForm] = useState({
+    full_name: "",
+    nickname: "",
   });
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [cpNote, setCpNote] = useState("");
+  const [showCpModal, setShowCpModal] = useState(false);
 
+  // ==========================================
+  // ▶️ Lifecycle & Initialization
+  // ==========================================
   useEffect(() => {
-    // โหลด Google Maps Script
-    if (!window.google && GOOGLE_MAPS_API_KEY) {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      document.body.appendChild(script);
-      script.onload = () => setGoogleMapsLoaded(true);
-    } else if (window.google) {
-      setGoogleMapsLoaded(true);
-    }
-
+    // 🌟 ดักจับ URL จาก LINE Rich Menu
     const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "history") setActiveTab("history");
+    if (params.get("action") === "checkin" || params.get("tab") === "checkin")
+      setActiveTab("checkin");
+    if (params.get("action") === "history" || params.get("tab") === "history")
+      setActiveTab("history");
+    if (params.get("action") === "profile" || params.get("tab") === "profile")
+      setShowProfileSettings(true);
 
     const initLiff = async () => {
       try {
@@ -155,447 +101,100 @@ export default function CheckinPage() {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setUserProfile(profile);
-
-          const { data: userData } = await supabase
-            .from("users")
-            .select("*")
-            .eq("line_user_id", profile.userId)
-            .single();
-          let currentUser = userData;
-
-          if (!currentUser) {
-            const { data: newUser } = await supabase
-              .from("users")
-              .insert([
-                {
-                  line_user_id: profile.userId,
-                  display_name: profile.displayName,
-                  picture_url: profile.pictureUrl,
-                  is_active: false,
-                },
-              ])
-              .select()
-              .single();
-            currentUser = newUser;
-          }
-
-          setDbUser(currentUser || {});
-
-          const hasName =
-            currentUser?.full_name && currentUser.full_name.trim() !== "";
-          const hasNick =
-            currentUser?.nickname && currentUser.nickname.trim() !== "";
-          if (!hasName || !hasNick) {
-            setIsNewUser(true);
-            return;
-          }
-
-          if (currentUser.is_active === false) {
-            setIsPendingApproval(true);
-            return;
-          }
-
-          setIsNewUser(false);
-          setIsPendingApproval(false);
+          await checkAndAddUser(profile);
         } else {
           liff.login();
         }
       } catch (error) {
-        setUserProfile({
-          userId: "U_LOCAL_TESTER",
-          displayName: "Dev Mode",
-          pictureUrl: "https://ui-avatars.com/api/?name=Dev",
-        });
+        console.error("LIFF Init Error:", error);
       } finally {
         setIsLiffInit(true);
       }
     };
     initLiff();
+    fetchTopics();
   }, []);
 
   useEffect(() => {
-    if (isLiffInit && userProfile && !isNewUser && !isPendingApproval) {
-      if (activeTab === "checkin") {
-        checkTodayStatus();
-        fetchActiveTopics();
-        fetchFavorites();
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            () => {},
-            () => {},
-            { enableHighAccuracy: true, maximumAge: 0 },
-          );
-        }
-      } else {
-        fetchHistory();
-      }
+    if (userProfile && activeTab === "history") {
+      fetchHistory();
     }
-  }, [
-    activeTab,
-    historyFilter,
-    customStartDate,
-    customEndDate,
-    isLiffInit,
-    userProfile,
-    isNewUser,
-    isPendingApproval,
-  ]);
+  }, [historyFilter, userProfile, activeTab]);
 
   useEffect(() => {
-    if (
-      showCheckpointModal &&
-      checkpointTab === "search" &&
-      googleMapsLoaded &&
-      autocompleteInputRef.current
-    ) {
-      const autocomplete = new window.google.maps.places.Autocomplete(
-        autocompleteInputRef.current,
-        {
-          fields: ["formatted_address", "geometry", "name"],
-        },
-      );
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (place.geometry && place.geometry.location) {
-          setCpData((prev) => ({
-            ...prev,
-            title:
-              place.name ||
-              place.formatted_address ||
-              "จุดแวะ (ไม่ได้ระบุชื่อ)",
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-          }));
-        }
-      });
+    if (userProfile && activeTab === "checkin") {
+      checkTodayStatus();
     }
-  }, [showCheckpointModal, checkpointTab, googleMapsLoaded]);
+  }, [userProfile, activeTab]);
 
-  const showToast = (
-    message: string,
-    type: "success" | "error" = "success",
-  ) => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
-  };
-
-  const fetchFavorites = async () => {
-    const { data } = await supabase
-      .from("saved_locations")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (data) setFavorites(data || []);
-  };
-
-  const checkTodayStatus = async () => {
-    setIsCheckingStatus(true);
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    const startOfDayStr = `${y}-${m}-${d}T00:00:00+07:00`;
-    const endOfDayStr = `${y}-${m}-${d}T23:59:59+07:00`;
-
-    const { data } = await supabase
-      .from("attendance_logs")
-      .select(`*, attendance_topics ( title, photo_mode )`)
-      .eq("user_id", userProfile.userId)
-      .gte("check_in_time", startOfDayStr)
-      .lte("check_in_time", endOfDayStr)
-      .order("check_in_time", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (data && !data.check_out_time) {
-      setTodayLog(data);
-      setCheckoutTopic(data.topic_id);
-    } else {
-      setTodayLog(null);
-    }
-    setIsCheckingStatus(false);
-  };
-
-  const fetchActiveTopics = async () => {
-    const todayStr = new Date().toISOString().split("T")[0];
+  // ==========================================
+  // ▶️ Data Fetching
+  // ==========================================
+  const fetchTopics = async () => {
     const { data } = await supabase
       .from("attendance_topics")
       .select("*")
       .eq("is_active", true)
-      .gte("end_date", todayStr)
-      .order("created_at", { ascending: false });
-
-    if (data && data.length > 0) {
-      const visibleTopics = data.filter((t) => {
-        if (t.team_type === "office" || t.team_type === "team_all") return true;
-        if (!t.allowed_users || t.allowed_users.length === 0) return true;
-        if (t.allowed_users && Array.isArray(t.allowed_users))
-          return t.allowed_users.includes(userProfile?.userId);
-        return false;
-      });
-      setTopics(visibleTopics);
-      if (
-        !selectedTopic ||
-        !visibleTopics.find((t) => t.id === selectedTopic)
-      ) {
-        if (visibleTopics.length > 0) setSelectedTopic(visibleTopics[0].id);
-      }
-    } else setTopics([]);
+      .order("title");
+    if (data) setTopics(data);
   };
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoPreview(URL.createObjectURL(file));
-      setPhotoFile(file);
+  const checkAndAddUser = async (profile: any) => {
+    let { data: user } = await supabase
+      .from("users")
+      .select("*")
+      .eq("line_user_id", profile.userId)
+      .single();
+    if (!user) {
+      const { data: newUser } = await supabase
+        .from("users")
+        .insert([
+          {
+            line_user_id: profile.userId,
+            full_name: profile.displayName,
+            picture_url: profile.pictureUrl,
+            role: "user",
+          },
+        ])
+        .select()
+        .single();
+      user = newUser;
+      setShowProfileSettings(true); // บังคับตั้งค่าชื่อถ้ามาครั้งแรก
+    } else if (!user.full_name || user.full_name === profile.displayName) {
+      setShowProfileSettings(true); // บังคับอัปเดตชื่อจริง
     }
+    setDbUser(user);
+    setProfileForm({
+      full_name: user?.full_name || "",
+      nickname: user?.nickname || "",
+    });
   };
 
-  const uploadPhoto = async () => {
-    if (!photoFile) return null;
-    const options = {
-      maxSizeMB: 0.1,
-      maxWidthOrHeight: 1024,
-      useWebWorker: true,
-    };
-    const compressedFile = await imageCompression(photoFile, options);
-    const fileName = `${userProfile.userId}_${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("attendance_photos")
-      .upload(fileName, compressedFile, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-    if (uploadError)
-      throw new Error(`อัพรูปล้มเหลว! กรุณาตรวจสอบสิทธิ์ของ Supabase Storage`);
-    return supabase.storage.from("attendance_photos").getPublicUrl(fileName)
-      .data.publicUrl;
-  };
-
-  const submitCheckpoint = async () => {
-    if (!cpData.title || cpData.lat === 0 || cpData.lng === 0) {
-      return showToast(
-        "กรุณาค้นหาและเลือกสถานที่จากแผนที่ หรือ สถานที่ประจำ",
-        "error",
-      );
-    }
-    setLoading(true);
-    try {
-      if (cpData.saveFavorite) {
-        const { data: existingFav } = await supabase
-          .from("saved_locations")
-          .select("id")
-          .eq("title", cpData.title);
-
-        if (existingFav && existingFav.length > 0) {
-          showToast("มีสถานที่ชื่อนี้ในระบบแล้ว จะใช้ข้อมูลเดิมครับ", "error");
-        } else {
-          await supabase.from("saved_locations").insert([
-            {
-              user_id: userProfile.userId,
-              title: cpData.title,
-              lat: cpData.lat,
-              lng: cpData.lng,
-            },
-          ]);
-          fetchFavorites();
-        }
-      }
-
-      const { error } = await supabase.from("attendance_checkpoints").insert([
-        {
-          log_id: todayLog.id,
-          lat: cpData.lat,
-          lng: cpData.lng,
-          note: `แวะจุด: ${cpData.title}`,
-        },
-      ]);
-      if (error) throw error;
-
-      showToast("บันทึกจุด Checkpoint เรียบร้อย!", "success");
-      setShowCheckpointModal(false);
-      setCpData({ title: "", lat: 0, lng: 0, saveFavorite: false });
-
-      const liff = (await import("@line/liff")).default;
-      if (liff.isInClient()) {
-        await liff.sendMessages([
-          { type: "text", text: `📍 แวะ Checkpoint: ${cpData.title}` },
-        ]);
-        liff.closeWindow();
-      }
-    } catch (err: any) {
-      showToast(err.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCheckIn = async () => {
-    if (!selectedTopic)
-      return showToast("กรุณาเลือกหัวข้องานก่อนครับ", "error");
-    const selectedTopicData = topics.find((t) => t.id === selectedTopic);
-    if (!selectedTopicData) return;
-    if (selectedTopicData.photo_mode !== "none" && !photoFile)
-      return showToast("กรุณาแนบรูปภาพเพื่อ Check-in ครับ", "error");
-
-    setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const accuracy = position.coords.accuracy;
-          if (accuracy > 150)
-            throw new Error(
-              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.)`,
-            );
-
-          if (
-            selectedTopicData.radius_meters > 0 &&
-            selectedTopicData.lat &&
-            selectedTopicData.lng
-          ) {
-            const distance = calculateDistance(
-              position.coords.latitude,
-              position.coords.longitude,
-              selectedTopicData.lat,
-              selectedTopicData.lng,
-            );
-            if (distance > selectedTopicData.radius_meters) {
-              throw new Error(
-                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
-              );
-            }
-          }
-          const uploadedPhotoUrl = await uploadPhoto();
-          const { data, error } = await supabase
-            .from("attendance_logs")
-            .insert([
-              {
-                user_id: userProfile.userId,
-                topic_id: selectedTopic,
-                check_in_lat: position.coords.latitude,
-                check_in_lng: position.coords.longitude,
-                photo_url: uploadedPhotoUrl,
-                status: "checked_in",
-              },
-            ])
-            .select()
-            .single();
-          if (error) throw error;
-          setCheckoutTopic(selectedTopic);
-          setTodayLog({ ...data, attendance_topics: selectedTopicData });
-          try {
-            const liff = (await import("@line/liff")).default;
-            if (liff.isInClient()) {
-              await liff.sendMessages([
-                { type: "text", text: "🕘 ลงชื่อเข้างาน" },
-              ]);
-              liff.closeWindow();
-            }
-          } catch (liffError) {
-            setTimeout(() => setActiveTab("history"), 1500);
-          }
-        } catch (err: any) {
-          showToast(err.message, "error");
-        } finally {
-          setLoading(false);
-        }
-      },
-      () => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
-        setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
-  };
-
-  const handleCheckOut = async () => {
-    if (!todayLog) return;
-    const finalTopicId = checkoutTopic || todayLog.topic_id;
-    const finalTopicData =
-      topics.find((t) => t.id === finalTopicId) || todayLog.attendance_topics;
-    if (finalTopicData.photo_mode !== "none" && !photoFile)
-      return showToast("กรุณาแนบรูปภาพเพื่อ Check-out ครับ", "error");
-
-    setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const accuracy = position.coords.accuracy;
-          if (accuracy > 150)
-            throw new Error(
-              `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.)`,
-            );
-          if (
-            finalTopicData.radius_meters > 0 &&
-            finalTopicData.lat &&
-            finalTopicData.lng
-          ) {
-            const distance = calculateDistance(
-              position.coords.latitude,
-              position.coords.longitude,
-              finalTopicData.lat,
-              finalTopicData.lng,
-            );
-            if (distance > finalTopicData.radius_meters)
-              throw new Error(
-                `ไม่อนุญาตให้ลงเวลา! ห่าง ${Math.ceil(distance)} ม.`,
-              );
-          }
-          const uploadedPhotoUrl = await uploadPhoto();
-          const { error } = await supabase
-            .from("attendance_logs")
-            .update({
-              topic_id: finalTopicId,
-              check_out_time: new Date().toISOString(),
-              check_out_lat: position.coords.latitude,
-              check_out_lng: position.coords.longitude,
-              check_out_photo_url: uploadedPhotoUrl,
-              status: "checked_out",
-            })
-            .eq("id", todayLog.id);
-          if (error) throw error;
-          try {
-            const liff = (await import("@line/liff")).default;
-            if (liff.isInClient()) {
-              await liff.sendMessages([
-                { type: "text", text: "🕕 ลงชื่อออกงาน" },
-              ]);
-              liff.closeWindow();
-            } else setTimeout(() => setActiveTab("history"), 1500);
-          } catch (liffError) {
-            setTimeout(() => setActiveTab("history"), 1500);
-          }
-        } catch (err: any) {
-          showToast(err.message, "error");
-        } finally {
-          setLoading(false);
-        }
-      },
-      () => {
-        showToast("ไม่สามารถดึงตำแหน่ง GPS ได้ กรุณาเปิด Location", "error");
-        setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
+  const checkTodayStatus = async () => {
+    if (!userProfile) return;
+    const today = new Date().toISOString().split("T")[0];
+    const { data } = await supabase
+      .from("attendance_logs")
+      .select("*")
+      .eq("user_id", userProfile.userId)
+      .gte("check_in_time", `${today}T00:00:00+07:00`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    setCurrentLog(data || null);
   };
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    const getThaiDateStr = (date: Date) => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    };
-
     let start = new Date();
     let end = new Date();
+
     if (historyFilter === "week") {
       const day = start.getDay();
       const diff = start.getDate() - day + (day === 0 ? -6 : 1);
       start.setDate(diff);
     } else if (historyFilter === "month") {
+      // 🌟 ตัดรอบวันที่ 21 ถึง 20
       const todayDate = start.getDate();
       if (todayDate <= 20) {
         start.setMonth(start.getMonth() - 1);
@@ -606,97 +205,245 @@ export default function CheckinPage() {
         end.setMonth(end.getMonth() + 1);
         end.setDate(20);
       }
-    } else if (historyFilter === "custom") {
-      start = new Date(customStartDate);
-      end = new Date(customEndDate);
     }
 
-    const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
-    const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
+    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}T00:00:00+07:00`;
+    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T23:59:59+07:00`;
+
+    // 🌟 ดึงข้อมูล Logs + Checkpoints พ่วงมาด้วย
     const { data } = await supabase
       .from("attendance_logs")
       .select(
         `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
-      ) // 🌟 ดึง Checkpoint ด้วย
+      )
       .eq("user_id", userProfile?.userId)
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
+
     if (data) setLogs(data);
     setLoadingHistory(false);
   };
 
-  const formatTime = (isoString: string) =>
-    isoString
-      ? new Date(isoString).toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }) + " น."
-      : "-";
-  const formatDate = (isoString: string) =>
-    new Date(isoString).toLocaleDateString("th-TH", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
+  // ==========================================
+  // ▶️ Actions (Save Profile, Geolocation, Actions)
+  // ==========================================
+  const showToastMsg = (
+    message: string,
+    type: "success" | "error" = "success",
+  ) => {
+    setToast({ show: true, message, type });
+    setTimeout(
+      () => setToast({ show: false, message: "", type: "success" }),
+      3000,
+    );
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!profileForm.full_name)
+      return showToastMsg("กรุณากรอกชื่อ-นามสกุล", "error");
+    setUpdatingProfile(true);
+    await supabase
+      .from("users")
+      .update({
+        full_name: profileForm.full_name,
+        nickname: profileForm.nickname,
+      })
+      .eq("line_user_id", userProfile.userId);
+    setDbUser({ ...dbUser, ...profileForm });
+    showToastMsg("บันทึกข้อมูลสำเร็จ");
+    setShowProfileSettings(false);
+    setUpdatingProfile(false);
+  };
+
+  const getLocation = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) reject("Browser not support");
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+      });
     });
+  };
+
+  // ==========================================
+  // ▶️ Check-in / Check-out / Checkpoint
+  // ==========================================
+  const handleCheckIn = async () => {
+    if (!selectedTopic) return showToastMsg("กรุณาเลือกหัวข้องาน", "error");
+    setLoading(true);
+    try {
+      const pos = await getLocation();
+      const topicDetails = topics.find((t) => t.id === selectedTopic);
+      const inTime = new Date().toISOString();
+      const locStr = `พิกัด: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+
+      const { data, error } = await supabase
+        .from("attendance_logs")
+        .insert([
+          {
+            user_id: userProfile.userId,
+            topic_id: selectedTopic,
+            shift: shift,
+            check_in_time: inTime,
+            check_in_lat: pos.coords.latitude,
+            check_in_lng: pos.coords.longitude,
+            photo_url: photo || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      showToastMsg("ลงชื่อเข้างานสำเร็จ");
+      checkTodayStatus();
+      setPhoto(null);
+
+      // ส่งข้อความ Flex Message
+      const liff = (await import("@line/liff")).default;
+      if (liff.isInClient()) {
+        const dStr = formatThaiDate(inTime);
+        const tStr = formatTime(inTime);
+        const flex = getAttendanceMessage(
+          true,
+          {
+            shift: shift,
+            date: dStr,
+            team: topicDetails?.team_type || "-",
+            topic: topicDetails?.title || "-",
+            inTime: tStr,
+            inLocation: topicDetails?.title || locStr,
+            outTime: "",
+            outLocation: "",
+          },
+          `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?action=checkin`,
+        );
+
+        await liff.sendMessages([flex as any]);
+        setTimeout(() => liff.closeWindow(), 1000);
+      }
+    } catch (err) {
+      showToastMsg("เกิดข้อผิดพลาดในการลงเวลา", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddCheckpoint = async () => {
+    if (!currentLog) return;
+    setLoading(true);
+    try {
+      const pos = await getLocation();
+      const cpTime = new Date().toISOString();
+
+      const { error } = await supabase.from("attendance_checkpoints").insert([
+        {
+          log_id: currentLog.id,
+          checkpoint_time: cpTime,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          note: `แวะจุด: ${cpNote || "จุดแวะทำงาน"}`,
+        },
+      ]);
+
+      if (error) throw error;
+      showToastMsg("บันทึกจุดแวะสำเร็จ");
+      setShowCpModal(false);
+      setCpNote("");
+    } catch (err) {
+      showToastMsg("เกิดข้อผิดพลาดในการบันทึกจุดแวะ", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!currentLog) return;
+    setLoading(true);
+    try {
+      const pos = await getLocation();
+      const outTime = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("attendance_logs")
+        .update({
+          check_out_time: outTime,
+          check_out_lat: pos.coords.latitude,
+          check_out_lng: pos.coords.longitude,
+        })
+        .eq("id", currentLog.id);
+
+      if (error) throw error;
+      showToastMsg("ลงเวลาออกงานสำเร็จ");
+      checkTodayStatus();
+
+      // ส่งข้อความ Flex Message
+      const liff = (await import("@line/liff")).default;
+      if (liff.isInClient()) {
+        const { data: fullLog } = await supabase
+          .from("attendance_logs")
+          .select("*, attendance_topics(title, team_type)")
+          .eq("id", currentLog.id)
+          .single();
+        const dStr = formatThaiDate(fullLog.check_in_time);
+        const flex = getAttendanceMessage(
+          false,
+          {
+            shift: fullLog.shift || "เช้า",
+            date: dStr,
+            team: fullLog.attendance_topics?.team_type || "-",
+            topic: fullLog.attendance_topics?.title || "-",
+            inTime: formatTime(fullLog.check_in_time),
+            inLocation: fullLog.attendance_topics?.title || "-",
+            outTime: formatTime(outTime),
+            outLocation: fullLog.attendance_topics?.title || "-",
+          },
+          "",
+        );
+
+        await liff.sendMessages([flex as any]);
+        setTimeout(() => liff.closeWindow(), 1000);
+      }
+    } catch (err) {
+      showToastMsg("เกิดข้อผิดพลาดในการลงเวลาออก", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+  // ▶️ Format Helpers
+  // ==========================================
+  const formatTime = (isoStr: string) => {
+    if (!isoStr) return "-";
+    return new Date(isoStr).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+  const formatThaiDate = (isoStr: string) => {
+    if (!isoStr) return "-";
+    return new Date(isoStr).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   if (!isLiffInit) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-bold text-gray-500">กำลังตรวจสอบสิทธิ์...</p>
+      <div className="min-h-screen flex justify-center items-center">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
       </div>
     );
   }
-
-  if (isNewUser || showProfileSettings) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
-        <ProfileSettings
-          profile={userProfile}
-          dbUser={dbUser}
-          isNewUser={isNewUser}
-          setShowProfileSettings={setShowProfileSettings}
-          supabase={supabase}
-          onSaveSuccess={(updated: any) => {
-            setDbUser(updated);
-            setIsNewUser(false);
-            setShowProfileSettings(false);
-            if (updated.is_active === false) setIsPendingApproval(true);
-          }}
-        />
-      </div>
-    );
-  }
-
-  if (isPendingApproval) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
-        <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
-          <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-orange-100 shadow-sm">
-            <Clock className="w-12 h-12 text-orange-500 animate-pulse" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-800 mb-3">
-            รอการอนุมัติ
-          </h2>
-          <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto mb-8">
-            ข้อมูลถูกบันทึกแล้ว
-            กรุณารอผู้ดูแลระบบตรวจสอบและเปิดสิทธิ์การใช้งานครับ
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const currentTopic = todayLog
-    ? topics.find((t) => t.id === checkoutTopic) || todayLog.attendance_topics
-    : topics.find((t) => t.id === selectedTopic);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans pb-10">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-20">
+      {/* 🔴 Toast */}
       {toast.show && (
         <div
-          className={`fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] flex items-start gap-3 border shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
+          className={`fixed top-4 left-4 right-4 md:w-96 z-[110] flex items-start gap-3 border shadow-2xl px-4 py-4 rounded-2xl animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === "success" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
         >
           {toast.type === "success" ? (
             <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" />
@@ -707,572 +454,107 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal Checkpoint */}
-      {showCheckpointModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-gray-900/40 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 flex flex-col max-h-[85vh]">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                <MapPinHouse className="w-5 h-5 text-blue-500" /> แวะจุด
-                Checkpoint
-              </h3>
-              <button
-                onClick={() => setShowCheckpointModal(false)}
-                className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="flex px-4 pt-3 gap-2 bg-white sticky top-[65px] z-10">
-              <button
-                onClick={() => setCheckpointTab("search")}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${checkpointTab === "search" ? "bg-blue-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-              >
-                <Search className="w-3.5 h-3.5 inline mr-1" /> ค้นหาแผนที่
-              </button>
-              <button
-                onClick={() => setCheckpointTab("favorites")}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${checkpointTab === "favorites" ? "bg-blue-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-              >
-                <Star className="w-3.5 h-3.5 inline mr-1" /> สถานที่ประจำ
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
-              {checkpointTab === "search" ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                  <div className="relative">
-                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      ref={autocompleteInputRef}
-                      placeholder="พิมพ์ชื่อสถานที่เพื่อค้นหา..."
-                      className="w-full bg-white border border-gray-300 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
-                    />
-                  </div>
-                  {cpData.title && (
-                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-start gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 mb-0.5">
-                          พิกัดที่เลือก
-                        </p>
-                        <p className="text-sm font-bold text-blue-900 leading-snug">
-                          {cpData.title}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 text-sm font-bold text-orange-600 bg-orange-50 p-3 rounded-xl border border-orange-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={cpData.saveFavorite}
-                      onChange={(e) =>
-                        setCpData({ ...cpData, saveFavorite: e.target.checked })
-                      }
-                      className="w-4 h-4 accent-orange-600"
-                    />
-                    <Star className="w-4 h-4" /> บันทึกเป็นสถานที่ประจำ
-                  </label>
-                </div>
-              ) : (
-                <div className="space-y-3 animate-in fade-in slide-in-from-left-4">
-                  {favorites.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400">
-                      <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-xs font-bold">ยังไม่มีสถานที่ประจำ</p>
-                    </div>
-                  ) : (
-                    favorites.map((fav) => (
-                      <button
-                        key={fav.id}
-                        onClick={() =>
-                          setCpData({
-                            title: fav.title,
-                            lat: fav.lat,
-                            lng: fav.lng,
-                            saveFavorite: false,
-                          })
-                        }
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between group ${cpData.title === fav.title ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-blue-200"}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${cpData.title === fav.title ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-500"}`}
-                          >
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p
-                              className={`text-sm font-bold ${cpData.title === fav.title ? "text-blue-900" : "text-gray-800"}`}
-                            >
-                              {fav.title}
-                            </p>
-                          </div>
-                        </div>
-                        {cpData.title === fav.title && (
-                          <CheckCircle2 className="w-5 h-5 text-blue-500" />
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 z-10">
-              <button
-                onClick={submitCheckpoint}
-                disabled={loading || !cpData.title}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-transform active:scale-95 shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <MapPinHouse className="w-5 h-5" /> ยืนยันบันทึกจุด
-                    Checkpoint
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
-        <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            <h1 className="font-bold text-lg">ST PLUS SYSTEM</h1>
-          </div>
-          {userProfile && (
-            <div className="flex items-center gap-2 bg-black/20 py-1.5 px-3 rounded-full backdrop-blur-sm">
-              <span className="text-xs font-bold truncate max-w-[100px]">
-                {userProfile.displayName}
-              </span>
-              <img
-                src={userProfile.pictureUrl}
-                alt="profile"
-                className="w-6 h-6 rounded-full border border-white/50"
-              />
-            </div>
-          )}
-        </div>
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab("checkin")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "checkin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
-          >
-            <MapPin className="w-4 h-4" /> ลงเวลาทำงาน
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
-          >
-            <History className="w-4 h-4" /> ประวัติของฉัน
-          </button>
-        </div>
-      </div>
-
-      {/* TAB 1: ลงเวลา */}
-      {activeTab === "checkin" && (
-        <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-left-4 duration-300">
-          {isCheckingStatus ? (
-            <div className="py-10 flex justify-center">
-              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            </div>
-          ) : todayLog ? (
-            <div className="bg-white rounded-3xl shadow-sm border border-red-100 overflow-hidden ring-1 ring-red-50">
-              <div className="bg-red-50 p-6 border-b border-red-100 flex flex-col items-center text-center relative overflow-hidden">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-red-500 relative z-10">
-                  <Clock className="w-8 h-8" />
-                </div>
-                <h2 className="text-red-800 font-bold text-lg relative z-10">
-                  กำลังปฏิบัติงาน
-                </h2>
-                <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-red-100 text-sm font-bold text-gray-700 shadow-sm relative z-10">
-                  เข้างานเวลา:{" "}
-                  <span className="text-red-600">
-                    {formatTime(todayLog.check_in_time)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-5 bg-blue-50 border-b border-blue-100">
-                <button
-                  onClick={() => setShowCheckpointModal(true)}
-                  className="w-full bg-white border-2 border-blue-500 text-blue-600 hover:bg-blue-600 hover:text-white font-bold py-3.5 px-4 rounded-2xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-sm"
-                >
-                  <MapPinHouse className="h-5 w-5" /> 📍 แวะจุด Checkpoint
-                  ระหว่างวัน
-                </button>
-              </div>
-
-              <div className="p-6 pb-2 border-b border-gray-100">
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
-                  <LogOut className="h-5 w-5 text-red-500" />{" "}
-                  เลือกสถานที่จบงานวันนี้
+      {/* 🌟 Modal 1: ตั้งค่าโปรไฟล์ */}
+      {showProfileSettings && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-blue-600" /> ข้อมูลส่วนตัวของคุณ
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">
+              กรุณาตรวจสอบและอัปเดตชื่อ-นามสกุลจริง เพื่อใช้ในระบบของบริษัทครับ
+            </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">
+                  ชื่อ-นามสกุล (ภาษาไทย) <span className="text-red-500">*</span>
                 </label>
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                  {topics.map((topic) => (
-                    <label
-                      key={topic.id}
-                      className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${checkoutTopic === topic.id ? "border-red-500 bg-red-50" : "border-gray-100 hover:border-red-200 hover:bg-gray-50"}`}
-                    >
-                      <input
-                        type="radio"
-                        className="hidden"
-                        checked={checkoutTopic === topic.id}
-                        onChange={() => setCheckoutTopic(topic.id)}
-                      />
-                      <div
-                        className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${checkoutTopic === topic.id ? "border-red-500" : "border-gray-300"}`}
-                      >
-                        {checkoutTopic === topic.id && (
-                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        )}
-                      </div>
-                      <div className="flex-1 truncate">
-                        <p
-                          className={`text-sm font-bold truncate ${checkoutTopic === topic.id ? "text-red-900" : "text-gray-700"}`}
-                        >
-                          {topic.title}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {currentTopic && currentTopic.photo_mode !== "none" && (
-                <div className="p-6">
-                  <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
-                    <Camera className="h-5 w-5 text-red-500" />{" "}
-                    ถ่ายรูปก่อนออกงาน <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    capture={
-                      currentTopic.photo_mode === "camera"
-                        ? "environment"
-                        : undefined
-                    }
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                  {photoPreview ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 aspect-video flex items-center justify-center">
-                      <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="max-h-full object-contain"
-                      />
-                      <button
-                        onClick={() => {
-                          setPhotoFile(null);
-                          setPhotoPreview(null);
-                        }}
-                        className="absolute top-2 right-2 bg-gray-900/60 text-white p-2 rounded-full"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full bg-red-50 border-2 border-dashed border-red-300 text-red-700 rounded-2xl p-8 flex flex-col items-center"
-                    >
-                      {currentTopic.photo_mode === "camera" ? (
-                        <>
-                          <Camera className="w-8 h-8 mb-2" />
-                          <span className="font-bold text-sm">
-                            กดเพื่อเปิดกล้อง
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus className="w-8 h-8 mb-2" />
-                          <span className="font-bold text-sm">
-                            กดเพื่อเลือกรูปภาพ
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="p-6 bg-gray-50 border-t border-gray-100">
-                <button
-                  onClick={handleCheckOut}
-                  disabled={loading}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-4 rounded-2xl transition-transform active:scale-95 flex justify-center items-center gap-2 shadow-lg disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      กำลังบันทึก...
-                    </div>
-                  ) : (
-                    <>
-                      <LogOut className="h-5 w-5" /> ลงเวลาออกงาน (Check-out)
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6">
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
-                  <CalendarDays className="h-5 w-5 text-blue-500" />{" "}
-                  เลือกหัวข้องานวันนี้
-                </label>
-                {topics.length === 0 ? (
-                  <div className="text-sm text-gray-500 bg-gray-50 p-6 rounded-2xl border border-gray-100 text-center">
-                    <XCircle className="w-8 h-8 text-gray-300 mb-2 mx-auto" />
-                    <p className="font-bold text-gray-600">
-                      ไม่มีหัวข้องานที่เปิดอยู่
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {topics.map((topic) => (
-                      <label
-                        key={topic.id}
-                        className={`flex items-start p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedTopic === topic.id ? "border-blue-600 bg-blue-50" : "border-gray-100 hover:border-blue-200"}`}
-                      >
-                        <input
-                          type="radio"
-                          className="hidden"
-                          checked={selectedTopic === topic.id}
-                          onChange={() => setSelectedTopic(topic.id)}
-                        />
-                        <div
-                          className={`mt-0.5 shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 ${selectedTopic === topic.id ? "border-blue-600" : "border-gray-300"}`}
-                        >
-                          {selectedTopic === topic.id && (
-                            <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p
-                            className={`text-sm font-bold ${selectedTopic === topic.id ? "text-blue-900" : "text-gray-900"}`}
-                          >
-                            {topic.title}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />{" "}
-                              {topic.start_time.substring(0, 5)} -{" "}
-                              {topic.end_time.substring(0, 5)} น.
-                            </span>
-                            {topic.team_type !== "office" && (
-                              <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">
-                                ไซต์:{" "}
-                                {teamLabels[topic.team_type] || topic.team_type}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {currentTopic && currentTopic.photo_mode !== "none" && (
-                <div className="px-6 pb-6">
-                  <hr className="border-gray-100 mb-6" />
-                  <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-4">
-                    <Camera className="h-5 w-5 text-blue-500" />{" "}
-                    ถ่ายรูปเพื่อยืนยัน <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    capture={
-                      currentTopic.photo_mode === "camera"
-                        ? "environment"
-                        : undefined
-                    }
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                  {photoPreview ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 aspect-video flex items-center justify-center">
-                      <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="max-h-full object-contain"
-                      />
-                      <button
-                        onClick={() => {
-                          setPhotoFile(null);
-                          setPhotoPreview(null);
-                        }}
-                        className="absolute top-2 right-2 bg-gray-900/60 text-white p-2 rounded-full"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full bg-blue-50 border-2 border-dashed border-blue-300 text-blue-700 rounded-2xl p-8 flex flex-col items-center"
-                    >
-                      {currentTopic.photo_mode === "camera" ? (
-                        <>
-                          <Camera className="w-8 h-8 mb-2" />
-                          <span className="font-bold text-sm">
-                            กดเพื่อเปิดกล้อง
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus className="w-8 h-8 mb-2" />
-                          <span className="font-bold text-sm">
-                            กดเพื่อเลือกรูปภาพ
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
-              <div className="p-6 bg-gray-50 border-t border-gray-100">
-                <button
-                  onClick={handleCheckIn}
-                  disabled={loading || topics.length === 0}
-                  className="w-full bg-[#1e293b] hover:bg-black text-white font-bold py-4 px-4 rounded-2xl transition-transform active:scale-95 flex justify-center items-center gap-2 shadow-lg disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      กำลังบันทึก...
-                    </div>
-                  ) : (
-                    <>
-                      <Navigation className="h-5 w-5" /> ลงเวลาเข้างาน
-                      (Check-in)
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: ประวัติ */}
-      {activeTab === "history" && (
-        <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
-            {["today", "week", "month", "custom"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setHistoryFilter(f as any)}
-                className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === f ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
-              >
-                {f === "today"
-                  ? "วันนี้"
-                  : f === "week"
-                    ? "สัปดาห์นี้"
-                    : f === "month"
-                      ? "รอบเดือน"
-                      : "กำหนดเอง"}
-              </button>
-            ))}
-          </div>
-          {historyFilter === "custom" && (
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 flex gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500 font-bold mb-1">
-                  ตั้งแต่
-                </p>
                 <input
-                  type="date"
-                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none bg-gray-50"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  type="text"
+                  value={profileForm.full_name}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      full_name: e.target.value,
+                    })
+                  }
+                  className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="เช่น สมชาย ใจดี"
                 />
               </div>
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-500 font-bold mb-1">ถึง</p>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">
+                  ชื่อเล่น (ไม่บังคับ)
+                </label>
                 <input
-                  type="date"
-                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none bg-gray-50"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  type="text"
+                  value={profileForm.nickname}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, nickname: e.target.value })
+                  }
+                  className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="เช่น บอย"
                 />
               </div>
             </div>
-          )}
-          {loadingHistory ? (
-            <div className="py-10 flex flex-col items-center justify-center text-gray-400">
-              <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
-              <p className="text-sm font-bold">กำลังโหลด...</p>
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center">
-              <p className="font-bold text-gray-600">ไม่มีประวัติการลงเวลา</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {logs.map((log) => (
-                <div
-                  key={log.id}
-                  onClick={() => setSelectedLog(log)}
-                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300"
+            <div className="flex gap-2">
+              {dbUser?.full_name && (
+                <button
+                  onClick={() => setShowProfileSettings(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
                 >
-                  <div className="flex items-center gap-3">
-                    {log.photo_url ? (
-                      <img
-                        src={log.photo_url}
-                        alt="Check-in"
-                        className="w-12 h-12 rounded-xl object-cover border border-gray-200"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-sm mb-1">
-                        {log.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
-                      </h3>
-                      <div className="text-xs text-gray-500">
-                        <CalendarIcon className="w-3 h-3 inline pb-0.5" />{" "}
-                        {formatDate(log.check_in_time)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0 flex flex-col items-end justify-center">
-                    <p className="text-[10px] font-bold text-green-600 uppercase mb-0.5">
-                      เข้า: {formatTime(log.check_in_time)}
-                    </p>
-                    <p className="text-[10px] font-bold text-red-500 uppercase mb-2">
-                      ออก:{" "}
-                      {log.check_out_time
-                        ? formatTime(log.check_out_time)
-                        : "ยังไม่ลงชื่อ"}
-                    </p>
-                    <button className="text-[10px] bg-gray-50 text-gray-500 font-bold px-2.5 py-1 rounded-md border border-gray-200">
-                      ดูรายละเอียด
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  ปิด
+                </button>
+              )}
+              <button
+                onClick={handleUpdateProfile}
+                disabled={updatingProfile}
+                className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-blue-700"
+              >
+                {updatingProfile ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
+      {/* 🌟 Modal 2: เพิ่มจุดแวะ */}
+      {showCpModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-600" /> เช็คอินจุดแวะทำงาน
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">
+              ระบุชื่อสถานที่ หรือ จุดที่แวะปฏิบัติงานระหว่างวัน
+            </p>
+            <input
+              type="text"
+              value={cpNote}
+              onChange={(e) => setCpNote(e.target.value)}
+              className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-6"
+              placeholder="เช่น มหาวิทยาลัยธรรมศาสตร์..."
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCpModal(false)}
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleAddCheckpoint}
+                disabled={loading || !cpNote}
+                className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                บันทึกจุดแวะ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Modal 3: รายละเอียดประวัติ (อัปเกรดแผนที่ + รูปกล้อง + เรียงบรรทัดใหม่) */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -1287,7 +569,9 @@ export default function CheckinPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
+              {/* รูปถ่าย */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อ
@@ -1295,78 +579,418 @@ export default function CheckinPage() {
                 {selectedLog.photo_url ? (
                   <img
                     src={selectedLog.photo_url}
-                    className="w-full rounded-2xl aspect-video object-cover border border-gray-200"
+                    className="w-full rounded-2xl aspect-video object-cover border border-gray-200 shadow-sm"
                   />
                 ) : (
-                  <div className="w-full aspect-video bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 text-sm font-bold">
-                    ไม่มีรูปภาพ
+                  <div className="w-full aspect-video bg-gray-50 rounded-2xl flex flex-col items-center justify-center border border-dashed border-gray-300">
+                    <Camera className="w-12 h-12 text-gray-300 mb-2" />
+                    <span className="text-sm font-bold text-gray-400">
+                      ไม่มีรูปภาพ
+                    </span>
                   </div>
                 )}
               </div>
-              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
-                <div>
-                  <p className="text-xs font-bold text-gray-500 mb-1">
+
+              {/* รายละเอียดเข้า-ออก-จุดแวะ */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-4 shadow-inner">
+                {/* หัวข้องาน */}
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                  <p className="text-[10px] font-bold text-gray-500 mb-0.5 flex items-center gap-1">
                     📍 หัวข้องาน
                   </p>
                   <p className="text-sm font-bold text-gray-900">
                     {selectedLog.attendance_topics?.title || "-"}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 mb-1">
-                      🟢 เวลาเข้า
-                    </p>
-                    <p className="text-sm font-bold text-green-600">
-                      {formatTime(selectedLog.check_in_time)}
-                    </p>
+
+                <div className="space-y-3">
+                  {/* บรรทัดที่ 1: เข้างาน */}
+                  <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-green-100 shadow-sm">
+                    <div className="flex-1 pr-2 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0"></div>
+                        <span className="text-xs font-bold text-gray-600 truncate">
+                          ลงชื่อเข้างาน
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-green-600">
+                        {formatTime(selectedLog.check_in_time)}
+                      </p>
+                    </div>
+                    {selectedLog.check_in_lat && selectedLog.check_in_lng && (
+                      <a
+                        href={`https://maps.google.com/?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex shrink-0 items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
+                      >
+                        <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
+                      </a>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 mb-1">
-                      🔴 เวลาออก
+
+                  {/* บรรทัดกลาง: จุดแวะ */}
+                  {selectedLog.attendance_checkpoints &&
+                    selectedLog.attendance_checkpoints.length > 0 &&
+                    selectedLog.attendance_checkpoints
+                      .sort(
+                        (a: any, b: any) =>
+                          new Date(a.checkpoint_time).getTime() -
+                          new Date(b.checkpoint_time).getTime(),
+                      )
+                      .map((cp: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm ml-6 relative"
+                        >
+                          <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-dashed border-gray-300"></div>
+                          <div className="flex-1 pr-2 min-w-0">
+                            <div className="flex items-start gap-1.5 mb-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1"></div>
+                              <span className="text-xs font-bold text-gray-600 line-clamp-2">
+                                {cp.note
+                                  ? cp.note.replace("แวะจุด: ", "")
+                                  : "จุดแวะ"}
+                              </span>
+                            </div>
+                            <p className="text-lg font-black text-blue-600">
+                              {formatTime(cp.checkpoint_time)}
+                            </p>
+                          </div>
+                          {cp.lat && cp.lng && (
+                            <a
+                              href={`https://maps.google.com/?q=${cp.lat},${cp.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex shrink-0 items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
+                            >
+                              <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
+                            </a>
+                          )}
+                        </div>
+                      ))}
+
+                  {/* บรรทัดสุดท้าย: ออกงาน */}
+                  <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-red-100 shadow-sm">
+                    <div className="flex-1 pr-2 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></div>
+                        <span className="text-xs font-bold text-gray-600 truncate">
+                          ลงชื่อออกงาน
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-red-500">
+                        {selectedLog.check_out_time
+                          ? formatTime(selectedLog.check_out_time)
+                          : "ยังไม่ได้ลงชื่อ"}
+                      </p>
+                    </div>
+                    {selectedLog.check_out_lat && selectedLog.check_out_lng && (
+                      <a
+                        href={`https://maps.google.com/?q=${selectedLog.check_out_lat},${selectedLog.check_out_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex shrink-0 items-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-[11px] font-bold border border-red-100 transition-colors shadow-sm"
+                      >
+                        <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 หน้าเมนูหลัก (Portal Dashboard) */}
+      {activeTab === "menu" && (
+        <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-300">
+          <div className="mb-10 text-center space-y-3">
+            <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-blue-600/20 mb-4">
+              <Clock className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+              ST PLUS SYSTEM
+            </h2>
+            <p className="text-sm font-bold text-gray-500">
+              สวัสดี,{" "}
+              <span className="text-blue-600">
+                {dbUser?.full_name || userProfile?.displayName || "พนักงาน"}
+              </span>{" "}
+              👋
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+            <button
+              onClick={() => setActiveTab("checkin")}
+              className="bg-white p-6 rounded-[24px] shadow-sm border border-gray-100 flex flex-col items-center gap-4 hover:border-blue-300 hover:shadow-md transition-all active:scale-95"
+            >
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <span className="font-bold text-gray-800 text-sm">ลงเวลางาน</span>
+            </button>
+
+            <button
+              onClick={() => (window.location.href = "/leave")}
+              className="bg-white p-6 rounded-[24px] shadow-sm border border-gray-100 flex flex-col items-center gap-4 hover:border-orange-300 hover:shadow-md transition-all active:scale-95"
+            >
+              <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center">
+                <CalendarRange className="w-6 h-6" />
+              </div>
+              <span className="font-bold text-gray-800 text-sm">ระบบลางาน</span>
+            </button>
+
+            <button
+              onClick={() => setShowProfileSettings(true)}
+              className="col-span-2 bg-white p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center justify-center gap-3 hover:border-purple-300 hover:shadow-md transition-all active:scale-95"
+            >
+              <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center shrink-0">
+                <UserCog className="w-5 h-5" />
+              </div>
+              <span className="font-bold text-gray-800 text-sm">
+                ข้อมูลส่วนตัว / ตั้งค่า
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Header สำหรับหน้าลงเวลา / ประวัติ */}
+      {(activeTab === "checkin" || activeTab === "history") && (
+        <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+          <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab("menu")}
+                className="bg-black/20 hover:bg-black/30 p-1.5 rounded-full backdrop-blur-sm transition-colors mr-1"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <Clock className="w-5 h-5" />
+              <h1 className="font-bold text-lg">ST PLUS</h1>
+            </div>
+            {userProfile && (
+              <button
+                onClick={() => setShowProfileSettings(true)}
+                className="flex items-center gap-2 bg-black/20 hover:bg-black/30 py-1.5 px-3 rounded-full backdrop-blur-sm transition-colors active:scale-95"
+              >
+                <span className="text-xs font-bold truncate max-w-[100px]">
+                  {dbUser?.full_name || userProfile.displayName}
+                </span>
+                <img
+                  src={userProfile.pictureUrl}
+                  alt="profile"
+                  className="w-6 h-6 rounded-full border border-white/50 shadow-sm"
+                />
+              </button>
+            )}
+          </div>
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab("checkin")}
+              className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "checkin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+            >
+              <MapPin className="w-4 h-4" /> ลงเวลาทำงาน
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+            >
+              <History className="w-4 h-4" /> ประวัติของฉัน
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 เนื้อหาหลัก: ลงเวลาทำงาน */}
+      {activeTab === "checkin" && (
+        <div className="p-4 md:p-6 max-w-lg w-full mx-auto space-y-4 animate-in fade-in slide-in-from-right-4">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">
+            <label className="text-xs font-bold text-gray-500 block mb-2">
+              📌 เลือกหัวข้องาน / ทีมที่ทำ
+            </label>
+            <select
+              value={selectedTopic}
+              onChange={(e) => setSelectedTopic(e.target.value)}
+              disabled={currentLog !== null}
+              className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700 disabled:bg-gray-100 disabled:opacity-70"
+            >
+              <option value="">-- กรุณาเลือกหัวข้องาน --</option>
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title} ({t.team_type})
+                </option>
+              ))}
+            </select>
+
+            <label className="text-xs font-bold text-gray-500 block mt-4 mb-2">
+              ⏰ เลือกกะการทำงาน
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {["เช้า", "บ่าย", "ดึก"].map((s) => (
+                <button
+                  key={s}
+                  disabled={currentLog !== null}
+                  onClick={() => setShift(s)}
+                  className={`py-2 rounded-xl text-sm font-bold border transition-colors ${shift === s ? "bg-blue-50 border-blue-500 text-blue-700" : "border-gray-200 text-gray-500"} disabled:opacity-50`}
+                >
+                  กะ{s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 text-center">
+            {currentLog ? (
+              !currentLog.check_out_time ? (
+                <div className="space-y-4">
+                  <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-2 border-4 border-green-100">
+                    <CheckCircle2 className="w-10 h-10 text-green-500" />
+                  </div>
+                  <h2 className="text-xl font-black text-gray-900">
+                    ลงชื่อเข้างานแล้ว
+                  </h2>
+                  <p className="text-sm text-gray-500 font-bold bg-gray-50 p-3 rounded-xl">
+                    เข้างานเวลา:{" "}
+                    <span className="text-blue-600">
+                      {formatTime(currentLog.check_in_time)} น.
+                    </span>
+                  </p>
+
+                  <button
+                    onClick={() => setShowCpModal(true)}
+                    disabled={loading}
+                    className="w-full bg-blue-50 text-blue-600 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-blue-200 hover:bg-blue-100 transition-colors"
+                  >
+                    <MapPin className="w-5 h-5" /> แวะจุดปฏิบัติงาน
+                    (เช็คอินระหว่างทาง)
+                  </button>
+
+                  <button
+                    onClick={handleCheckOut}
+                    disabled={loading}
+                    className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-red-700 transition-colors"
+                  >
+                    {loading ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <LogOut className="w-5 h-5" /> ลงเวลาออกงาน
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="py-6 space-y-3">
+                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <h2 className="text-lg font-black text-gray-700">
+                    ลงเวลาครบถ้วนแล้ว
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    สำหรับวันนี้คุณได้ลงเวลาเข้าและออกเรียบร้อยแล้วครับ
+                  </p>
+                </div>
+              )
+            ) : (
+              <button
+                onClick={handleCheckIn}
+                disabled={loading}
+                className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95"
+              >
+                {loading ? (
+                  <RefreshCw className="w-6 h-6 animate-spin" />
+                ) : (
+                  <>
+                    <MapPin className="w-6 h-6" /> ลงเวลาเข้างาน
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 เนื้อหาหลัก: ประวัติการลงเวลา */}
+      {activeTab === "history" && (
+        <div className="p-4 md:p-6 max-w-lg w-full mx-auto space-y-4 animate-in fade-in slide-in-from-right-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex">
+            <button
+              onClick={() => setHistoryFilter("week")}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${historyFilter === "week" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              สัปดาห์นี้
+            </button>
+            <button
+              onClick={() => setHistoryFilter("month")}
+              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              รอบเดือนนี้
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {loadingHistory ? (
+              <div className="text-center py-10">
+                <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto" />
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="bg-white rounded-3xl p-10 text-center border border-gray-100 shadow-sm">
+                <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm font-bold text-gray-500">
+                  ไม่พบประวัติการลงเวลา
+                </p>
+              </div>
+            ) : (
+              logs.map((log) => (
+                <div
+                  key={log.id}
+                  onClick={() => setSelectedLog(log)}
+                  className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-pointer hover:border-blue-300 transition-colors active:scale-95"
+                >
+                  {log.photo_url ? (
+                    <img
+                      src={log.photo_url}
+                      className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center shrink-0 border border-gray-200">
+                      <Camera className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 text-sm truncate">
+                      {log.attendance_topics?.title || "ไม่ระบุหัวข้องาน"}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {formatThaiDate(log.check_in_time)}
                     </p>
-                    <p className="text-sm font-bold text-red-500">
-                      {selectedLog.check_out_time
-                        ? formatTime(selectedLog.check_out_time)
-                        : "ยังไม่ได้ลงชื่อ"}
+                    {log.attendance_checkpoints &&
+                      log.attendance_checkpoints.length > 0 && (
+                        <div className="mt-1.5 inline-flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-blue-100">
+                          <MapPin className="w-3 h-3" /> แวะ{" "}
+                          {log.attendance_checkpoints.length} จุด
+                        </div>
+                      )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] font-bold text-green-600 mb-0.5">
+                      เข้า {formatTime(log.check_in_time)}
+                    </p>
+                    <p className="text-[11px] font-bold text-red-500">
+                      ออก{" "}
+                      {log.check_out_time
+                        ? formatTime(log.check_out_time)
+                        : "-"}
                     </p>
                   </div>
                 </div>
-
-                {/* 🌟 แสดงจุด Checkpoint ในหน้าประวัติ */}
-                {selectedLog.attendance_checkpoints &&
-                  selectedLog.attendance_checkpoints.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <p className="text-xs font-bold text-gray-500 border-t border-gray-200 pt-3">
-                        📍 จุดแวะระหว่างวัน
-                      </p>
-                      <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 space-y-2.5">
-                        {selectedLog.attendance_checkpoints
-                          .sort(
-                            (a: any, b: any) =>
-                              new Date(a.checkpoint_time).getTime() -
-                              new Date(b.checkpoint_time).getTime(),
-                          )
-                          .map((cp: any, idx: number) => (
-                            <div key={idx} className="flex items-start gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
-                              <div>
-                                <p className="text-xs font-bold text-blue-900">
-                                  {cp.note
-                                    ? cp.note.replace("แวะจุด: ", "")
-                                    : "จุดแวะ"}
-                                </p>
-                                <p className="text-[10px] text-blue-600">
-                                  {formatTime(cp.checkpoint_time)}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
       )}
