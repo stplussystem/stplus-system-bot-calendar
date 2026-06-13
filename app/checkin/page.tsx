@@ -1323,7 +1323,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal รายละเอียดประวัติ (อัปเกรดแสดงแผนที่และจุด Checkpoint) */}
+      {/* 🌟 Modal รายละเอียดประวัติ (อัปเกรดแผนที่ + รูปกล้อง + เรียงบรรทัดใหม่) */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -1340,7 +1340,7 @@ export default function CheckinPage() {
             </div>
 
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
-              {/* รูปถ่าย */}
+              {/* 🌟 1. รูปถ่าย (เพิ่ม Icon กล้องถ้าไม่มีรูป) */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อ
@@ -1348,117 +1348,125 @@ export default function CheckinPage() {
                 {selectedLog.photo_url ? (
                   <img
                     src={selectedLog.photo_url}
-                    className="w-full rounded-2xl aspect-video object-cover border border-gray-200"
+                    className="w-full rounded-2xl aspect-video object-cover border border-gray-200 shadow-sm"
                   />
                 ) : (
-                  <div className="w-full aspect-video bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 text-sm font-bold">
-                    ไม่มีรูปภาพ
+                  <div className="w-full aspect-video bg-gray-50 rounded-2xl flex flex-col items-center justify-center border border-dashed border-gray-300">
+                    <Camera className="w-12 h-12 text-gray-300 mb-2" />
+                    <span className="text-sm font-bold text-gray-400">
+                      ไม่มีรูปภาพ
+                    </span>
                   </div>
                 )}
               </div>
 
-              {/* รายละเอียดเข้า-ออก */}
-              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
-                <div>
-                  <p className="text-xs font-bold text-gray-500 mb-1">
+              {/* 🌟 2. รายละเอียดเข้า-ออก-จุดแวะ (เรียงบรรทัดตามรูป) */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-4 shadow-inner">
+                {/* หัวข้องาน */}
+                <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                  <p className="text-[10px] font-bold text-gray-500 mb-0.5 flex items-center gap-1">
                     📍 หัวข้องาน
                   </p>
                   <p className="text-sm font-bold text-gray-900">
                     {selectedLog.attendance_topics?.title || "-"}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* เวลาเข้า + พิกัดแผนที่ */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 mb-1">
-                      🟢 เวลาเข้า
-                    </p>
-                    <p className="text-sm font-bold text-green-600">
-                      {formatTime(selectedLog.check_in_time)}
-                    </p>
+
+                <div className="space-y-3">
+                  {/* --- บรรทัดที่ 1: เข้างาน --- */}
+                  <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-green-100 shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                        <span className="text-xs font-bold text-gray-600">
+                          ลงชื่อเข้างาน
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-green-600">
+                        {formatTime(selectedLog.check_in_time)}
+                      </p>
+                    </div>
                     {selectedLog.check_in_lat && selectedLog.check_in_lng && (
                       <a
                         href={`https://www.google.com/maps?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded mt-1.5 transition-colors"
+                        className="flex items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
                       >
                         <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
                       </a>
                     )}
                   </div>
-                  {/* เวลาออก + พิกัดแผนที่ */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 mb-1">
-                      🔴 เวลาออก
-                    </p>
-                    <p className="text-sm font-bold text-red-500">
-                      {selectedLog.check_out_time
-                        ? formatTime(selectedLog.check_out_time)
-                        : "ยังไม่ได้ลงชื่อ"}
-                    </p>
+
+                  {/* --- บรรทัดกลาง: จุดแวะ (แก้ตัวแปรเวลาเป็น created_at แล้ว) --- */}
+                  {selectedLog.attendance_checkpoints &&
+                    selectedLog.attendance_checkpoints.length > 0 &&
+                    selectedLog.attendance_checkpoints
+                      .sort(
+                        (a: any, b: any) =>
+                          new Date(
+                            a.created_at || a.checkpoint_time,
+                          ).getTime() -
+                          new Date(b.created_at || b.checkpoint_time).getTime(),
+                      )
+                      .map((cp: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm ml-4"
+                        >
+                          <div className="flex-1 pr-2">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                              <span className="text-xs font-bold text-gray-600 truncate">
+                                {cp.note
+                                  ? cp.note.replace("แวะจุด: ", "")
+                                  : "จุดแวะ"}
+                              </span>
+                            </div>
+                            <p className="text-lg font-black text-blue-600">
+                              {formatTime(cp.created_at || cp.checkpoint_time)}
+                            </p>
+                          </div>
+                          {cp.lat && cp.lng && (
+                            <a
+                              href={`https://www.google.com/maps?q=${cp.lat},${cp.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex shrink-0 items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
+                            >
+                              <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
+                            </a>
+                          )}
+                        </div>
+                      ))}
+
+                  {/* --- บรรทัดสุดท้าย: ออกงาน --- */}
+                  <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-red-100 shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                        <span className="text-xs font-bold text-gray-600">
+                          ลงชื่อออกงาน
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-red-500">
+                        {selectedLog.check_out_time
+                          ? formatTime(selectedLog.check_out_time)
+                          : "ยังไม่ได้ลงชื่อ"}
+                      </p>
+                    </div>
                     {selectedLog.check_out_lat && selectedLog.check_out_lng && (
                       <a
                         href={`https://www.google.com/maps?q=${selectedLog.check_out_lat},${selectedLog.check_out_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded mt-1.5 transition-colors"
+                        className="flex items-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-[11px] font-bold border border-red-100 transition-colors shadow-sm"
                       >
                         <MapPin className="w-3 h-3" /> ดูพิกัดแผนที่
                       </a>
                     )}
                   </div>
                 </div>
-
-                {/* 🌟 จุด Checkpoint ระหว่างวัน (โชว์ละเอียดขึ้น + ลิงก์แผนที่) */}
-                {selectedLog.attendance_checkpoints &&
-                  selectedLog.attendance_checkpoints.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <p className="text-xs font-bold text-gray-500 border-t border-gray-200 pt-3">
-                        📍 จุดแวะระหว่างวัน (
-                        {selectedLog.attendance_checkpoints.length} จุด)
-                      </p>
-                      <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 space-y-3">
-                        {selectedLog.attendance_checkpoints
-                          .sort(
-                            (a: any, b: any) =>
-                              new Date(a.checkpoint_time).getTime() -
-                              new Date(b.checkpoint_time).getTime(),
-                          )
-                          .map((cp: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-start gap-2 border-b border-blue-100/50 pb-2 last:border-0 last:pb-0"
-                            >
-                              <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                                {idx + 1}
-                              </div>
-                              <div>
-                                <p className="text-xs font-bold text-blue-900 leading-snug">
-                                  {cp.note
-                                    ? cp.note.replace("แวะจุด: ", "")
-                                    : "จุดแวะ"}
-                                </p>
-                                <p className="text-[10px] text-blue-600 mb-1">
-                                  {formatTime(cp.checkpoint_time)}
-                                </p>
-                                {cp.lat && cp.lng && (
-                                  <a
-                                    href={`https://www.google.com/maps?q=${cp.lat},${cp.lng}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-[9px] text-gray-500 hover:text-blue-600 bg-white border border-gray-200 px-1.5 py-0.5 rounded transition-colors"
-                                  >
-                                    <MapPin className="w-2.5 h-2.5" />{" "}
-                                    ดูพิกัดแผนที่
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
               </div>
             </div>
           </div>
