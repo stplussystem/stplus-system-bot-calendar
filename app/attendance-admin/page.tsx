@@ -130,7 +130,7 @@ export default function AttendanceAdminPage() {
     end_time: "18:00",
     work_type: "onsite",
     team_type: "team_all",
-    radius_meters: 100,
+    radius_meters: 1000,
     photo_mode: "none",
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date().toISOString().split("T")[0],
@@ -1001,7 +1001,7 @@ export default function AttendanceAdminPage() {
                 <input
                   type="range"
                   min="0"
-                  max="1000"
+                  max="2000"
                   step="50"
                   className="w-full accent-blue-600"
                   value={formData.radius_meters}

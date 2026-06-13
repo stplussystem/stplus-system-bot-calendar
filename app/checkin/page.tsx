@@ -612,10 +612,12 @@ export default function CheckinPage() {
     } else if (historyFilter === "month") {
       const todayDate = start.getDate();
       if (todayDate <= 20) {
+        // ถ้าวันนี้ไม่เกินวันที่ 20 (เช่น 15 มิ.ย.) -> รอบจะเริ่ม 21 พ.ค. ถึง 20 มิ.ย
         start.setMonth(start.getMonth() - 1);
         start.setDate(21);
         end.setDate(20);
       } else {
+        // ถ้าวันนี้เลยวันที่ 20 ไปแล้ว (เช่น 25 มิ.ย.) -> รอบจะเริ่ม 21 มิ.ย. ถึง 20 ก.ค.
         start.setDate(21);
         end.setMonth(end.getMonth() + 1);
         end.setDate(20);
@@ -1258,41 +1260,59 @@ export default function CheckinPage() {
                 <div
                   key={log.id}
                   onClick={() => setSelectedLog(log)}
-                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors active:scale-95 group"
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-all"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 overflow-hidden">
                     {log.photo_url ? (
                       <img
                         src={log.photo_url}
                         alt="Check-in"
-                        className="w-12 h-12 rounded-xl object-cover border border-gray-200"
+                        className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
                         <MapPin className="w-5 h-5 text-gray-400" />
                       </div>
                     )}
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-sm mb-1">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-gray-900 text-sm mb-1 truncate">
                         {log.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
                       </h3>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 mb-1.5">
                         <CalendarIcon className="w-3 h-3 inline pb-0.5" />{" "}
                         {formatDate(log.check_in_time)}
                       </div>
+
+                      {/* 🌟 ส่วนที่เพิ่มใหม่: โชว์จุด Checkpoint ใต้ชื่อ */}
+                      {log.attendance_checkpoints &&
+                        log.attendance_checkpoints.length > 0 && (
+                          <div className="flex items-center gap-1 text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 w-fit">
+                            <MapPin className="w-3 h-3 shrink-0 text-blue-500" />
+                            <span className="truncate max-w-[130px] sm:max-w-[180px]">
+                              แวะ {log.attendance_checkpoints.length} จุด:{" "}
+                              {log.attendance_checkpoints
+                                .map((cp: any) =>
+                                  cp.note
+                                    ? cp.note.replace("แวะจุด: ", "")
+                                    : "จุดแวะ",
+                                )
+                                .join(", ")}
+                            </span>
+                          </div>
+                        )}
                     </div>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end justify-center">
-                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-0.5">
+                    <p className="text-[10px] font-bold text-green-600 uppercase mb-0.5">
                       เข้า: {formatTime(log.check_in_time)}
                     </p>
-                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-2">
+                    <p className="text-[10px] font-bold text-red-500 uppercase mb-2">
                       ออก:{" "}
                       {log.check_out_time
                         ? formatTime(log.check_out_time)
                         : "ยังไม่ลงชื่อ"}
                     </p>
-                    <button className="text-[10px] bg-gray-50 text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-700 font-bold px-2.5 py-1 rounded-md border border-gray-200 group-hover:border-blue-200 transition-colors">
+                    <button className="text-[10px] bg-gray-50 text-gray-500 hover:bg-gray-100 font-bold px-2.5 py-1 rounded-md border border-gray-200 transition-colors">
                       ดูรายละเอียด
                     </button>
                   </div>

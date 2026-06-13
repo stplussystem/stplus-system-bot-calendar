@@ -26,12 +26,18 @@ const supabase = createClient(
 );
 
 export default function LeavePage() {
+  // ==========================================
+  // 1. Core States (สถานะระบบหลัก)
+  // ==========================================
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [dbUser, setDbUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // ==========================================
+  // 2. UI & View States (การแสดงผลหน้าจอ)
+  // ==========================================
   const [activeTab, setActiveTab] = useState<"my_leave" | "approval">(
     "my_leave",
   );
@@ -41,27 +47,23 @@ export default function LeavePage() {
   const currentYear = new Date().getFullYear().toString();
   const currentYearThai = (new Date().getFullYear() + 543).toString();
 
+  // ==========================================
+  // 3. Data States (ข้อมูลที่ดึงมาจากฐานข้อมูล)
+  // ==========================================
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
-  // 🌟 เพิ่มสถานะเก็บโควตาพักร้อน (annual)
   const [leaveStats, setLeaveStats] = useState({
     personal: 0,
     sick: 0,
-    annual: 0,
     absent: 0,
   });
-
-  // 🌟 State เก็บโควตารวมของบริษัท และพักร้อนของแต่ละคน
-  const [leaveQuotas, setLeaveQuotas] = useState({
-    personal: 6,
-    sick: 30,
-    annual: 6,
-  });
-
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [allLeaves, setAllLeaves] = useState<any[]>([]);
 
+  // ==========================================
+  // 4. Form State (ข้อมูลฟอร์มลางาน)
+  // ==========================================
   const [formData, setFormData] = useState({
-    leaveType: "personal", // personal, sick, annual
+    leaveType: "personal",
     startDate: new Date().toISOString().split("T")[0],
     endDate: new Date().toISOString().split("T")[0],
     isHourly: false,
@@ -70,6 +72,9 @@ export default function LeavePage() {
     reason: "",
   });
 
+  // ==========================================
+  // 5. Modal & Alert States (หน้าต่างแจ้งเตือน)
+  // ==========================================
   const [toast, setToast] = useState({
     show: false,
     message: "",
@@ -89,6 +94,9 @@ export default function LeavePage() {
     message: "",
   });
 
+  // ==========================================
+  // ▶️ Lifecycle (ทำงานเมื่อเริ่มโหลดหน้า)
+  // ==========================================
   useEffect(() => {
     const initLiff = async () => {
       try {
@@ -101,13 +109,11 @@ export default function LeavePage() {
           const userProfile = await liff.getProfile();
           setProfile(userProfile);
 
-          // 🌟 ดึงข้อมูล User รวมถึงโควตาพักร้อนส่วนตัว (annual_leave_quota)
           const { data: user } = await supabase
             .from("users")
             .select("*")
             .eq("line_user_id", userProfile.userId)
             .single();
-
           setDbUser(
             user || {
               role: "user",
@@ -115,19 +121,6 @@ export default function LeavePage() {
               picture_url: userProfile.pictureUrl,
             },
           );
-
-          // 🌟 ดึงข้อมูล Company Settings
-          const { data: settings } = await supabase
-            .from("company_settings")
-            .select("personal_leave_quota, sick_leave_quota")
-            .limit(1)
-            .single();
-
-          setLeaveQuotas({
-            personal: settings?.personal_leave_quota || 6,
-            sick: settings?.sick_leave_quota || 30,
-            annual: user?.annual_leave_quota || 6, // ดึงจากรายบุคคล
-          });
 
           if (typeof window !== "undefined") {
             const urlParams = new URLSearchParams(window.location.search);
@@ -156,6 +149,9 @@ export default function LeavePage() {
     }
   }, [isLiffInit, profile, dbUser, activeTab]);
 
+  // ==========================================
+  // ▶️ Helper Functions (ฟังก์ชันช่วยเหลือ)
+  // ==========================================
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
@@ -199,12 +195,9 @@ export default function LeavePage() {
     return `${parseInt(d)} ${months[parseInt(m) - 1]} ${parseInt(y) + 543}`;
   };
 
-  const getLeaveTypeName = (type: string) => {
-    if (type === "personal") return "ลากิจ";
-    if (type === "annual") return "ลาพักร้อน";
-    return "ลาป่วย";
-  };
-
+  // ==========================================
+  // ▶️ Data Fetching (ดึงข้อมูล)
+  // ==========================================
   const fetchMyLeaves = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -218,17 +211,15 @@ export default function LeavePage() {
       setMyLeaves(data);
       let p = 0,
         s = 0,
-        an = 0,
-        ab = 0;
+        a = 0;
       data
         .filter((l) => l.status === "approved")
         .forEach((l) => {
           if (l.leave_type === "personal") p += l.duration_days;
           if (l.leave_type === "sick") s += l.duration_days;
-          if (l.leave_type === "annual") an += l.duration_days;
-          if (l.leave_type === "absent") ab += l.duration_days;
+          if (l.leave_type === "absent") a += l.duration_days;
         });
-      setLeaveStats({ personal: p, sick: s, annual: an, absent: ab });
+      setLeaveStats({ personal: p, sick: s, absent: a });
     }
     setLoading(false);
   };
@@ -267,6 +258,9 @@ export default function LeavePage() {
     setAllLeaves(mapUsers(allData || []));
   };
 
+  // ==========================================
+  // ▶️ LIFF Actions (การแชร์ข้อมูลผ่าน LINE)
+  // ==========================================
   const executeShareRequestToManager = async (leaveObj: any) => {
     const liff = (await import("@line/liff")).default;
     if (!liff.isApiAvailable("shareTargetPicker")) {
@@ -278,7 +272,8 @@ export default function LeavePage() {
       return false;
     }
 
-    const leaveTypeName = getLeaveTypeName(leaveObj.leave_type);
+    const leaveTypeName =
+      leaveObj.leave_type === "personal" ? "ลากิจ" : "ลาป่วย";
     const timeText =
       leaveObj.duration_hours > 0
         ? `${formatThaiDateFull(leaveObj.start_date)} (${leaveObj.start_time.substring(0, 5)}-${leaveObj.end_time.substring(0, 5)})`
@@ -316,7 +311,7 @@ export default function LeavePage() {
       return false;
     }
 
-    const leaveTypeName = getLeaveTypeName(req.leave_type);
+    const leaveTypeName = req.leave_type === "personal" ? "ลากิจ" : "ลาป่วย";
     const timeText =
       req.duration_hours > 0
         ? `${formatThaiDateFull(req.start_date)}`
@@ -336,34 +331,14 @@ export default function LeavePage() {
     await liff.shareTargetPicker([flexMessage as any]);
   };
 
+  // ==========================================
+  // ▶️ Handlers (ฟังก์ชันจัดการการกดปุ่มต่างๆ)
+  // ==========================================
   const handleSubmitLeave = async () => {
     if (!formData.reason) return showToast("กรุณาระบุเหตุผลการลา", "error");
-
-    // Check Quota
-    const duration = calculateDuration();
-    if (!formData.isHourly) {
-      if (
-        formData.leaveType === "personal" &&
-        leaveStats.personal + duration.days > leaveQuotas.personal
-      ) {
-        return showToast(
-          `โควตาลากิจไม่พอ (คงเหลือ ${leaveQuotas.personal - leaveStats.personal} วัน)`,
-          "error",
-        );
-      }
-      if (
-        formData.leaveType === "annual" &&
-        leaveStats.annual + duration.days > leaveQuotas.annual
-      ) {
-        return showToast(
-          `โควตาลาพักร้อนไม่พอ (คงเหลือ ${leaveQuotas.annual - leaveStats.annual} วัน)`,
-          "error",
-        );
-      }
-    }
-
     setSubmitting(true);
     try {
+      const duration = calculateDuration();
       const { data: newLeave, error } = await supabase
         .from("leave_requests")
         .insert([
@@ -415,10 +390,14 @@ export default function LeavePage() {
     }
   };
 
-  const handleResendShare = async (leaveObj: any) =>
+  const handleResendShare = async (leaveObj: any) => {
     await executeShareRequestToManager(leaveObj);
-  const triggerApprove = (req: any) =>
+  };
+
+  const triggerApprove = (req: any) => {
     setConfirmApproveModal({ show: true, req });
+  };
+
   const executeApprove = async () => {
     const req = confirmApproveModal.req;
     if (!req) return;
@@ -429,6 +408,7 @@ export default function LeavePage() {
         .eq("id", req.id);
       showToast("อนุมัติเรียบร้อย!", "success");
       fetchManagerData();
+
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) await shareApprovalResult(req, true);
     } catch (err: any) {
@@ -451,15 +431,20 @@ export default function LeavePage() {
         .eq("id", rejectModal.req.id);
       showToast("ไม่อนุมัติเรียบร้อย", "success");
       fetchManagerData();
+
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient())
         await shareApprovalResult(rejectModal.req, false, rejectModal.reason);
+
       setRejectModal({ show: false, req: null, reason: "" });
     } catch (err: any) {
       showToast("ผิดพลาด: " + err.message, "error");
     }
   };
 
+  // ==========================================
+  // ▶️ Data Processing for UI
+  // ==========================================
   const uniqueUsersFilter = useMemo(() => {
     const map = new Map();
     allLeaves.forEach((l) => {
@@ -493,6 +478,9 @@ export default function LeavePage() {
     );
   };
 
+  // ==========================================
+  // ▶️ Rendering (ส่วนแสดงผลหน้าจอ)
+  // ==========================================
   if (!isLiffInit || loading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -517,7 +505,7 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* 🔴 MODALs ... */}
+      {/* 🔴 MODAL: แจ้งเตือนข้อผิดพลาด LIFF */}
       {liffAlertModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95 text-center">
@@ -538,6 +526,80 @@ export default function LeavePage() {
         </div>
       )}
 
+      {/* 🔴 MODAL: ยืนยันการอนุมัติ */}
+      {confirmApproveModal.show && confirmApproveModal.req && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95 text-center">
+            <CheckCircle2 className="w-12 h-12 text-blue-500 mx-auto mb-3" />
+            <h3 className="text-lg font-black text-gray-900 mb-2">
+              ยืนยันอนุมัติการลา
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              คุณต้องการอนุมัติการลาให้{" "}
+              <span className="font-bold text-blue-600">
+                {confirmApproveModal.req.users.full_name}
+              </span>{" "}
+              ใช่หรือไม่?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setConfirmApproveModal({ show: false, req: null })
+                }
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={executeApprove}
+                className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-blue-700 transition-colors"
+              >
+                ยืนยันอนุมัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔴 MODAL: ไม่อนุมัติพร้อมระบุเหตุผล */}
+      {rejectModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-red-600 mb-2">
+              ไม่อนุมัติการลางาน
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              ระบุเหตุผลให้ {rejectModal.req?.users?.full_name}
+            </p>
+            <textarea
+              value={rejectModal.reason}
+              onChange={(e) =>
+                setRejectModal({ ...rejectModal, reason: e.target.value })
+              }
+              className="w-full border border-gray-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none mb-4"
+              rows={3}
+              placeholder="เช่น งานโปรเจกต์กำลังเร่งด่วน..."
+            ></textarea>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setRejectModal({ show: false, req: null, reason: "" })
+                }
+                className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleRejectSubmit}
+                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-red-700 transition-colors"
+              >
+                ยืนยันการไม่อนุมัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 🔹 ส่วนหัว Header */}
       <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-12 pb-16 px-6 text-white text-center rounded-b-[40px] shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
@@ -548,8 +610,9 @@ export default function LeavePage() {
         </p>
       </div>
 
+      {/* 🔹 เนื้อหาหลัก */}
       <div className="px-4 md:px-6 -mt-8 max-w-2xl w-full mx-auto relative z-10 space-y-4">
-        {/* เมนูสลับหน้า */}
+        {/* เมนูสลับหน้า (เฉพาะคนมีสิทธิ์) */}
         {(dbUser?.role === "admin" ||
           dbUser?.role === "manager" ||
           dbUser?.role === "hr") &&
@@ -565,7 +628,7 @@ export default function LeavePage() {
                 onClick={() => setActiveTab("approval")}
                 className={`flex-1 py-3 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
               >
-                อนุมัติวันลา{" "}
+                อนุมัติวันลา
                 {pendingRequests.length > 0 && (
                   <span className="bg-red-500 text-white w-5 h-5 rounded-full text-[11px] flex items-center justify-center shadow-sm animate-pulse">
                     {pendingRequests.length}
@@ -599,30 +662,21 @@ export default function LeavePage() {
                     onClick={() =>
                       setFormData({ ...formData, leaveType: "personal" })
                     }
-                    className={`flex-1 py-3 rounded-xl border-2 text-xs font-bold transition-all ${formData.leaveType === "personal" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                    className={`flex-1 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "personal" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
                     ลากิจ
                   </button>
                   <button
                     onClick={() =>
-                      setFormData({ ...formData, leaveType: "annual" })
-                    }
-                    className={`flex-1 py-3 rounded-xl border-2 text-xs font-bold transition-all ${formData.leaveType === "annual" ? "border-purple-500 bg-purple-50 text-purple-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                  >
-                    พักร้อน
-                  </button>
-                  <button
-                    onClick={() =>
                       setFormData({ ...formData, leaveType: "sick" })
                     }
-                    className={`flex-1 py-3 rounded-xl border-2 text-xs font-bold transition-all ${formData.leaveType === "sick" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                    className={`flex-1 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${formData.leaveType === "sick" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
                     ลาป่วย
                   </button>
                 </div>
               </div>
 
-              {/* ส่วนกรอกวันที่ เหมือนเดิม... */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
                 <label className="flex items-center justify-between text-sm font-bold text-gray-800 cursor-pointer mb-4">
                   <span className="flex items-center gap-2">
@@ -770,27 +824,11 @@ export default function LeavePage() {
         {/* 🔹 การลางานของฉัน (My Leave) */}
         {activeTab === "my_leave" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
-            {/* 🌟 ปรับปรุงการ์ดสรุปวันลาใหม่ */}
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลากิจ</p>
-                <p className="text-xl font-black text-blue-600">
-                  {leaveStats.personal}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.personal}
-                  </span>
-                </p>
-                <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                  ใช้ไป (วัน)
-                </p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
-                <p className="text-xs font-bold text-gray-500 mb-1">พักร้อน</p>
-                <p className="text-xl font-black text-purple-600">
-                  {leaveStats.annual}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.annual}
-                  </span>
+                <p className="text-2xl font-black text-blue-600">
+                  {leaveStats.personal}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -798,14 +836,20 @@ export default function LeavePage() {
               </div>
               <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลาป่วย</p>
-                <p className="text-xl font-black text-orange-600">
-                  {leaveStats.sick}{" "}
-                  <span className="text-sm font-medium text-gray-400">
-                    / {leaveQuotas.sick}
-                  </span>
+                <p className="text-2xl font-black text-orange-600">
+                  {leaveStats.sick}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
+                </p>
+              </div>
+              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+                <p className="text-xs font-bold text-gray-500 mb-1">ขาดงาน</p>
+                <p className="text-2xl font-black text-red-600">
+                  {leaveStats.absent}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  ครั้ง
                 </p>
               </div>
             </div>
@@ -839,7 +883,7 @@ export default function LeavePage() {
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="font-bold text-sm text-gray-900">
-                          {getLeaveTypeName(l.leave_type)}{" "}
+                          {l.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"}{" "}
                           {l.duration_hours > 0 ? (
                             <span className="text-blue-600">
                               ({l.duration_hours} ชม.)
@@ -862,6 +906,11 @@ export default function LeavePage() {
                       <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100 mt-2 italic">
                         "{l.reason}"
                       </div>
+                      {l.status === "rejected" && l.reject_reason && (
+                        <div className="text-[11px] text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100 mt-2 font-medium">
+                          <b>เหตุผลไม่อนุมัติ:</b> {l.reject_reason}
+                        </div>
+                      )}
                       {l.status === "pending" && (
                         <div className="mt-3 text-right">
                           <button
@@ -880,7 +929,7 @@ export default function LeavePage() {
           </div>
         )}
 
-        {/* 🔹 ศูนย์อนุมัติ (Approval Center) เหมือนเดิม... */}
+        {/* 🔹 ศูนย์อนุมัติ (Approval Center) */}
         {activeTab === "approval" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
             <div className="bg-white rounded-3xl shadow-sm border border-blue-200 overflow-hidden">
@@ -921,9 +970,9 @@ export default function LeavePage() {
                             "ไม่ทราบชื่อ"}
                         </div>
                         <span
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-md ${r.leave_type === "annual" ? "bg-purple-100 text-purple-700" : r.leave_type === "personal" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-md ${r.leave_type === "personal" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
                         >
-                          {getLeaveTypeName(r.leave_type)}
+                          {r.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"}
                         </span>
                       </div>
                       <div className="text-xs text-gray-600 mb-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
@@ -1013,7 +1062,7 @@ export default function LeavePage() {
                       </div>
                       <div className="flex justify-between items-center pl-7">
                         <p className="text-xs text-gray-500 font-medium">
-                          {getLeaveTypeName(l.leave_type)} (
+                          {l.leave_type === "personal" ? "ลากิจ" : "ลาป่วย"} (
                           {formatThaiDateFull(l.start_date)})
                         </p>
                         {l.status !== "pending" && (
