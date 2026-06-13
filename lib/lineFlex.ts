@@ -672,8 +672,6 @@ export const getAttendanceMessage = (
     [], // ไม่มีจุดแวะ
     actionUrl,
     data.shift,
-    data.inLocation,
-    isCheckin ? null : data.outLocation,
   );
 };
 
@@ -687,8 +685,6 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
   Shift: string = "เช้า",
-  inLocation: string = "ออฟฟิศ", // เพิ่มรับค่าสถานที่เข้างาน
-  outLocation: string | null = null, // เพิ่มรับค่าสถานที่ออกงาน
 ) => {
   const contentsList: any[] = [];
 
@@ -746,7 +742,7 @@ export const generateCheckinTimelineFlex = (
           },
           {
             type: "text",
-            text: inLocation, // บรรทัดล่าง: ดึงสถานที่เข้างานมาโชว์
+            text: topicName, // 🌟 เปลี่ยน 1: ดึง "ชื่องาน" มาแสดงแทนคำว่าออฟฟิศ
             size: "xs",
             color: "#9ca3af",
             wrap: true,
@@ -795,7 +791,6 @@ export const generateCheckinTimelineFlex = (
             },
           ],
         },
-        // เปลี่ยน 2: เอาข้อความซ้ำออก ใส่ filler ดันแทน
         {
           type: "box",
           layout: "vertical",
@@ -902,7 +897,6 @@ export const generateCheckinTimelineFlex = (
           },
         ],
       },
-      // เปลี่ยน 2: เอาข้อความซ้ำออก
       {
         type: "box",
         layout: "vertical",
@@ -965,12 +959,12 @@ export const generateCheckinTimelineFlex = (
             color: outStatusColor,
             wrap: true,
           },
-          ...(checkOutTime && outLocation
+          ...(checkOutTime
             ? [
                 {
-                  // แสดงบรรทัดที่ 2 เฉพาะตอนที่ลงชื่อออกงานแล้ว และมีสถานที่
+                  // 🌟 เปลี่ยน 2: แสดงบรรทัดที่ 2 เฉพาะตอนลงชื่อออกงานแล้ว โดยดึง "ชื่องาน" มาแสดง
                   type: "text",
-                  text: outLocation, // บรรทัดล่าง: ดึงสถานที่ออกงานมาโชว์
+                  text: topicName,
                   size: "xs",
                   color: "#9ca3af",
                   wrap: true,
@@ -1025,7 +1019,7 @@ export const generateCheckinTimelineFlex = (
           type: "box",
           layout: "vertical",
           flex: 4,
-          contents: [{ type: "filler" }], // เอาคำว่า ลงชื่อออกงานเรียบร้อย ออกแล้วให้ว่างๆแทน
+          contents: [{ type: "filler" }], // เอาคำว่า ลงชื่อออกงานเรียบร้อย ออกแล้วให้เป็นช่องว่างแทน
         },
       ],
     });
