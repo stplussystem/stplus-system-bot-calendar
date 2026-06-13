@@ -648,6 +648,35 @@ export const getOpenForm = (liffUrl: string) => ({
 // ==========================================
 // ส่วนที่ 2: ระบบลงเวลาเข้า-ออกงาน (Attendance)
 // ==========================================
+// 🌟 ฟังก์ชันตัวแทน: ส่งข้อมูลไปให้ generateCheckinTimelineFlex จัดการ
+export const getAttendanceMessage = (
+  isCheckin: boolean,
+  data: {
+    shift: string;
+    date: string;
+    team: string;
+    topic: string;
+    inTime: string;
+    inLocation: string;
+    outTime: string;
+    outLocation: string;
+  },
+  actionUrl: string,
+) => {
+  return generateCheckinTimelineFlex(
+    data.date,
+    data.team,
+    data.topic,
+    data.inTime,
+    isCheckin ? null : data.outTime,
+    [], // ไม่มีจุดแวะ
+    actionUrl,
+    data.shift,
+    data.inLocation,
+    isCheckin ? null : data.outLocation,
+  );
+};
+
 // 🌟 ฟังก์ชันหลัก (หน้าตา Timeline ที่ถูกต้องตามกฎ LINE 100%)
 export const generateCheckinTimelineFlex = (
   workDate: string,
@@ -658,8 +687,13 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
   Shift: string = "เช้า",
+  inLocation: string = "ประจำออฟฟิศ", // เพิ่มรับค่าสถานที่เข้างาน
+  outLocation: string | null = null, // เพิ่มรับค่าสถานที่ออกงาน
 ) => {
   const contentsList: any[] = [];
+
+  // ฟังก์ชันจัดฟอร์แมตเวลาให้มี " น."
+  const formatTimeStr = (t: string | null) => (t ? `${t} น.` : "ยังไม่...");
 
   // --- Node 1: ลงชื่อเข้างาน ---
   contentsList.push({
@@ -670,7 +704,7 @@ export const generateCheckinTimelineFlex = (
     contents: [
       {
         type: "text",
-        text: checkInTime || "-",
+        text: formatTimeStr(checkInTime), // ใส่ น.
         size: "sm",
         gravity: "center",
         align: "end",
@@ -683,7 +717,6 @@ export const generateCheckinTimelineFlex = (
         margin: "xs",
         contents: [
           { type: "filler" },
-          // ✅ ปลอดภัย: มี filler ในกล่องวงกลม
           {
             type: "box",
             layout: "vertical",
@@ -701,38 +734,36 @@ export const generateCheckinTimelineFlex = (
         type: "box",
         layout: "vertical",
         flex: 4,
-        justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent แทน gravity สำหรับกล่อง
+        justifyContent: "center",
         contents: [
           {
             type: "text",
-            text: "ลงชื่อเข้างาน",
+            text: inLocation, // เปลี่ยน 1: ใช้สถานที่เข้างานแทน "ลงชื่อเข้างาน"
             size: "sm",
             weight: "bold",
             color: "#009900",
+            wrap: true,
           },
-          // { type: "text", text: "ประจำออฟฟิศ", size: "xs", color: "#9ca3af" },
         ],
       },
     ],
   });
 
   // --- วนลูปสร้างจุด Checkpoint ---
-  let previousLocation = "ประจำออฟฟิศ2026";
-
   checkpoints.forEach((cp) => {
-    // 1. สร้างเส้นเชื่อม
+    // 1. สร้างเส้นเชื่อม (เอาข้อความซ้ำออก)
     contentsList.push({
       type: "box",
       layout: "horizontal",
       spacing: "lg",
-      height: "45px",
+      height: "40px", // ลดความสูงเส้นลงเพราะไม่มีข้อความ
       contents: [
         {
           type: "box",
           layout: "vertical",
           flex: 1,
           contents: [{ type: "filler" }],
-        }, // ✅ แก้ไข: เปลี่ยนจาก baseline เป็น vertical ให้ใส่ filler ได้
+        },
         {
           type: "box",
           layout: "vertical",
@@ -757,14 +788,12 @@ export const generateCheckinTimelineFlex = (
             },
           ],
         },
+        // เปลี่ยน 2: เอาข้อความซ้ำออก ใส่ filler ดันแทน
         {
-          type: "text",
-          text: previousLocation,
-          gravity: "top",
+          type: "box",
+          layout: "vertical",
           flex: 4,
-          size: "xs",
-          color: "#8c8c8c",
-          wrap: true,
+          contents: [{ type: "filler" }],
         },
       ],
     });
@@ -777,7 +806,7 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "text",
-          text: cp.time || "-",
+          text: formatTimeStr(cp.time), // ใส่ น.
           size: "sm",
           gravity: "center",
           align: "end",
@@ -807,7 +836,7 @@ export const generateCheckinTimelineFlex = (
           type: "box",
           layout: "vertical",
           flex: 4,
-          justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent
+          justifyContent: "center",
           contents: [
             {
               type: "text",
@@ -827,23 +856,21 @@ export const generateCheckinTimelineFlex = (
         },
       ],
     });
-
-    previousLocation = cp.location || "จุดแวะ";
   });
 
-  // --- เส้นเชื่อมก่อนลงเวลาออกงาน ---
+  // --- เส้นเชื่อมก่อนลงเวลาออกงาน (เอาข้อความซ้ำออก) ---
   contentsList.push({
     type: "box",
     layout: "horizontal",
     spacing: "lg",
-    height: "45px",
+    height: "40px", // ลดความสูงเส้น
     contents: [
       {
         type: "box",
         layout: "vertical",
         flex: 1,
         contents: [{ type: "filler" }],
-      }, // ✅ แก้ไข: เปลี่ยนเป็น vertical
+      },
       {
         type: "box",
         layout: "vertical",
@@ -868,22 +895,22 @@ export const generateCheckinTimelineFlex = (
           },
         ],
       },
+      // เปลี่ยน 2: เอาข้อความซ้ำออก
       {
-        type: "text",
-        text: previousLocation,
-        gravity: "top",
+        type: "box",
+        layout: "vertical",
         flex: 4,
-        size: "xs",
-        color: "#8c8c8c",
-        wrap: true,
+        contents: [{ type: "filler" }],
       },
     ],
   });
 
   // --- Node 3: ลงชื่อออกงาน ---
   const outStatusColor = checkOutTime ? "#EF454D" : "#B7B7B7";
-  const outTimeText = checkOutTime || "ยังไม่...";
+  const outTimeText = formatTimeStr(checkOutTime); // ใส่ น.
   const outTimeFontColor = checkOutTime ? "#000000" : "#B7B7B7";
+  // เปลี่ยน 3: ใช้สถานที่ออกงาน ถ้าไม่มีให้ใช้ "ลงชื่อออกงาน"
+  const outNodeText = outLocation ? outLocation : "ลงชื่อออกงาน";
 
   contentsList.push({
     type: "box",
@@ -923,14 +950,15 @@ export const generateCheckinTimelineFlex = (
         type: "box",
         layout: "vertical",
         flex: 4,
-        justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent
+        justifyContent: "center",
         contents: [
           {
             type: "text",
-            text: "ลงชื่อออกงาน",
+            text: outNodeText, // เปลี่ยน 3
             size: "sm",
             weight: "bold",
             color: outStatusColor,
+            wrap: true,
           },
         ],
       },
@@ -950,7 +978,7 @@ export const generateCheckinTimelineFlex = (
           layout: "vertical",
           flex: 1,
           contents: [{ type: "filler" }],
-        }, // ✅ แก้ไข: เปลี่ยนเป็น vertical
+        },
         {
           type: "box",
           layout: "vertical",
@@ -963,7 +991,6 @@ export const generateCheckinTimelineFlex = (
               flex: 1,
               contents: [
                 { type: "filler" },
-                // ✅ แก้ไข: ปรับ width เป็น 1px แบบซ่อนสี เพื่อความปลอดภัย
                 {
                   type: "box",
                   layout: "vertical",
@@ -1070,7 +1097,7 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "box",
-          layout: "horizontal", // ✅ แก้ไข: เปลี่ยนจาก baseline เป็น horizontal ปลอดภัยกว่า
+          layout: "horizontal",
           contents: [
             {
               type: "text",
@@ -1299,31 +1326,4 @@ export const generateLeaveResultFlex = (
       },
     },
   };
-};
-
-// 🌟 ฟังก์ชันตัวแทน: ส่งข้อมูลไปให้ generateCheckinTimelineFlex จัดการ
-export const getAttendanceMessage = (
-  isCheckin: boolean,
-  data: {
-    shift: string;
-    date: string;
-    team: string;
-    topic: string;
-    inTime: string;
-    inLocation: string;
-    outTime: string;
-    outLocation: string;
-  },
-  actionUrl: string,
-) => {
-  return generateCheckinTimelineFlex(
-    data.date,
-    data.team,
-    data.topic,
-    data.inTime,
-    isCheckin ? null : data.outTime,
-    [], // ไม่มีจุดแวะ
-    actionUrl,
-    data.shift,
-  );
 };
