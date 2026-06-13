@@ -738,8 +738,8 @@ export const generateCheckinTimelineFlex = (
         contents: [
           {
             type: "text",
-            // text: inLocation, // เปลี่ยน 1: ใช้สถานที่เข้างานแทน "ลงชื่อเข้างาน"
-            text: "ลงชื่อเข้างาน",
+            text: inLocation, // เปลี่ยน 1: ใช้สถานที่เข้างานแทน "ลงชื่อเข้างาน"
+            // text: "ลงชื่อเข้างาน",
             size: "sm",
             weight: "bold",
             color: "#009900",
@@ -792,7 +792,6 @@ export const generateCheckinTimelineFlex = (
         // เปลี่ยน 2: เอาข้อความซ้ำออก ใส่ filler ดันแทน
         {
           type: "box",
-          text: inLocation,
           layout: "vertical",
           flex: 4,
           contents: [{ type: "filler" }],
@@ -900,7 +899,6 @@ export const generateCheckinTimelineFlex = (
       // เปลี่ยน 2: เอาข้อความซ้ำออก
       {
         type: "box",
-        text: inLocation,
         layout: "vertical",
         flex: 4,
         contents: [{ type: "filler" }],
