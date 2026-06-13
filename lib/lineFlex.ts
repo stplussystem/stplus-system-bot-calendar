@@ -648,7 +648,7 @@ export const getOpenForm = (liffUrl: string) => ({
 // ==========================================
 // ส่วนที่ 2: ระบบลงเวลาเข้า-ออกงาน (Attendance)
 // ==========================================
-// 🌟 ฟังก์ชันหลัก (หน้าตา Timeline ที่สมบูรณ์ อิงตามรูปที่ 1)
+// 🌟 ฟังก์ชันหลัก (หน้าตา Timeline ที่ถูกต้องตามกฎ LINE 100%)
 export const generateCheckinTimelineFlex = (
   workDate: string,
   teamName: string,
@@ -683,7 +683,7 @@ export const generateCheckinTimelineFlex = (
         margin: "xs",
         contents: [
           { type: "filler" },
-          // 🌟 ใส่ filler แทนอาเรย์ว่าง
+          // ✅ ปลอดภัย: มี filler ในกล่องวงกลม
           {
             type: "box",
             layout: "vertical",
@@ -701,7 +701,7 @@ export const generateCheckinTimelineFlex = (
         type: "box",
         layout: "vertical",
         flex: 4,
-        gravity: "center",
+        justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent แทน gravity สำหรับกล่อง
         contents: [
           {
             type: "text",
@@ -729,10 +729,10 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "box",
-          layout: "baseline",
+          layout: "vertical",
           flex: 1,
           contents: [{ type: "filler" }],
-        },
+        }, // ✅ แก้ไข: เปลี่ยนจาก baseline เป็น vertical ให้ใส่ filler ได้
         {
           type: "box",
           layout: "vertical",
@@ -745,7 +745,6 @@ export const generateCheckinTimelineFlex = (
               flex: 1,
               contents: [
                 { type: "filler" },
-                // 🌟 ใส่ filler แทนอาเรย์ว่าง
                 {
                   type: "box",
                   layout: "vertical",
@@ -791,7 +790,6 @@ export const generateCheckinTimelineFlex = (
           margin: "xs",
           contents: [
             { type: "filler" },
-            // 🌟 ใส่ filler แทนอาเรย์ว่าง
             {
               type: "box",
               layout: "vertical",
@@ -809,7 +807,7 @@ export const generateCheckinTimelineFlex = (
           type: "box",
           layout: "vertical",
           flex: 4,
-          gravity: "center",
+          justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent
           contents: [
             {
               type: "text",
@@ -842,10 +840,10 @@ export const generateCheckinTimelineFlex = (
     contents: [
       {
         type: "box",
-        layout: "baseline",
+        layout: "vertical",
         flex: 1,
         contents: [{ type: "filler" }],
-      },
+      }, // ✅ แก้ไข: เปลี่ยนเป็น vertical
       {
         type: "box",
         layout: "vertical",
@@ -858,7 +856,6 @@ export const generateCheckinTimelineFlex = (
             flex: 1,
             contents: [
               { type: "filler" },
-              // 🌟 ใส่ filler แทนอาเรย์ว่าง
               {
                 type: "box",
                 layout: "vertical",
@@ -909,7 +906,6 @@ export const generateCheckinTimelineFlex = (
         margin: "xs",
         contents: [
           { type: "filler" },
-          // 🌟 ใส่ filler แทนอาเรย์ว่าง
           {
             type: "box",
             layout: "vertical",
@@ -927,7 +923,7 @@ export const generateCheckinTimelineFlex = (
         type: "box",
         layout: "vertical",
         flex: 4,
-        gravity: "center",
+        justifyContent: "center", // ✅ แก้ไข: ใช้ justifyContent
         contents: [
           {
             type: "text",
@@ -951,10 +947,10 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "box",
-          layout: "baseline",
+          layout: "vertical",
           flex: 1,
           contents: [{ type: "filler" }],
-        },
+        }, // ✅ แก้ไข: เปลี่ยนเป็น vertical
         {
           type: "box",
           layout: "vertical",
@@ -967,13 +963,13 @@ export const generateCheckinTimelineFlex = (
               flex: 1,
               contents: [
                 { type: "filler" },
-                // 🌟 ใส่ filler แทนอาเรย์ว่าง
+                // ✅ แก้ไข: ปรับ width เป็น 1px แบบซ่อนสี เพื่อความปลอดภัย
                 {
                   type: "box",
                   layout: "vertical",
                   contents: [{ type: "filler" }],
-                  width: "0px",
-                  backgroundColor: "#6486E3",
+                  width: "1px",
+                  backgroundColor: "#FFFFFF00",
                   height: "30px",
                 },
                 { type: "filler" },
@@ -1074,7 +1070,7 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "box",
-          layout: "baseline",
+          layout: "horizontal", // ✅ แก้ไข: เปลี่ยนจาก baseline เป็น horizontal ปลอดภัยกว่า
           contents: [
             {
               type: "text",
