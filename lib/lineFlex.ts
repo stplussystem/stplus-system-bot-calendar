@@ -1007,8 +1007,7 @@ export const generateCheckinTimelineFlex = (
         },
         {
           type: "text",
-          text: outLocation,
-          // text: "ลงชื่อออกงานเรียบร้อย",
+          text: outLocation || "ลงชื่อออกงานเรียบร้อย",
           gravity: "top",
           flex: 4,
           size: "xs",
