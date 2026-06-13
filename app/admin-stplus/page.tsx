@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Menu,
   Activity,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -40,19 +42,23 @@ export default function AdminDashboard() {
 
   // --- Data States ---
   const [employees, setEmployees] = useState<any[]>([]);
-  const [topics, setTopics] = useState<any[]>([]); // 🌟 เพิ่ม state เก็บหัวข้องาน
+  const [topics, setTopics] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
 
   // --- Filter States (Attendance) ---
   const [filterAtt, setFilterAtt] = useState({
-    userId: "", // 🌟 เปลี่ยนจากการพิมพ์ search เป็น userId
+    userId: "",
     topic: "",
     startDate: "",
     endDate: "",
     shift: "",
   });
+
+  // --- Pagination States 🌟 ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50); // ค่าเริ่มต้น 50 รายการ
 
   // --- Profile & Admin Management States ---
   const [profileForm, setProfileForm] = useState({
@@ -79,6 +85,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // 🌟 รีเซ็ตกลับไปหน้า 1 เสมอ เมื่อมีการเปลี่ยนหน้าต่าง หรือเปลี่ยนตัวกรอง
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeMenu, filterAtt, itemsPerPage]);
 
   const showToastMsg = (
     message: string,
@@ -121,32 +132,26 @@ export default function AdminDashboard() {
     window.location.href = "/admin-login";
   };
 
-  // 🌟 ดึงข้อมูลแบบ Manual Mapping (แก้ปัญหาข้อมูลไม่ขึ้น)
   const fetchAllData = async () => {
     setLoading(true);
-
-    // 1. ดึงข้อมูลพนักงาน
     const { data: usersData } = await supabase
       .from("users")
       .select("*")
       .order("full_name");
     if (usersData) setEmployees(usersData);
 
-    // 2. ดึงข้อมูลหัวข้องาน
     const { data: topicsData } = await supabase
       .from("attendance_topics")
       .select("*")
       .order("title");
     if (topicsData) setTopics(topicsData);
 
-    // 3. ดึงข้อมูลลงเวลา (ดึงตารางเดียว ไม่ใช้ relation เพื่อแก้ปัญหา FK error)
     const { data: logsData } = await supabase
       .from("attendance_logs")
       .select("*")
       .order("check_in_time", { ascending: false });
 
     if (logsData && usersData && topicsData) {
-      // ทำการ Mapping ข้อมูลด้วยตัวเองในโค้ด
       const mappedLogs = logsData.map((log) => ({
         ...log,
         users:
@@ -163,7 +168,6 @@ export default function AdminDashboard() {
       setLogs(mappedLogs);
     }
 
-    // 4. ดึงข้อมูลลางาน (Mapping เหมือนกัน)
     const { data: leavesData } = await supabase
       .from("leave_requests")
       .select("*")
@@ -181,7 +185,6 @@ export default function AdminDashboard() {
       setLeaves(mappedLeaves);
     }
 
-    // 5. ดึงข้อมูลแอดมิน
     const { data: adminsData } = await supabase
       .from("admin_users")
       .select("*")
@@ -191,19 +194,14 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // =====================================
-  // Logic: คำนวณเวลาเกิน (OT)
-  // =====================================
   const calculateOT = (checkOutTime: string | null, shift: string) => {
     if (!checkOutTime) return { text: "-", isOver: false, mins: 0 };
     const date = new Date(checkOutTime);
     const totalMins = date.getHours() * 60 + date.getMinutes();
 
     let limitMins = 0;
-    if (shift === "เช้า")
-      limitMins = 18 * 60; // 18:00
-    else if (shift === "บ่าย")
-      limitMins = 22 * 60; // 22:00
+    if (shift === "เช้า") limitMins = 18 * 60;
+    else if (shift === "บ่าย") limitMins = 22 * 60;
     else return { text: "-", isOver: false, mins: 0 };
 
     if (totalMins > limitMins) {
@@ -231,12 +229,9 @@ export default function AdminDashboard() {
     });
   };
 
-  // =====================================
-  // Logic: กรองข้อมูล และ Export Excel
-  // =====================================
+  // --- กรองข้อมูล ---
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      // 🌟 กรองตามรหัสพนักงาน หรือ Line User ID
       const matchUser = filterAtt.userId
         ? log.user_id === filterAtt.userId
         : true;
@@ -244,7 +239,6 @@ export default function AdminDashboard() {
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
       const matchShift = filterAtt.shift ? log.shift === filterAtt.shift : true;
-
       let matchDate = true;
       if (filterAtt.startDate && filterAtt.endDate) {
         const logDate = new Date(log.check_in_time).toISOString().split("T")[0];
@@ -254,6 +248,84 @@ export default function AdminDashboard() {
       return matchUser && matchTopic && matchShift && matchDate;
     });
   }, [logs, filterAtt]);
+
+  const leaveSummary = useMemo(() => {
+    const summary: Record<string, any> = {};
+    employees.forEach((emp) => {
+      summary[emp.line_user_id] = {
+        ...emp,
+        personal: 0,
+        annual: 0,
+        sick: 0,
+        absent: 0,
+      };
+    });
+    leaves.forEach((l) => {
+      const uid = l.line_user_id;
+      if (summary[uid]) {
+        if (l.leave_type === "personal")
+          summary[uid].personal += l.duration_days;
+        if (l.leave_type === "annual") summary[uid].annual += l.duration_days;
+        if (l.leave_type === "sick") summary[uid].sick += l.duration_days;
+        if (l.leave_type === "absent") summary[uid].absent += l.duration_days;
+      }
+    });
+    return Object.values(summary).filter(
+      (s) => s.personal > 0 || s.annual > 0 || s.sick > 0 || s.absent > 0,
+    );
+  }, [leaves, employees]);
+
+  // =====================================
+  // 🌟 Logic: ตัดแบ่งข้อมูลตามหน้า (Pagination Setup)
+  // =====================================
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+  const paginatedLogs = filteredLogs.slice(indexOfFirstItem, indexOfLastItem);
+  const paginatedLeaves = leaveSummary.slice(indexOfFirstItem, indexOfLastItem);
+  const paginatedEmployees = employees.slice(indexOfFirstItem, indexOfLastItem);
+  const paginatedAdmins = admins.slice(indexOfFirstItem, indexOfLastItem);
+
+  // 🌟 Component สำหรับแสดงแถบเปลี่ยนหน้า
+  const renderPagination = (totalItems: number) => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-slate-50 border-t border-gray-200">
+        <div className="flex items-center gap-2 text-xs font-bold text-gray-500 mb-4 sm:mb-0">
+          <span>แสดง</span>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+            className="border border-gray-300 rounded-md px-2 py-1 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+          >
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span>แถว (รวมทั้งหมด {totalItems} รายการ)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="flex items-center justify-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-bold text-gray-600 px-2">
+            หน้า {currentPage} จาก {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="flex items-center justify-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const handleExportExcel = () => {
     let totalOTMins = 0;
@@ -319,39 +391,7 @@ export default function AdminDashboard() {
     document.body.removeChild(link);
   };
 
-  // =====================================
-  // Logic: สรุปวันลา
-  // =====================================
-  const leaveSummary = useMemo(() => {
-    const summary: Record<string, any> = {};
-    employees.forEach((emp) => {
-      summary[emp.line_user_id] = {
-        ...emp,
-        personal: 0,
-        annual: 0,
-        sick: 0,
-        absent: 0,
-      };
-    });
-
-    leaves.forEach((l) => {
-      const uid = l.line_user_id;
-      if (summary[uid]) {
-        if (l.leave_type === "personal")
-          summary[uid].personal += l.duration_days;
-        if (l.leave_type === "annual") summary[uid].annual += l.duration_days;
-        if (l.leave_type === "sick") summary[uid].sick += l.duration_days;
-        if (l.leave_type === "absent") summary[uid].absent += l.duration_days;
-      }
-    });
-    return Object.values(summary).filter(
-      (s) => s.personal > 0 || s.annual > 0 || s.sick > 0 || s.absent > 0,
-    );
-  }, [leaves, employees]);
-
-  // =====================================
-  // Handlers: Save Profile & Admins & Employee Quota
-  // =====================================
+  // --- Handlers: CRUD ---
   const handleSaveProfile = async () => {
     if (!profileForm.full_name || !profileForm.password)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
@@ -373,7 +413,6 @@ export default function AdminDashboard() {
   const handleSaveAdmin = async () => {
     if (!adminForm.username || !adminForm.password || !adminForm.full_name)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
-
     if (adminForm.id) {
       await supabase
         .from("admin_users")
@@ -392,7 +431,6 @@ export default function AdminDashboard() {
         .eq("username", adminForm.username)
         .maybeSingle();
       if (exist) return showToastMsg("Username นี้มีคนใช้แล้ว", "error");
-
       await supabase.from("admin_users").insert([
         {
           username: adminForm.username,
@@ -464,39 +502,33 @@ export default function AdminDashboard() {
           <p className="px-3 text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
             Main Menu
           </p>
-
           <button
             onClick={() => setActiveMenu("attendance")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMenu === "attendance" ? "bg-blue-600 text-white shadow-md shadow-blue-900/20" : "hover:bg-slate-800 hover:text-white"}`}
           >
             <Clock className="w-5 h-5" /> ตารางลงเวลาทำงาน
           </button>
-
           <button
             onClick={() => setActiveMenu("leaves")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMenu === "leaves" ? "bg-blue-600 text-white shadow-md shadow-blue-900/20" : "hover:bg-slate-800 hover:text-white"}`}
           >
             <CalendarRange className="w-5 h-5" /> สรุปการขาดลามาสาย
           </button>
-
           <button
             onClick={() => setActiveMenu("employees")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMenu === "employees" ? "bg-blue-600 text-white shadow-md shadow-blue-900/20" : "hover:bg-slate-800 hover:text-white"}`}
           >
             <Users className="w-5 h-5" /> รายชื่อพนักงาน
           </button>
-
           <p className="px-3 text-xs font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">
             Settings
           </p>
-
           <button
             onClick={() => setActiveMenu("profile")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeMenu === "profile" ? "bg-blue-600 text-white shadow-md shadow-blue-900/20" : "hover:bg-slate-800 hover:text-white"}`}
           >
             <UserCog className="w-5 h-5" /> ข้อมูลส่วนตัวของคุณ
           </button>
-
           {adminUser.role === "superadmin" && (
             <button
               onClick={() => setActiveMenu("admins")}
@@ -506,7 +538,6 @@ export default function AdminDashboard() {
             </button>
           )}
         </nav>
-
         <div className="p-4 border-t border-slate-800">
           <button
             onClick={handleLogout}
@@ -560,7 +591,6 @@ export default function AdminDashboard() {
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {/* 🌟 1. ดึงรายชื่อพนักงานมาทำ Dropdown */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       ค้นหาพนักงาน
@@ -581,8 +611,6 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
-
-                  {/* 🌟 2. ดึงหัวข้องานจากตาราง attendance_topics */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       ชื่องาน
@@ -602,7 +630,6 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
-
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       กะการทำงาน
@@ -655,7 +682,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 </div>
-
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={handleExportExcel}
@@ -666,8 +692,8 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div className="overflow-x-auto custom-scrollbar flex-1">
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
                       <tr>
@@ -685,7 +711,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredLogs.length === 0 ? (
+                      {paginatedLogs.length === 0 ? (
                         <tr>
                           <td
                             colSpan={9}
@@ -695,7 +721,7 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                       ) : (
-                        filteredLogs.map((log) => {
+                        paginatedLogs.map((log) => {
                           const ot = calculateOT(log.check_out_time, log.shift);
                           return (
                             <tr key={log.id} className="hover:bg-gray-50">
@@ -737,14 +763,16 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
+                {/* 🌟 แสดงแถบแบ่งหน้า */}
+                {renderPagination(filteredLogs.length)}
               </div>
             </div>
           )}
 
           {/* TAB 2: สรุปการขาดลามาสาย (Leaves) */}
           {activeMenu === "leaves" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in">
-              <div className="overflow-x-auto custom-scrollbar">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
+              <div className="overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
                     <tr>
@@ -765,7 +793,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {leaveSummary.length === 0 ? (
+                    {paginatedLeaves.length === 0 ? (
                       <tr>
                         <td
                           colSpan={6}
@@ -775,7 +803,7 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ) : (
-                      leaveSummary.map((s, i) => (
+                      paginatedLeaves.map((s, i) => (
                         <tr key={i} className="hover:bg-gray-50">
                           <td className="px-6 py-4 font-bold text-gray-800">
                             {s.full_name || "-"}
@@ -801,13 +829,14 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              {renderPagination(leaveSummary.length)}
             </div>
           )}
 
           {/* TAB 3: รายชื่อพนักงาน (Employees) */}
           {activeMenu === "employees" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in">
-              <div className="overflow-x-auto custom-scrollbar">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
+              <div className="overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
                     <tr>
@@ -819,7 +848,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {employees.map((emp) => (
+                    {paginatedEmployees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-center">
                           <img
@@ -860,6 +889,7 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              {renderPagination(employees.length)}
 
               {/* Modal สำหรับแก้ไขโควตาวันลาพักร้อน */}
               {showEmpModal && (
@@ -874,7 +904,6 @@ export default function AdminDashboard() {
                         {empForm.full_name}
                       </span>
                     </p>
-
                     <div className="mb-6">
                       <label className="text-xs font-bold text-gray-500 mb-1.5 block">
                         จำนวนโควตาต่อปี (วัน)
@@ -892,7 +921,6 @@ export default function AdminDashboard() {
                         className="w-full border border-gray-300 p-3 rounded-xl text-lg font-black text-purple-600 focus:ring-2 focus:ring-purple-500 outline-none text-center"
                       />
                     </div>
-
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowEmpModal(false)}
@@ -983,63 +1011,66 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-4">ชื่อ-สกุล</th>
-                      <th className="px-6 py-4">ตำแหน่ง (Role)</th>
-                      <th className="px-6 py-4">Username</th>
-                      <th className="px-6 py-4">Password</th>
-                      <th className="px-6 py-4 text-center">จัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {admins.map((adm) => (
-                      <tr key={adm.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 font-bold text-gray-800">
-                          {adm.full_name || "-"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold ${adm.role === "superadmin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
-                          >
-                            {adm.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-gray-600 font-medium">
-                          {adm.username}
-                        </td>
-                        <td className="px-6 py-4 text-gray-400 font-bold tracking-widest">
-                          ********
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => {
-                                setAdminForm(adm);
-                                setShowAdminModal(true);
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="แก้ไข"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            {adm.id !== adminUser.id && (
-                              <button
-                                onClick={() => handleDeleteAdmin(adm.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="ลบ"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div className="overflow-x-auto custom-scrollbar flex-1">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-4">ชื่อ-สกุล</th>
+                        <th className="px-6 py-4">ตำแหน่ง (Role)</th>
+                        <th className="px-6 py-4">Username</th>
+                        <th className="px-6 py-4">Password</th>
+                        <th className="px-6 py-4 text-center">จัดการ</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {paginatedAdmins.map((adm) => (
+                        <tr key={adm.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 font-bold text-gray-800">
+                            {adm.full_name || "-"}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-md text-xs font-bold ${adm.role === "superadmin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
+                            >
+                              {adm.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-600 font-medium">
+                            {adm.username}
+                          </td>
+                          <td className="px-6 py-4 text-gray-400 font-bold tracking-widest">
+                            ********
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setAdminForm(adm);
+                                  setShowAdminModal(true);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="แก้ไข"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              {adm.id !== adminUser.id && (
+                                <button
+                                  onClick={() => handleDeleteAdmin(adm.id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="ลบ"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {renderPagination(admins.length)}
               </div>
 
               {/* Modal จัดการ Admin */}
