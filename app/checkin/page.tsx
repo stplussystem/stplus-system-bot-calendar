@@ -470,8 +470,13 @@ export default function CheckinPage() {
               selectedTopicData.lng,
             );
             if (distance > selectedTopicData.radius_meters) {
+              const distanceText =
+                distance < 1000
+                  ? `${Math.ceil(distance)} เมตร`
+                  : `${(distance / 1000).toFixed(2)} กิโลเมตร`;
+
               throw new Error(
-                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
+                `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
               );
             }
           }

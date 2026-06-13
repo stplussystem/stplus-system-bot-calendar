@@ -687,7 +687,7 @@ export const generateCheckinTimelineFlex = (
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
   Shift: string = "เช้า",
-  inLocation: string = "ประจำออฟฟิศ", // เพิ่มรับค่าสถานที่เข้างาน
+  inLocation: string = "ออฟฟิศ", // เพิ่มรับค่าสถานที่เข้างาน
   outLocation: string | null = null, // เพิ่มรับค่าสถานที่ออกงาน
 ) => {
   const contentsList: any[] = [];
