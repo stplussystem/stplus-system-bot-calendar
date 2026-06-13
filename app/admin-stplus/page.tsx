@@ -56,9 +56,9 @@ export default function AdminDashboard() {
     shift: "",
   });
 
-  // --- Pagination States 🌟 ---
+  // --- Pagination States ---
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50); // ค่าเริ่มต้น 50 รายการ
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // --- Profile & Admin Management States ---
   const [profileForm, setProfileForm] = useState({
@@ -86,7 +86,6 @@ export default function AdminDashboard() {
     checkAuth();
   }, []);
 
-  // 🌟 รีเซ็ตกลับไปหน้า 1 เสมอ เมื่อมีการเปลี่ยนหน้าต่าง หรือเปลี่ยนตัวกรอง
   useEffect(() => {
     setCurrentPage(1);
   }, [activeMenu, filterAtt, itemsPerPage]);
@@ -194,15 +193,41 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  const calculateOT = (checkOutTime: string | null, shift: string) => {
-    if (!checkOutTime) return { text: "-", isOver: false, mins: 0 };
-    const date = new Date(checkOutTime);
-    const totalMins = date.getHours() * 60 + date.getMinutes();
-
+  // =====================================
+  // 🌟 Logic: คำนวณกะและเวลาเกิน (OT) จาก start_time
+  // =====================================
+  const getShiftInfo = (log: any) => {
+    const startTime = log.attendance_topics?.start_time;
+    let shiftName = log.shift || "-";
     let limitMins = 0;
-    if (shift === "เช้า") limitMins = 18 * 60;
-    else if (shift === "บ่าย") limitMins = 22 * 60;
-    else return { text: "-", isOver: false, mins: 0 };
+
+    if (startTime) {
+      if (startTime.startsWith("09")) {
+        shiftName = "เช้า";
+        limitMins = 18 * 60; // 18:00
+      } else if (startTime.startsWith("13")) {
+        shiftName = "บ่าย";
+        limitMins = 22 * 60; // 22:00
+      }
+    }
+
+    // เผื่อกรณีหัวข้องานไม่มี start_time ให้ fallback กลับไปหากะเดิมที่บันทึกไว้
+    if (limitMins === 0) {
+      if (shiftName === "เช้า") limitMins = 18 * 60;
+      else if (shiftName === "บ่าย") limitMins = 22 * 60;
+    }
+
+    return { shiftName, limitMins };
+  };
+
+  const calculateOT = (log: any) => {
+    if (!log.check_out_time) return { text: "-", isOver: false, mins: 0 };
+
+    const { limitMins } = getShiftInfo(log);
+    if (limitMins === 0) return { text: "-", isOver: false, mins: 0 };
+
+    const date = new Date(log.check_out_time);
+    const totalMins = date.getHours() * 60 + date.getMinutes();
 
     if (totalMins > limitMins) {
       const overMins = totalMins - limitMins;
@@ -232,13 +257,15 @@ export default function AdminDashboard() {
   // --- กรองข้อมูล ---
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
+      const { shiftName } = getShiftInfo(log);
+
       const matchUser = filterAtt.userId
         ? log.user_id === filterAtt.userId
         : true;
       const matchTopic = filterAtt.topic
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
-      const matchShift = filterAtt.shift ? log.shift === filterAtt.shift : true;
+      const matchShift = filterAtt.shift ? shiftName === filterAtt.shift : true;
       let matchDate = true;
       if (filterAtt.startDate && filterAtt.endDate) {
         const logDate = new Date(log.check_in_time).toISOString().split("T")[0];
@@ -275,9 +302,7 @@ export default function AdminDashboard() {
     );
   }, [leaves, employees]);
 
-  // =====================================
-  // 🌟 Logic: ตัดแบ่งข้อมูลตามหน้า (Pagination Setup)
-  // =====================================
+  // --- Pagination Setup ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
 
@@ -286,7 +311,6 @@ export default function AdminDashboard() {
   const paginatedEmployees = employees.slice(indexOfFirstItem, indexOfLastItem);
   const paginatedAdmins = admins.slice(indexOfFirstItem, indexOfLastItem);
 
-  // 🌟 Component สำหรับแสดงแถบเปลี่ยนหน้า
   const renderPagination = (totalItems: number) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
     return (
@@ -327,7 +351,8 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleExportExcel = () => {
+  // --- Export Excel Functions ---
+  const handleExportAttendanceExcel = () => {
     let totalOTMins = 0;
     const csvRows = [
       [
@@ -344,7 +369,8 @@ export default function AdminDashboard() {
     ];
 
     filteredLogs.forEach((log) => {
-      const ot = calculateOT(log.check_out_time, log.shift);
+      const { shiftName } = getShiftInfo(log);
+      const ot = calculateOT(log);
       if (ot.isOver) totalOTMins += ot.mins;
 
       csvRows.push([
@@ -352,7 +378,7 @@ export default function AdminDashboard() {
         log.users?.nickname || "-",
         log.attendance_topics?.team_type || "-",
         log.attendance_topics?.title || "-",
-        log.shift || "-",
+        shiftName,
         formatDate(log.check_in_time),
         formatTime(log.check_in_time),
         formatTime(log.check_out_time),
@@ -386,6 +412,42 @@ export default function AdminDashboard() {
       : "All";
     link.setAttribute("href", url);
     link.setAttribute("download", `Attendance_${empName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportLeavesExcel = () => {
+    const csvRows = [
+      [
+        "ชื่อ-สกุล",
+        "ชื่อเล่น",
+        "ลากิจ (วัน)",
+        "พักร้อน (วัน)",
+        "ลาป่วย (วัน)",
+        "ขาดงาน (ครั้ง)",
+      ],
+    ];
+
+    leaveSummary.forEach((s) => {
+      csvRows.push([
+        s.full_name || "-",
+        s.nickname || "-",
+        s.personal,
+        s.annual,
+        s.sick,
+        s.absent,
+      ]);
+    });
+
+    const csvContent =
+      "\uFEFF" +
+      csvRows.map((e) => e.map((item) => `"${item}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Leave_Summary_Report.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -684,7 +746,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="mt-4 flex justify-end">
                   <button
-                    onClick={handleExportExcel}
+                    onClick={handleExportAttendanceExcel}
                     className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
                   >
                     <FileSpreadsheet className="w-4 h-4" /> Export Excel
@@ -722,7 +784,8 @@ export default function AdminDashboard() {
                         </tr>
                       ) : (
                         paginatedLogs.map((log) => {
-                          const ot = calculateOT(log.check_out_time, log.shift);
+                          const { shiftName } = getShiftInfo(log);
+                          const ot = calculateOT(log);
                           return (
                             <tr key={log.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 font-bold text-gray-800">
@@ -739,7 +802,7 @@ export default function AdminDashboard() {
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">
-                                  {log.shift || "-"}
+                                  {shiftName}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-center text-gray-600">
@@ -763,7 +826,6 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
-                {/* 🌟 แสดงแถบแบ่งหน้า */}
                 {renderPagination(filteredLogs.length)}
               </div>
             </div>
@@ -772,6 +834,15 @@ export default function AdminDashboard() {
           {/* TAB 2: สรุปการขาดลามาสาย (Leaves) */}
           {activeMenu === "leaves" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
+              {/* 🌟 ปุ่ม Export Excel สรุปวันลา */}
+              <div className="flex justify-end p-4 border-b border-gray-200 bg-gray-50">
+                <button
+                  onClick={handleExportLeavesExcel}
+                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                </button>
+              </div>
               <div className="overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
