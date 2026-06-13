@@ -1095,7 +1095,7 @@ export default function CheckinPage() {
                             </span>
                             {topic.team_type !== "office" && (
                               <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">
-                                ไซต์:{" "}
+                                ทีม :{" "}
                                 {teamLabels[topic.team_type] || topic.team_type}
                               </span>
                             )}

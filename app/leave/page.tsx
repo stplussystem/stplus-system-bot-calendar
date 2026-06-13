@@ -752,7 +752,7 @@ export default function LeavePage() {
           <div className="space-y-5 animate-in fade-in">
             {/* 🌟 ปรับปรุงการ์ดสรุปวันลาใหม่ (เพิ่มขาดงาน และ Comment Quota) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+              <div className="bg-blue-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลากิจ</p>
                 <p className="text-xl font-black text-blue-600">
                   {leaveStats.personal}{" "}
@@ -762,7 +762,7 @@ export default function LeavePage() {
                   ใช้ไป (วัน)
                 </p>
               </div>
-              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+              <div className="bg-purple-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">พักร้อน</p>
                 <p className="text-xl font-black text-purple-600">
                   {leaveStats.annual}{" "}
@@ -772,7 +772,7 @@ export default function LeavePage() {
                   ใช้ไป (วัน)
                 </p>
               </div>
-              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+              <div className="bg-orange-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลาป่วย</p>
                 <p className="text-xl font-black text-orange-600">
                   {leaveStats.sick}{" "}
@@ -782,7 +782,7 @@ export default function LeavePage() {
                   ใช้ไป (วัน)
                 </p>
               </div>
-              <div className="bg-white border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
+              <div className="bg-red-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ขาดงาน</p>
                 <p className="text-xl font-black text-red-600">
                   {leaveStats.absent}
