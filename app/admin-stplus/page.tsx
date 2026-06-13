@@ -40,13 +40,14 @@ export default function AdminDashboard() {
 
   // --- Data States ---
   const [employees, setEmployees] = useState<any[]>([]);
+  const [topics, setTopics] = useState<any[]>([]); // 🌟 เพิ่ม state เก็บหัวข้องาน
   const [logs, setLogs] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
 
   // --- Filter States (Attendance) ---
   const [filterAtt, setFilterAtt] = useState({
-    search: "",
+    userId: "", // 🌟 เปลี่ยนจากการพิมพ์ search เป็น userId
     topic: "",
     startDate: "",
     endDate: "",
@@ -67,7 +68,7 @@ export default function AdminDashboard() {
     role: "admin",
   });
 
-  // --- 🌟 Employee Quota Management States ---
+  // --- Employee Quota Management States ---
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [empForm, setEmpForm] = useState({
     id: "",
@@ -101,7 +102,7 @@ export default function AdminDashboard() {
       .from("admin_users")
       .select("*")
       .eq("username", username)
-      .single();
+      .maybeSingle();
     if (data) {
       setAdminUser(data);
       setProfileForm({
@@ -120,28 +121,67 @@ export default function AdminDashboard() {
     window.location.href = "/admin-login";
   };
 
+  // 🌟 ดึงข้อมูลแบบ Manual Mapping (แก้ปัญหาข้อมูลไม่ขึ้น)
   const fetchAllData = async () => {
     setLoading(true);
+
+    // 1. ดึงข้อมูลพนักงาน
     const { data: usersData } = await supabase
       .from("users")
       .select("*")
       .order("full_name");
     if (usersData) setEmployees(usersData);
 
+    // 2. ดึงข้อมูลหัวข้องาน
+    const { data: topicsData } = await supabase
+      .from("attendance_topics")
+      .select("*")
+      .order("title");
+    if (topicsData) setTopics(topicsData);
+
+    // 3. ดึงข้อมูลลงเวลา (ดึงตารางเดียว ไม่ใช้ relation เพื่อแก้ปัญหา FK error)
     const { data: logsData } = await supabase
       .from("attendance_logs")
-      .select(
-        `*, users(full_name, nickname), attendance_topics(title, team_type)`,
-      )
+      .select("*")
       .order("check_in_time", { ascending: false });
-    if (logsData) setLogs(logsData);
 
+    if (logsData && usersData && topicsData) {
+      // ทำการ Mapping ข้อมูลด้วยตัวเองในโค้ด
+      const mappedLogs = logsData.map((log) => ({
+        ...log,
+        users:
+          usersData.find(
+            (u) => u.line_user_id === log.user_id || u.id === log.user_id,
+          ) || null,
+        attendance_topics:
+          topicsData.find(
+            (t) =>
+              t.id === log.topic_id ||
+              t.id?.toString() === log.topic_id?.toString(),
+          ) || null,
+      }));
+      setLogs(mappedLogs);
+    }
+
+    // 4. ดึงข้อมูลลางาน (Mapping เหมือนกัน)
     const { data: leavesData } = await supabase
       .from("leave_requests")
-      .select(`*, users(full_name, nickname)`)
+      .select("*")
       .eq("status", "approved");
-    if (leavesData) setLeaves(leavesData);
+    if (leavesData && usersData) {
+      const mappedLeaves = leavesData.map((leave) => ({
+        ...leave,
+        users:
+          usersData.find(
+            (u) =>
+              u.line_user_id === leave.line_user_id ||
+              u.id === leave.line_user_id,
+          ) || null,
+      }));
+      setLeaves(mappedLeaves);
+    }
 
+    // 5. ดึงข้อมูลแอดมิน
     const { data: adminsData } = await supabase
       .from("admin_users")
       .select("*")
@@ -170,11 +210,7 @@ export default function AdminDashboard() {
       const overMins = totalMins - limitMins;
       const h = Math.floor(overMins / 60);
       const m = overMins % 60;
-      return {
-        text: `${h} ชม. ${m} นาที`,
-        isOver: true,
-        mins: overMins,
-      };
+      return { text: `${h} ชม. ${m} นาที`, isOver: true, mins: overMins };
     }
     return { text: "-", isOver: false, mins: 0 };
   };
@@ -200,9 +236,10 @@ export default function AdminDashboard() {
   // =====================================
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      const matchSearch =
-        (log.users?.full_name || "").includes(filterAtt.search) ||
-        (log.users?.nickname || "").includes(filterAtt.search);
+      // 🌟 กรองตามรหัสพนักงาน หรือ Line User ID
+      const matchUser = filterAtt.userId
+        ? log.user_id === filterAtt.userId
+        : true;
       const matchTopic = filterAtt.topic
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
@@ -214,13 +251,9 @@ export default function AdminDashboard() {
         matchDate =
           logDate >= filterAtt.startDate && logDate <= filterAtt.endDate;
       }
-      return matchSearch && matchTopic && matchShift && matchDate;
+      return matchUser && matchTopic && matchShift && matchDate;
     });
   }, [logs, filterAtt]);
-
-  const uniqueTopics = Array.from(
-    new Set(logs.map((l) => l.attendance_topics?.title).filter(Boolean)),
-  );
 
   const handleExportExcel = () => {
     let totalOTMins = 0;
@@ -275,11 +308,12 @@ export default function AdminDashboard() {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const fileName = filterAtt.search
-      ? `Report_${filterAtt.search}.csv`
-      : "Attendance_Report.csv";
+    const empName = filterAtt.userId
+      ? employees.find((e) => e.line_user_id === filterAtt.userId)?.full_name ||
+        "Employee"
+      : "All";
     link.setAttribute("href", url);
-    link.setAttribute("download", fileName);
+    link.setAttribute("download", `Attendance_${empName}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -356,7 +390,7 @@ export default function AdminDashboard() {
         .from("admin_users")
         .select("id")
         .eq("username", adminForm.username)
-        .single();
+        .maybeSingle();
       if (exist) return showToastMsg("Username นี้มีคนใช้แล้ว", "error");
 
       await supabase.from("admin_users").insert([
@@ -380,7 +414,6 @@ export default function AdminDashboard() {
     fetchAllData();
   };
 
-  // 🌟 Handler: บันทึกโควตาวันลาพนักงาน
   const handleSaveEmployeeQuota = async () => {
     if (!empForm.id) return;
     await supabase
@@ -389,7 +422,7 @@ export default function AdminDashboard() {
       .eq("id", empForm.id);
     showToastMsg(`อัปเดตโควตาของ ${empForm.full_name} สำเร็จ`);
     setShowEmpModal(false);
-    fetchAllData(); // โหลดข้อมูลพนักงานใหม่
+    fetchAllData();
   };
 
   if (loading || !adminUser)
@@ -527,23 +560,29 @@ export default function AdminDashboard() {
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* 🌟 1. ดึงรายชื่อพนักงานมาทำ Dropdown */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       ค้นหาพนักงาน
                     </label>
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="ชื่อ หรือ ชื่อเล่น..."
-                        value={filterAtt.search}
-                        onChange={(e) =>
-                          setFilterAtt({ ...filterAtt, search: e.target.value })
-                        }
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
+                    <select
+                      value={filterAtt.userId}
+                      onChange={(e) =>
+                        setFilterAtt({ ...filterAtt, userId: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">ทั้งหมดทุกคน</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.line_user_id || emp.id}>
+                          {emp.full_name}{" "}
+                          {emp.nickname ? `(${emp.nickname})` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
+                  {/* 🌟 2. ดึงหัวข้องานจากตาราง attendance_topics */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       ชื่องาน
@@ -555,14 +594,15 @@ export default function AdminDashboard() {
                       }
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                     >
-                      <option value="">ทั้งหมด</option>
-                      {uniqueTopics.map((t, i) => (
-                        <option key={i} value={t as string}>
-                          {t}
+                      <option value="">ทุกหัวข้องาน</option>
+                      {topics.map((t) => (
+                        <option key={t.id} value={t.title}>
+                          {t.title}
                         </option>
                       ))}
                     </select>
                   </div>
+
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       กะการทำงาน
@@ -574,7 +614,7 @@ export default function AdminDashboard() {
                       }
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                     >
-                      <option value="">ทั้งหมด</option>
+                      <option value="">ทุกกะการทำงาน</option>
                       <option value="เช้า">เช้า</option>
                       <option value="บ่าย">บ่าย</option>
                       <option value="ดึก">ดึก</option>
@@ -651,7 +691,7 @@ export default function AdminDashboard() {
                             colSpan={9}
                             className="text-center py-10 text-gray-400"
                           >
-                            ไม่พบข้อมูลที่ค้นหา
+                            ไม่พบข้อมูลที่ค้นหา หรือ กรุณาปลดตัวกรองออก
                           </td>
                         </tr>
                       ) : (
@@ -782,7 +822,6 @@ export default function AdminDashboard() {
                     {employees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-center">
-                          {/* 🌟 อัปเดต CSS ล็อคความกว้าง-สูง และบังคับไม่ให้หด (shrink-0) */}
                           <img
                             src={
                               emp.picture_url ||
@@ -802,7 +841,6 @@ export default function AdminDashboard() {
                           {emp.annual_leave_quota || 6} วัน
                         </td>
                         <td className="px-6 py-3 text-center">
-                          {/* 🌟 ปุ่มแก้ไขโควตาวันลา */}
                           <button
                             onClick={() => {
                               setEmpForm({
@@ -823,7 +861,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
 
-              {/* 🌟 Modal สำหรับแก้ไขโควตาวันลาพักร้อน */}
+              {/* Modal สำหรับแก้ไขโควตาวันลาพักร้อน */}
               {showEmpModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
                   <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
