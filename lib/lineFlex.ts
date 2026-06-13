@@ -648,35 +648,7 @@ export const getOpenForm = (liffUrl: string) => ({
 // ==========================================
 // ส่วนที่ 2: ระบบลงเวลาเข้า-ออกงาน (Attendance)
 // ==========================================
-// 🌟 1. ฟังก์ชันตัวแทน: ให้ getAttendanceMessage วิ่งไปเรียกใช้ Timeline แทน
-export const getAttendanceMessage = (
-  isCheckin: boolean,
-  data: {
-    shift: string;
-    date: string;
-    team: string;
-    topic: string;
-    inTime: string;
-    inLocation: string;
-    outTime: string;
-    outLocation: string;
-  },
-  actionUrl: string,
-) => {
-  // ส่งข้อมูลไปให้ฟังก์ชัน Timeline จัดการ (จุด Checkpoint เป็น Array ว่างเพราะเพิ่งเข้างาน)
-  return generateCheckinTimelineFlex(
-    data.date,
-    data.team,
-    data.topic,
-    data.inTime,
-    isCheckin ? null : data.outTime,
-    [], // ไม่มี Checkpoint
-    actionUrl,
-    data.shift,
-  );
-};
-
-// 🌟 2. ฟังก์ชันหลัก (หน้าตา Timeline ที่สมบูรณ์ อิงตามรูปที่ 1 ของพี่แม็ค)
+// 🌟 ฟังก์ชันหลัก (หน้าตา Timeline ที่สมบูรณ์ อิงตามรูปที่ 1)
 export const generateCheckinTimelineFlex = (
   workDate: string,
   teamName: string,
@@ -685,7 +657,7 @@ export const generateCheckinTimelineFlex = (
   checkOutTime: string | null = null,
   checkpoints: { time: string; location: string }[] = [],
   liffUrl: string,
-  Shift: string = "เช้า", // รับค่า Shift เข้ามา
+  Shift: string = "เช้า",
 ) => {
   const contentsList: any[] = [];
 
@@ -711,10 +683,11 @@ export const generateCheckinTimelineFlex = (
         margin: "xs",
         contents: [
           { type: "filler" },
+          // 🌟 ใส่ filler แทนอาเรย์ว่าง
           {
             type: "box",
             layout: "vertical",
-            contents: [],
+            contents: [{ type: "filler" }],
             cornerRadius: "30px",
             height: "12px",
             width: "12px",
@@ -744,7 +717,7 @@ export const generateCheckinTimelineFlex = (
   });
 
   // --- วนลูปสร้างจุด Checkpoint ---
-  let previousLocation = "ประจำออฟฟิศ"; // 🌟 ตัวแปรเก็บสถานที่ก่อนหน้า (แก้จุดที่พี่แม็คทำพังตรงนี้ครับ)
+  let previousLocation = "ประจำออฟฟิศ";
 
   checkpoints.forEach((cp) => {
     // 1. สร้างเส้นเชื่อม
@@ -772,10 +745,11 @@ export const generateCheckinTimelineFlex = (
               flex: 1,
               contents: [
                 { type: "filler" },
+                // 🌟 ใส่ filler แทนอาเรย์ว่าง
                 {
                   type: "box",
                   layout: "vertical",
-                  contents: [],
+                  contents: [{ type: "filler" }],
                   width: "2px",
                   backgroundColor: "#B7B7B7",
                 },
@@ -817,10 +791,11 @@ export const generateCheckinTimelineFlex = (
           margin: "xs",
           contents: [
             { type: "filler" },
+            // 🌟 ใส่ filler แทนอาเรย์ว่าง
             {
               type: "box",
               layout: "vertical",
-              contents: [],
+              contents: [{ type: "filler" }],
               cornerRadius: "30px",
               height: "12px",
               width: "12px",
@@ -855,7 +830,7 @@ export const generateCheckinTimelineFlex = (
       ],
     });
 
-    previousLocation = cp.location || "จุดแวะ"; // 🌟 อัปเดตสถานที่ก่อนหน้า
+    previousLocation = cp.location || "จุดแวะ";
   });
 
   // --- เส้นเชื่อมก่อนลงเวลาออกงาน ---
@@ -883,10 +858,11 @@ export const generateCheckinTimelineFlex = (
             flex: 1,
             contents: [
               { type: "filler" },
+              // 🌟 ใส่ filler แทนอาเรย์ว่าง
               {
                 type: "box",
                 layout: "vertical",
-                contents: [],
+                contents: [{ type: "filler" }],
                 width: "2px",
                 backgroundColor: "#B7B7B7",
               },
@@ -933,10 +909,11 @@ export const generateCheckinTimelineFlex = (
         margin: "xs",
         contents: [
           { type: "filler" },
+          // 🌟 ใส่ filler แทนอาเรย์ว่าง
           {
             type: "box",
             layout: "vertical",
-            contents: [],
+            contents: [{ type: "filler" }],
             cornerRadius: "30px",
             height: "12px",
             width: "12px",
@@ -990,10 +967,11 @@ export const generateCheckinTimelineFlex = (
               flex: 1,
               contents: [
                 { type: "filler" },
+                // 🌟 ใส่ filler แทนอาเรย์ว่าง
                 {
                   type: "box",
                   layout: "vertical",
-                  contents: [],
+                  contents: [{ type: "filler" }],
                   width: "0px",
                   backgroundColor: "#6486E3",
                   height: "30px",
@@ -1017,7 +995,7 @@ export const generateCheckinTimelineFlex = (
   }
 
   // --- ประกอบร่าง Flex Message ---
-  const headerColor = checkOutTime ? "#EF454D" : "#009900"; // 🌟 เปลี่ยนสีหัวบนสุดถ้าออกงานแล้ว
+  const headerColor = checkOutTime ? "#EF454D" : "#009900";
 
   const flexObj: any = {
     type: "bubble",
