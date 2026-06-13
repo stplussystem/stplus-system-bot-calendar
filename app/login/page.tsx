@@ -15,7 +15,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -48,10 +48,9 @@ const handleLogin = async (e: React.FormEvent) => {
       // ถ้าถูกต้อง ให้บันทึกสถานะลง Browser (localStorage)
       localStorage.setItem("stplus_admin_auth", "true");
       localStorage.setItem("stplus_admin_user", data.username);
-      
+
       // เด้งไปหน้า Dashboard ทันที
-      window.location.href = "/";
-      
+      window.location.href = "/admin-stplus";
     } catch (err) {
       setError("เกิดข้อผิดพลาดในระบบเครือข่าย");
       setLoading(false);
