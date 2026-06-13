@@ -612,12 +612,10 @@ export default function CheckinPage() {
     } else if (historyFilter === "month") {
       const todayDate = start.getDate();
       if (todayDate <= 20) {
-        // ถ้าวันนี้ไม่เกินวันที่ 20 (เช่น 15 มิ.ย.) -> รอบจะเริ่ม 21 พ.ค. ถึง 20 มิ.ย
         start.setMonth(start.getMonth() - 1);
         start.setDate(21);
         end.setDate(20);
       } else {
-        // ถ้าวันนี้เลยวันที่ 20 ไปแล้ว (เช่น 25 มิ.ย.) -> รอบจะเริ่ม 21 มิ.ย. ถึง 20 ก.ค.
         start.setDate(21);
         end.setMonth(end.getMonth() + 1);
         end.setDate(20);
@@ -629,13 +627,18 @@ export default function CheckinPage() {
 
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
+
+    // 🌟 ดึงข้อมูล Logs และต้องพ่วง attendance_checkpoints(*) มาด้วยเสมอ!
     const { data } = await supabase
       .from("attendance_logs")
-      .select(`*, attendance_topics ( title, team_type )`)
+      .select(
+        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
+      )
       .eq("user_id", userProfile?.userId)
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
+
     if (data) setLogs(data);
     setLoadingHistory(false);
   };
@@ -1388,7 +1391,7 @@ export default function CheckinPage() {
                     </div>
                     {selectedLog.check_in_lat && selectedLog.check_in_lng && (
                       <a
-                        href={`https://www.google.com/maps?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
+                        href={`https://maps.google.com/?q=${selectedLog.check_in_lat},${selectedLog.check_in_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
@@ -1398,16 +1401,14 @@ export default function CheckinPage() {
                     )}
                   </div>
 
-                  {/* --- บรรทัดกลาง: จุดแวะ (แก้ตัวแปรเวลาเป็น created_at แล้ว) --- */}
+                  {/* --- บรรทัดกลาง: จุดแวะ (ใช้ตัวแปร checkpoint_time จากฐานข้อมูลโดยตรง) --- */}
                   {selectedLog.attendance_checkpoints &&
                     selectedLog.attendance_checkpoints.length > 0 &&
                     selectedLog.attendance_checkpoints
                       .sort(
                         (a: any, b: any) =>
-                          new Date(
-                            a.created_at || a.checkpoint_time,
-                          ).getTime() -
-                          new Date(b.created_at || b.checkpoint_time).getTime(),
+                          new Date(a.checkpoint_time).getTime() -
+                          new Date(b.checkpoint_time).getTime(),
                       )
                       .map((cp: any, idx: number) => (
                         <div
@@ -1424,12 +1425,12 @@ export default function CheckinPage() {
                               </span>
                             </div>
                             <p className="text-lg font-black text-blue-600">
-                              {formatTime(cp.created_at || cp.checkpoint_time)}
+                              {formatTime(cp.checkpoint_time)}
                             </p>
                           </div>
                           {cp.lat && cp.lng && (
                             <a
-                              href={`https://www.google.com/maps?q=${cp.lat},${cp.lng}`}
+                              href={`https://maps.google.com/?q=${cp.lat},${cp.lng}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex shrink-0 items-center gap-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full text-[11px] font-bold border border-blue-100 transition-colors shadow-sm"
@@ -1457,7 +1458,7 @@ export default function CheckinPage() {
                     </div>
                     {selectedLog.check_out_lat && selectedLog.check_out_lng && (
                       <a
-                        href={`https://www.google.com/maps?q=${selectedLog.check_out_lat},${selectedLog.check_out_lng}`}
+                        href={`https://maps.google.com/?q=${selectedLog.check_out_lat},${selectedLog.check_out_lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-[11px] font-bold border border-red-100 transition-colors shadow-sm"
