@@ -21,7 +21,7 @@ import {
 import { getAttendanceMessage } from "@/lib/lineFlex";
 
 // 🌟 นำเข้า Component ProfileSettings ของจริงมาใช้งาน
-import ProfileSettings from "@/app/components/ProfileSettings";
+import ProfileSettings from "@/components/ProfileSettings";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
