@@ -82,13 +82,11 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // 🌟 เพิ่ม State ควบคุมตาเปิด/ปิด ในหน้า Admin Modal
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [showAdminConfirmPassword, setShowAdminConfirmPassword] =
     useState(false);
 
   const [showAdminModal, setShowAdminModal] = useState(false);
-  // 🌟 เพิ่ม confirm_password เข้ามาใน State ของ Admin Form
   const [adminForm, setAdminForm] = useState({
     id: "",
     username: "",
@@ -107,7 +105,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     checkAuth();
-    // 🌟 ดักจับ URL ว่ามี ?menu=admins ส่งมาด้วยหรือเปล่า
     const params = new URLSearchParams(window.location.search);
     if (params.get("menu") === "admins") {
       setActiveMenu("admins");
@@ -122,9 +119,8 @@ export default function AdminDashboard() {
       if (
         dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node)
-      ) {
+      )
         setShowUserMenu(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -167,21 +163,14 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = async () => {
-    // 1. ล้างค่าใน LocalStorage ของระบบเรา
     localStorage.removeItem("stplus_admin_auth");
     localStorage.removeItem("stplus_admin_user");
-
-    // 2. สั่ง Logout ออกจากระบบ Supabase ด้วย (ถ้ามีการล็อคอินทิ้งไว้)
     await supabase.auth.signOut();
-
-    // 3. เคลียร์ Cookie ทั้งหมดในระบบ เพื่อความปลอดภัย 100%
     document.cookie.split(";").forEach((c) => {
       document.cookie = c
         .replace(/^ +/, "")
         .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-
-    // 4. เปลี่ยนพาธเด้งกลับไปที่หน้า login ที่ถูกต้อง
     window.location.href = "/login";
   };
 
@@ -246,75 +235,82 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
+  // 🌟 อัปเกรดสูตร OT: รองรับกะข้ามคืน และคำนวณ 9 ชั่วโมง
   const calculateOT = (log: any) => {
     if (!log.check_in_time || !log.check_out_time)
       return { text: "-", isOver: false, mins: 0 };
 
     const checkIn = new Date(log.check_in_time);
     const checkOut = new Date(log.check_out_time);
-    const inTotalMins = checkIn.getHours() * 60 + checkIn.getMinutes();
 
     let shiftType = log.shift || log.attendance_topics?.shift_type || "";
     shiftType = getThaiShiftName(shiftType);
 
+    let sH = 9,
+      sM = 0;
     if (shiftType === "เช้า") {
-      if (inTotalMins <= 10 * 60) {
-        const limit = new Date(checkIn);
-        limit.setHours(18, 0, 0, 0);
-        if (checkOut > limit) {
-          const overMins = Math.floor(
-            (checkOut.getTime() - limit.getTime()) / 60000,
-          );
-          return {
-            text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที`,
-            isOver: true,
-            mins: overMins,
-          };
-        }
-      }
+      sH = 9;
+      sM = 0;
     } else if (shiftType === "บ่าย") {
-      if (inTotalMins <= 14 * 60) {
-        const limit = new Date(checkIn);
-        limit.setHours(22, 0, 0, 0);
-        if (checkOut > limit) {
-          const overMins = Math.floor(
-            (checkOut.getTime() - limit.getTime()) / 60000,
-          );
-          return {
-            text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที`,
-            isOver: true,
-            mins: overMins,
-          };
-        }
-      }
+      sH = 13;
+      sM = 0;
     } else if (shiftType.includes("พิเศษ") || shiftType.includes("custom")) {
       const startTimeStr = log.attendance_topics?.start_time;
       if (startTimeStr) {
-        const [sH, sM] = startTimeStr.split(":").map(Number);
-        const startLimitMins = sH * 60 + sM + 60;
-
-        if (inTotalMins <= startLimitMins) {
-          const limit = new Date(checkIn);
-          limit.setHours(sH + 8, sM, 0, 0);
-
-          if (checkOut > limit) {
-            const overMins = Math.floor(
-              (checkOut.getTime() - limit.getTime()) / 60000,
-            );
-            return {
-              text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที (งานพิเศษ)`,
-              isOver: true,
-              mins: overMins,
-            };
-          } else {
-            return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
-          }
-        }
+        const parts = startTimeStr.split(":").map(Number);
+        sH = parts[0];
+        sM = parts[1];
+      } else {
+        return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
       }
-      return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
+    } else {
+      return { text: "-", isOver: false, mins: 0 };
     }
 
-    return { text: "-", isOver: false, mins: 0 };
+    // 🌟 1. หาเส้นตายและปรับวันที่สำหรับกะข้ามคืนอัตโนมัติ
+    let expectedStart = new Date(checkIn);
+    expectedStart.setHours(sH, sM, 0, 0);
+
+    // ถ้าแสกนข้ามคืน เช่น 00:10 (ของวันใหม่) -> ปรับเวลาคาดหวังให้ถอยไปวันก่อนหน้า
+    if (
+      expectedStart > checkIn &&
+      expectedStart.getTime() - checkIn.getTime() > 12 * 3600000
+    ) {
+      expectedStart.setDate(expectedStart.getDate() - 1);
+    }
+    // ถ้าแสกนก่อนเวลามากๆ เช่น 23:50 (ของวันเก่า) -> ปรับเวลาคาดหวังให้เป็นวันใหม่
+    if (
+      checkIn > expectedStart &&
+      checkIn.getTime() - expectedStart.getTime() > 12 * 3600000
+    ) {
+      expectedStart.setDate(expectedStart.getDate() + 1);
+    }
+
+    // 🌟 2. กำหนดเงื่อนไข: สายได้ไม่เกิน 1 ชม. / เริ่มคิด OT หลัง 9 ชม.
+    const checkInLimit = new Date(expectedStart.getTime() + 60 * 60000);
+    const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
+
+    const isCustom =
+      shiftType.includes("พิเศษ") || shiftType.includes("custom");
+    const suffix = isCustom ? " (งานพิเศษ)" : "";
+
+    // 🌟 3. คำนวณผลลัพธ์
+    if (checkIn <= checkInLimit) {
+      if (checkOut > otLimit) {
+        const overMins = Math.floor(
+          (checkOut.getTime() - otLimit.getTime()) / 60000,
+        );
+        return {
+          text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที${suffix}`,
+          isOver: true,
+          mins: overMins,
+        };
+      } else {
+        return { text: isCustom ? "(งานพิเศษ)" : "-", isOver: false, mins: 0 };
+      }
+    } else {
+      return { text: isCustom ? "(งานพิเศษ)" : "-", isOver: false, mins: 0 };
+    }
   };
 
   const formatTime = (iso: string | null) =>
@@ -358,7 +354,6 @@ export default function AdminDashboard() {
       const matchTopic = filterAtt.topic
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
-
       const logShift = getThaiShiftName(
         log.shift || log.attendance_topics?.shift_type || "",
       );
@@ -529,7 +524,6 @@ export default function AdminDashboard() {
     }
 
     const ws = XLSX.utils.aoa_to_sheet(csvRows);
-
     const colWidths = csvRows[0].map((_, colIndex) => ({
       wch:
         Math.max(
@@ -567,7 +561,6 @@ export default function AdminDashboard() {
     showToastMsg("อัปเดตข้อมูลส่วนตัวสำเร็จ");
   };
 
-  // 🌟 Logic: เพิ่มการดัก Error และเช็ค Confirm Password
   const handleSaveAdmin = async () => {
     if (!adminForm.username || !adminForm.password || !adminForm.full_name)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
@@ -608,7 +601,6 @@ export default function AdminDashboard() {
         return showToastMsg(`เพิ่มข้อมูลล้มเหลว: ${error.message}`, "error");
       showToastMsg("เพิ่มผู้ดูแลระบบสำเร็จ");
     }
-
     setShowAdminModal(false);
     fetchAllData();
   };
@@ -752,7 +744,6 @@ export default function AdminDashboard() {
                 className={`w-4 h-4 text-gray-400 transition-transform ${showUserMenu ? "rotate-180" : ""}`}
               />
             </button>
-
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95">
                 <button
