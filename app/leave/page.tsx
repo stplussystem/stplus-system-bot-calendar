@@ -791,23 +791,29 @@ export default function LeavePage() {
       </div>
 
       <div className="px-4 md:px-6 -mt-8 max-w-2xl w-full mx-auto relative z-10 space-y-4">
-        {(dbUser?.role === "admin" ||
-          dbUser?.role === "manager" ||
-          dbUser?.role === "hr") &&
-          !showForm && (
-            <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
-              <button
-                onClick={() => setActiveTab("my_leave")}
-                className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
-              >
-                การลาของฉัน
-              </button>
-              <button
-                onClick={() => setActiveTab("dashboard")}
-                className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${activeTab === "dashboard" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
-              >
-                ตารางการลา
-              </button>
+        {!showForm && (
+          <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
+            <button
+              onClick={() => setActiveTab("my_leave")}
+              className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              การลาของฉัน
+            </button>
+
+            {/* 🌟 2. ตารางการลา (ตอนนี้ให้เห็นทุกคนตามที่คุยกัน ถ้าอนาคตจะซ่อนให้เอาคอมเมนต์ออกครับ) */}
+            {/* {(dbUser?.role === "admin" || dbUser?.role === "manager") && ( */}
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${activeTab === "dashboard" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              ตารางการลา
+            </button>
+            {/* )} */}
+
+            {/* 🌟 3. อนุมัติ (ซ่อนไว้ ให้เห็นเฉพาะ Admin, Manager, HR เท่านั้น) */}
+            {(dbUser?.role === "admin" ||
+              dbUser?.role === "manager" ||
+              dbUser?.role === "hr") && (
               <button
                 onClick={() => setActiveTab("approval")}
                 className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
@@ -819,8 +825,9 @@ export default function LeavePage() {
                   </span>
                 )}
               </button>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
         {showForm && (
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 animate-in fade-in slide-in-from-right-4">
@@ -1323,21 +1330,42 @@ export default function LeavePage() {
                         </p>
                         {getStatusBadge(l.status)}
                       </div>
-                      <div className="flex justify-between items-center pl-7">
-                        <p className="text-xs text-gray-500 font-medium">
-                          {getLeaveTypeName(l.leave_type)} (
-                          {formatThaiDateFull(l.start_date)})
-                        </p>
-                        {l.status !== "pending" && (
-                          <button
-                            onClick={() =>
-                              shareApprovalResult(l, l.status === "approved")
-                            }
-                            className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-md hover:bg-blue-100 border border-blue-100 transition-colors"
-                          >
-                            <Share2 className="w-3 h-3" /> แชร์แจ้งพนักงาน
-                          </button>
-                        )}
+
+                      {/* 🌟 ปรับปรุงส่วนรายละเอียด: เพิ่มแสดงเหตุผล และปุ่มแก้ไขอนุมัติย้อนหลัง */}
+                      <div className="flex justify-between items-center pl-7 mt-1">
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <p className="text-xs text-gray-500 font-medium">
+                            {getLeaveTypeName(l.leave_type)} (
+                            {formatThaiDateFull(l.start_date)})
+                          </p>
+                          {l.status === "rejected" && l.reject_reason && (
+                            <p className="text-[10px] text-red-500/80 italic mt-0.5 line-clamp-1">
+                              "{l.reject_reason}"
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* 🌟 ปุ่มใหม่: "แก้ไขเป็นอนุมัติ" จะโชว์เฉพาะเคสที่เคยถูก Reject ไปแล้ว */}
+                          {l.status === "rejected" && (
+                            <button
+                              onClick={() => triggerApprove(l)}
+                              className="flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1.5 rounded-md hover:bg-orange-100 border border-orange-100 transition-colors"
+                            >
+                              <Edit3 className="w-3 h-3" /> แก้เป็นอนุมัติ
+                            </button>
+                          )}
+
+                          {l.status !== "pending" && (
+                            <button
+                              onClick={() =>
+                                shareApprovalResult(l, l.status === "approved")
+                              }
+                              className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1.5 rounded-md hover:bg-blue-100 border border-blue-100 transition-colors"
+                            >
+                              <Share2 className="w-3 h-3" /> แชร์
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
