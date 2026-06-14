@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Users,
@@ -20,12 +20,7 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
-  FilterX,
-  Eye,
-  EyeOff,
-  ChevronDown, // 🌟 เพิ่ม Icon ใหม่เข้ามา
 } from "lucide-react";
-import * as XLSX from "xlsx"; // 🌟 Import ไลบรารี Export Excel ตัวท็อป
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,10 +40,6 @@ export default function AdminDashboard() {
     type: "success",
   });
 
-  // 🌟 Avatar Menu State
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   // --- Data States ---
   const [employees, setEmployees] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
@@ -56,7 +47,7 @@ export default function AdminDashboard() {
   const [leaves, setLeaves] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
 
-  // --- Filter States ---
+  // --- Filter States (Attendance) ---
   const [filterAtt, setFilterAtt] = useState({
     userId: "",
     topic: "",
@@ -64,19 +55,16 @@ export default function AdminDashboard() {
     endDate: "",
     shift: "",
   });
+
+  // --- Pagination States ---
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
-  // --- Profile States (เพิ่ม Confirm Password และ Toggle ดูรหัส) ---
+  // --- Profile & Admin Management States ---
   const [profileForm, setProfileForm] = useState({
     full_name: "",
     password: "",
-    confirm_password: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // --- Modal States ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminForm, setAdminForm] = useState({
     id: "",
@@ -85,6 +73,8 @@ export default function AdminDashboard() {
     full_name: "",
     role: "admin",
   });
+
+  // --- Employee Quota Management States ---
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [empForm, setEmpForm] = useState({
     id: "",
@@ -95,23 +85,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     checkAuth();
   }, []);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [activeMenu, filterAtt, itemsPerPage]);
-
-  // ซ่อน Dropdown เมื่อคลิกที่อื่น
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const showToastMsg = (
     message: string,
@@ -141,7 +118,6 @@ export default function AdminDashboard() {
       setProfileForm({
         full_name: data.full_name || "",
         password: data.password,
-        confirm_password: data.password,
       });
       fetchAllData();
     } else {
@@ -173,6 +149,7 @@ export default function AdminDashboard() {
       .from("attendance_logs")
       .select("*")
       .order("check_in_time", { ascending: false });
+
     if (logsData && usersData && topicsData) {
       const mappedLogs = logsData.map((log) => ({
         ...log,
@@ -217,129 +194,78 @@ export default function AdminDashboard() {
   };
 
   // =====================================
-  // 🌟 Logic: คำนวณ OT สุดโหด
+  // 🌟 Logic: คำนวณกะและเวลาเกิน (OT) จาก start_time
   // =====================================
+  const getShiftInfo = (log: any) => {
+    const startTime = log.attendance_topics?.start_time;
+    let shiftName = log.shift || "-";
+    let limitMins = 0;
+
+    if (startTime) {
+      if (startTime.startsWith("09")) {
+        shiftName = "เช้า";
+        limitMins = 18 * 60; // 18:00
+      } else if (startTime.startsWith("13")) {
+        shiftName = "บ่าย";
+        limitMins = 22 * 60; // 22:00
+      }
+    }
+
+    // เผื่อกรณีหัวข้องานไม่มี start_time ให้ fallback กลับไปหากะเดิมที่บันทึกไว้
+    if (limitMins === 0) {
+      if (shiftName === "เช้า") limitMins = 18 * 60;
+      else if (shiftName === "บ่าย") limitMins = 22 * 60;
+    }
+
+    return { shiftName, limitMins };
+  };
+
   const calculateOT = (log: any) => {
-    if (!log.check_in_time || !log.check_out_time)
-      return { text: "-", isOver: false, mins: 0 };
+    if (!log.check_out_time) return { text: "-", isOver: false, mins: 0 };
 
-    const checkIn = new Date(log.check_in_time);
-    const checkOut = new Date(log.check_out_time);
-    const inTotalMins = checkIn.getHours() * 60 + checkIn.getMinutes();
+    const { limitMins } = getShiftInfo(log);
+    if (limitMins === 0) return { text: "-", isOver: false, mins: 0 };
 
-    let shiftType = log.shift || "";
-    // ถ้าไม่มีชื่อกะ ให้ลองใช้จากหัวข้องาน
-    if (!shiftType && log.attendance_topics?.shift_type) {
-      shiftType = log.attendance_topics.shift_type;
+    const date = new Date(log.check_out_time);
+    const totalMins = date.getHours() * 60 + date.getMinutes();
+
+    if (totalMins > limitMins) {
+      const overMins = totalMins - limitMins;
+      const h = Math.floor(overMins / 60);
+      const m = overMins % 60;
+      return { text: `${h} ชม. ${m} นาที`, isOver: true, mins: overMins };
     }
-
-    if (shiftType === "เช้า") {
-      if (inTotalMins <= 10 * 60) {
-        const limit = new Date(checkIn);
-        limit.setHours(18, 0, 0, 0);
-        if (checkOut > limit) {
-          const overMins = Math.floor(
-            (checkOut.getTime() - limit.getTime()) / 60000,
-          );
-          return {
-            text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที`,
-            isOver: true,
-            mins: overMins,
-          };
-        }
-      }
-    } else if (shiftType === "บ่าย") {
-      if (inTotalMins <= 14 * 60) {
-        const limit = new Date(checkIn);
-        limit.setHours(22, 0, 0, 0);
-        if (checkOut > limit) {
-          const overMins = Math.floor(
-            (checkOut.getTime() - limit.getTime()) / 60000,
-          );
-          return {
-            text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที`,
-            isOver: true,
-            mins: overMins,
-          };
-        }
-      }
-    }
-    // เงื่อนไขกะพิเศษ
-    else if (
-      shiftType.toLowerCase().includes("พิเศษ") ||
-      shiftType.toLowerCase().includes("custom")
-    ) {
-      const startTimeStr = log.attendance_topics?.start_time; // ดึงเวลาเริ่มจากฐานข้อมูล
-      if (startTimeStr) {
-        const [sH, sM] = startTimeStr.split(":").map(Number);
-        const startLimitMins = sH * 60 + sM + 60; // เส้นตายเข้างาน (+1 ชม.)
-
-        if (inTotalMins <= startLimitMins) {
-          const limit = new Date(checkIn);
-          limit.setHours(sH + 8, sM, 0, 0); // เส้นตายคิด OT คือเริ่มงาน + 8 ชม.
-
-          if (checkOut > limit) {
-            const overMins = Math.floor(
-              (checkOut.getTime() - limit.getTime()) / 60000,
-            );
-            return {
-              text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที (งานพิเศษ)`,
-              isOver: true,
-              mins: overMins,
-            };
-          } else {
-            // 🌟 กรณีเวลาไม่เกิน 8 ชม. ให้แสดงคำว่า งานพิเศษ
-            return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
-          }
-        }
-      }
-      // 🌟 กรณีไม่มีเวลาบอก หรือเข้างานสายกว่ากำหนด 1 ชม.
-      return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
-    }
-
     return { text: "-", isOver: false, mins: 0 };
   };
 
-  const formatTime = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "-";
-  const formatDate = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleDateString("th-TH", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "-";
+  const formatTime = (iso: string | null) => {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+  const formatDate = (iso: string | null) => {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
-  // 🌟 ดึงข้อมูล "กะ" ไม่ซ้ำกันจากตาราง attendance_topics
-  const uniqueShifts = Array.from(
-    new Set([
-      ...topics.map((t) => t.shift_type).filter(Boolean),
-      "เช้า",
-      "บ่าย",
-      "เวลาพิเศษ",
-    ]),
-  );
-
+  // --- กรองข้อมูล ---
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
+      const { shiftName } = getShiftInfo(log);
+
       const matchUser = filterAtt.userId
         ? log.user_id === filterAtt.userId
         : true;
       const matchTopic = filterAtt.topic
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
-      // กรองจากกะใน topic หรือ กะที่บันทึกไว้ใน log
-      const matchShift = filterAtt.shift
-        ? log.attendance_topics?.shift_type === filterAtt.shift ||
-          log.shift === filterAtt.shift
-        : true;
-
+      const matchShift = filterAtt.shift ? shiftName === filterAtt.shift : true;
       let matchDate = true;
       if (filterAtt.startDate && filterAtt.endDate) {
         const logDate = new Date(log.check_in_time).toISOString().split("T")[0];
@@ -376,8 +302,10 @@ export default function AdminDashboard() {
     );
   }, [leaves, employees]);
 
+  // --- Pagination Setup ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
   const paginatedLogs = filteredLogs.slice(indexOfFirstItem, indexOfLastItem);
   const paginatedLeaves = leaveSummary.slice(indexOfFirstItem, indexOfLastItem);
   const paginatedEmployees = employees.slice(indexOfFirstItem, indexOfLastItem);
@@ -392,19 +320,19 @@ export default function AdminDashboard() {
           <select
             value={itemsPerPage}
             onChange={(e) => setItemsPerPage(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-2 py-1 outline-none focus:border-blue-500 bg-white"
+            className="border border-gray-300 rounded-md px-2 py-1 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
           >
             <option value={20}>20</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
           </select>
-          <span>แถว (รวม {totalItems} รายการ)</span>
+          <span>แถว (รวมทั้งหมด {totalItems} รายการ)</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="flex items-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 disabled:opacity-40 transition-colors"
+            className="flex items-center justify-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -414,7 +342,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="flex items-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 disabled:opacity-40 transition-colors"
+            className="flex items-center justify-center p-1.5 border border-gray-300 rounded-lg hover:bg-white bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -423,116 +351,113 @@ export default function AdminDashboard() {
     );
   };
 
-  // =====================================
-  // 🌟 Export Excel (XLSX) แบบ Auto-Width
-  // =====================================
-  const handleExportExcel = (type: "attendance" | "leaves") => {
-    let csvRows: any[][] = [];
-    let fileName = "";
+  // --- Export Excel Functions ---
+  const handleExportAttendanceExcel = () => {
+    let totalOTMins = 0;
+    const csvRows = [
+      [
+        "ชื่อ-สกุล",
+        "ชื่อเล่น",
+        "แผนก",
+        "ชื่องาน",
+        "กะ",
+        "วันที่",
+        "เวลาเข้า",
+        "เวลาออก",
+        "เวลาเกิน (OT)",
+      ],
+    ];
 
-    if (type === "attendance") {
-      let totalOTMins = 0;
-      csvRows = [
-        [
-          "ชื่อ-สกุล",
-          "ชื่อเล่น",
-          "แผนก",
-          "ชื่องาน",
-          "กะ",
-          "วันที่",
-          "เวลาเข้า",
-          "เวลาออก",
-          "เกินเวลา (OT)",
-        ],
-      ];
+    filteredLogs.forEach((log) => {
+      const { shiftName } = getShiftInfo(log);
+      const ot = calculateOT(log);
+      if (ot.isOver) totalOTMins += ot.mins;
 
-      filteredLogs.forEach((log) => {
-        const ot = calculateOT(log);
-        if (ot.isOver) totalOTMins += ot.mins;
-        csvRows.push([
-          log.users?.full_name || "-",
-          log.users?.nickname || "-",
-          log.users?.department || "-",
-          log.attendance_topics?.team_type || "-",
-          log.attendance_topics?.title || "-",
-          log.shift || log.attendance_topics?.shift_type || "-",
-          formatDate(log.check_in_time),
-          formatTime(log.check_in_time),
-          formatTime(log.check_out_time),
-          ot.text, // 🌟 ดึงข้อความ OT ใส่ลง Cell โดยตรง ข้อมูลไม่หลุดแน่นอน
-        ]);
-      });
-      const totalHours = Math.floor(totalOTMins / 60);
-      const totalMins = totalOTMins % 60;
       csvRows.push([
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "รวมเวลาเกินทั้งหมด:",
-        `${totalHours} ชม. ${totalMins} นาที`,
+        log.users?.full_name || "-",
+        log.users?.nickname || "-",
+        log.users?.department || "-",
+        log.attendance_topics?.title || "-",
+        log.attendance_topics?.shift_type || "-",
+        shiftName,
+        formatDate(log.check_in_time),
+        formatTime(log.check_in_time),
+        formatTime(log.check_out_time),
+        ot.text,
       ]);
-      const empName = filterAtt.userId
-        ? employees.find(
-            (e) =>
-              e.line_user_id === filterAtt.userId || e.id === filterAtt.userId,
-          )?.full_name || "Employee"
-        : "All";
-      fileName = `Attendance_${empName}.xlsx`;
-    } else {
-      csvRows = [
-        [
-          "ชื่อ-สกุล",
-          "ชื่อเล่น",
-          "ลากิจ (วัน)",
-          "พักร้อน (วัน)",
-          "ลาป่วย (วัน)",
-          "ขาดงาน (ครั้ง)",
-        ],
-      ];
-      leaveSummary.forEach((s) => {
-        csvRows.push([
-          s.full_name || "-",
-          s.nickname || "-",
-          s.personal,
-          s.annual,
-          s.sick,
-          s.absent,
-        ]);
-      });
-      fileName = `Leave_Summary_Report.xlsx`;
-    }
+    });
 
-    const ws = XLSX.utils.aoa_to_sheet(csvRows);
+    const totalHours = Math.floor(totalOTMins / 60);
+    const totalMins = totalOTMins % 60;
+    csvRows.push([
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "รวมเวลาเกินทั้งหมด:",
+      `${totalHours} ชม. ${totalMins} นาที`,
+    ]);
 
-    // 🌟 Auto-fit Column Widths คำนวณความกว้างอัตโนมัติ
-    const colWidths = csvRows[0].map((_, colIndex) => ({
-      wch:
-        Math.max(
-          ...csvRows.map((row) => {
-            const cellVal = row[colIndex];
-            return cellVal ? cellVal.toString().length : 0;
-          }),
-        ) + 4, // บวก Padding เข้าไปเผื่อ
-    }));
-    ws["!cols"] = colWidths;
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Report");
-    XLSX.writeFile(wb, fileName);
+    const csvContent =
+      "\uFEFF" +
+      csvRows.map((e) => e.map((item) => `"${item}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const empName = filterAtt.userId
+      ? employees.find((e) => e.line_user_id === filterAtt.userId)?.full_name ||
+        "Employee"
+      : "All";
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Attendance_${empName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // --- Handlers ---
+  const handleExportLeavesExcel = () => {
+    const csvRows = [
+      [
+        "ชื่อ-สกุล",
+        "ชื่อเล่น",
+        "ลากิจ (วัน)",
+        "พักร้อน (วัน)",
+        "ลาป่วย (วัน)",
+        "ขาดงาน (ครั้ง)",
+      ],
+    ];
+
+    leaveSummary.forEach((s) => {
+      csvRows.push([
+        s.full_name || "-",
+        s.nickname || "-",
+        s.personal,
+        s.annual,
+        s.sick,
+        s.absent,
+      ]);
+    });
+
+    const csvContent =
+      "\uFEFF" +
+      csvRows.map((e) => e.map((item) => `"${item}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Leave_Summary_Report.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- Handlers: CRUD ---
   const handleSaveProfile = async () => {
     if (!profileForm.full_name || !profileForm.password)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
-    // 🌟 เช็ค Confirm Password
-    if (profileForm.password !== profileForm.confirm_password)
-      return showToastMsg("รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง", "error");
-
     await supabase
       .from("admin_users")
       .update({
@@ -676,11 +601,18 @@ export default function AdminDashboard() {
             </button>
           )}
         </nav>
+        <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-colors"
+          >
+            <LogOut className="w-4 h-4" /> Sign Out
+          </button>
+        </div>
       </aside>
 
       {/* --- Main Content --- */}
       <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
-        {/* 🌟 Header Menu */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-4">
             <button
@@ -701,49 +633,18 @@ export default function AdminDashboard() {
                       : "จัดการผู้ดูแลระบบ (Admin Management)"}
             </h2>
           </div>
-
-          {/* 🌟 Avatar Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-3 p-1.5 pr-3 hover:bg-gray-50 rounded-full border border-transparent hover:border-gray-200 transition-colors"
-            >
-              <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-black">
-                {adminUser.full_name?.charAt(0) || "A"}
-              </div>
-              <div className="text-left hidden sm:block">
-                <p className="text-sm font-bold text-gray-900 leading-none">
-                  {adminUser.full_name}
-                </p>
-                <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase">
-                  {adminUser.role}
-                </p>
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-400 transition-transform ${showUserMenu ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95">
-                <button
-                  onClick={() => {
-                    setActiveMenu("profile");
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                >
-                  <UserCog className="w-4 h-4" /> แก้ไขโปรไฟล์
-                </button>
-                <div className="h-px bg-gray-100"></div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" /> ออกจากระบบ
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold text-gray-900 leading-none">
+                {adminUser.full_name}
+              </p>
+              <p className="text-xs text-gray-500 mt-1 capitalize">
+                {adminUser.role}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-black">
+              {adminUser.full_name?.charAt(0) || "A"}
+            </div>
           </div>
         </header>
 
@@ -751,8 +652,7 @@ export default function AdminDashboard() {
           {/* TAB 1: ตารางลงเวลา (Attendance) */}
           {activeMenu === "attendance" && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full"></div>
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
@@ -768,7 +668,8 @@ export default function AdminDashboard() {
                       <option value="">ทั้งหมดทุกคน</option>
                       {employees.map((emp) => (
                         <option key={emp.id} value={emp.line_user_id || emp.id}>
-                          {emp.full_name}
+                          {emp.full_name}{" "}
+                          {emp.nickname ? `(${emp.nickname})` : ""}
                         </option>
                       ))}
                     </select>
@@ -804,14 +705,12 @@ export default function AdminDashboard() {
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                       <option value="">ทุกกะการทำงาน</option>
-                      {uniqueShifts.map((s, i) => (
-                        <option key={i} value={s as string}>
-                          {s as string}
-                        </option>
-                      ))}
+                      <option value="เช้า">เช้า</option>
+                      <option value="บ่าย">บ่าย</option>
+                      <option value="ดึก">ดึก</option>
                     </select>
                   </div>
-                  <div className="md:col-span-2 flex items-end gap-2">
+                  <div className="md:col-span-2 flex gap-2">
                     <div className="flex-1">
                       <label className="text-xs font-bold text-gray-500 mb-1 block">
                         ตั้งแต่วันที่
@@ -844,27 +743,11 @@ export default function AdminDashboard() {
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
-                    {/* 🌟 ปุ่ม Clear Filters */}
-                    <button
-                      onClick={() =>
-                        setFilterAtt({
-                          userId: "",
-                          topic: "",
-                          startDate: "",
-                          endDate: "",
-                          shift: "",
-                        })
-                      }
-                      className="p-2 border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors flex shrink-0"
-                      title="ล้างการค้นหา"
-                    >
-                      <FilterX className="w-5 h-5" />
-                    </button>
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
                   <button
-                    onClick={() => handleExportExcel("attendance")}
+                    onClick={handleExportAttendanceExcel}
                     className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
                   >
                     <FileSpreadsheet className="w-4 h-4" /> Export Excel
@@ -872,7 +755,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                 <div className="overflow-x-auto custom-scrollbar flex-1">
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
@@ -885,7 +768,7 @@ export default function AdminDashboard() {
                         <th className="px-4 py-3 text-center">วันที่</th>
                         <th className="px-4 py-3 text-center">เวลาเข้า</th>
                         <th className="px-4 py-3 text-center">เวลาออก</th>
-                        <th className="px-4 py-3 text-center bg-red-50 text-red-700 rounded-tr-3xl">
+                        <th className="px-4 py-3 text-center bg-red-50 text-red-700 rounded-tr-2xl">
                           เกินเวลา (OT)
                         </th>
                       </tr>
@@ -895,19 +778,17 @@ export default function AdminDashboard() {
                         <tr>
                           <td
                             colSpan={9}
-                            className="text-center py-10 text-gray-400 font-bold"
+                            className="text-center py-10 text-gray-400"
                           >
-                            ไม่พบข้อมูลที่ค้นหา
+                            ไม่พบข้อมูลที่ค้นหา หรือ กรุณาปลดตัวกรองออก
                           </td>
                         </tr>
                       ) : (
                         paginatedLogs.map((log) => {
+                          const { shiftName } = getShiftInfo(log);
                           const ot = calculateOT(log);
                           return (
-                            <tr
-                              key={log.id}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
+                            <tr key={log.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 font-bold text-gray-800">
                                 {log.users?.full_name || "-"}
                               </td>
@@ -921,18 +802,15 @@ export default function AdminDashboard() {
                                 {log.attendance_topics?.title || "-"}
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <span className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-[11px] font-bold">
-                                  {log.shift ||
-                                  log.attendance_topics?.shift_type ===
-                                    "morning"
+                                <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">
+                                  {log.attendance_topics?.shift_type ===
+                                  "morning"
                                     ? "เช้า"
-                                    : log.shift ||
-                                        log.attendance_topics?.shift_type ===
-                                          "afternoon"
+                                    : log.attendance_topics?.shift_type ===
+                                        "afternoon"
                                       ? "บ่าย"
-                                      : log.shift ||
-                                          log.attendance_topics?.shift_type ===
-                                            "custom"
+                                      : log.attendance_topics?.shift_type ===
+                                          "custom"
                                         ? "เวลาพิเศษ"
                                         : "-"}
                                 </span>
@@ -947,7 +825,7 @@ export default function AdminDashboard() {
                                 {formatTime(log.check_out_time)}
                               </td>
                               <td
-                                className={`px-4 py-3 text-center font-bold ${ot.isOver ? "text-red-600 bg-red-50/50" : ot.text.includes("งานพิเศษ") ? "text-purple-600 bg-purple-50/50" : "text-gray-400"}`}
+                                className={`px-4 py-3 text-center font-bold ${ot.isOver ? "text-red-600 bg-red-50/50" : "text-gray-400"}`}
                               >
                                 {ot.text}
                               </td>
@@ -965,10 +843,11 @@ export default function AdminDashboard() {
 
           {/* TAB 2: สรุปการขาดลามาสาย (Leaves) */}
           {activeMenu === "leaves" && (
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
-              <div className="flex justify-end p-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
+              {/* 🌟 ปุ่ม Export Excel สรุปวันลา */}
+              <div className="flex justify-end p-4 border-b border-gray-200 bg-gray-50">
                 <button
-                  onClick={() => handleExportExcel("leaves")}
+                  onClick={handleExportLeavesExcel}
                   className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Export Excel
@@ -1037,7 +916,7 @@ export default function AdminDashboard() {
 
           {/* TAB 3: รายชื่อพนักงาน (Employees) */}
           {activeMenu === "employees" && (
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in flex flex-col">
               <div className="overflow-x-auto custom-scrollbar flex-1">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
@@ -1093,7 +972,7 @@ export default function AdminDashboard() {
               </div>
               {renderPagination(employees.length)}
 
-              {/* Employee Modal */}
+              {/* Modal สำหรับแก้ไขโควตาวันลาพักร้อน */}
               {showEmpModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
                   <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
@@ -1143,9 +1022,9 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 4: ข้อมูลส่วนตัว (Profile) 🌟 อัปเกรดระบบ Password */}
+          {/* TAB 4: ข้อมูลส่วนตัว (Profile) */}
           {activeMenu === "profile" && (
-            <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-sm border border-gray-200 animate-in zoom-in-95">
+            <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-in zoom-in-95">
               <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
                 <UserCog className="w-10 h-10" />
               </div>
@@ -1168,73 +1047,23 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-500 mb-1.5 block">
-                    ตั้งรหัสผ่านใหม่ (Password)
+                    เปลี่ยนรหัสผ่าน (Password)
                   </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={profileForm.password}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          password: e.target.value,
-                        })
-                      }
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">
-                    ยืนยันรหัสผ่านใหม่ (Confirm Password)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={profileForm.confirm_password}
-                      onChange={(e) =>
-                        setProfileForm({
-                          ...profileForm,
-                          confirm_password: e.target.value,
-                        })
-                      }
-                      className={`w-full bg-gray-50 border rounded-xl px-4 py-3 pr-10 text-sm focus:ring-2 outline-none ${profileForm.confirm_password && profileForm.password !== profileForm.confirm_password ? "border-red-300 focus:ring-red-500" : "border-gray-200 focus:ring-blue-500"}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  {profileForm.confirm_password &&
-                    profileForm.password !== profileForm.confirm_password && (
-                      <p className="text-[10px] text-red-500 font-bold mt-1.5">
-                        รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง
-                      </p>
-                    )}
+                  <input
+                    type="password"
+                    value={profileForm.password}
+                    onChange={(e) =>
+                      setProfileForm({
+                        ...profileForm,
+                        password: e.target.value,
+                      })
+                    }
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
                 </div>
                 <button
                   onClick={handleSaveProfile}
-                  className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-sm"
+                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-sm"
                 >
                   บันทึกข้อมูลส่วนตัว
                 </button>
@@ -1263,7 +1092,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                 <div className="overflow-x-auto custom-scrollbar flex-1">
                   <table className="w-full text-left text-sm whitespace-nowrap">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
@@ -1302,6 +1131,7 @@ export default function AdminDashboard() {
                                   setShowAdminModal(true);
                                 }}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="แก้ไข"
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
@@ -1309,6 +1139,7 @@ export default function AdminDashboard() {
                                 <button
                                   onClick={() => handleDeleteAdmin(adm.id)}
                                   className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="ลบ"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1323,7 +1154,7 @@ export default function AdminDashboard() {
                 {renderPagination(admins.length)}
               </div>
 
-              {/* Admin Modal */}
+              {/* Modal จัดการ Admin */}
               {showAdminModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
                   <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
