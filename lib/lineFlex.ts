@@ -759,7 +759,7 @@ export const generateCheckinTimelineFlex = (
       type: "box",
       layout: "horizontal",
       spacing: "lg",
-      height: "60px", // ลดความสูงเส้นลงเพราะไม่มีข้อความ
+      height: "35px", // ลดความสูงเส้นลงเพราะไม่มีข้อความ
       contents: [
         {
           type: "box",
@@ -865,7 +865,7 @@ export const generateCheckinTimelineFlex = (
     type: "box",
     layout: "horizontal",
     spacing: "lg",
-    height: "60px", // ลดความสูงเส้น
+    height: "35px", // ลดความสูงเส้น
     contents: [
       {
         type: "box",
