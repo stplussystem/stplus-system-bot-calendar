@@ -21,11 +21,11 @@ import {
   Search,
   Star,
   Map,
+  Users,
 } from "lucide-react";
 
 import ProfileSettings from "@/components/ProfileSettings";
 
-// ประกาศ type เพื่อไม่ให้ TypeScript แจ้งเตือนเวลาเรียกใช้ google.maps
 declare global {
   interface Window {
     google: any;
@@ -52,6 +52,15 @@ const teamLabels: { [key: string]: string } = {
   team_other: "อื่นๆ",
 };
 
+const getThaiShiftName = (shiftStr: string) => {
+  if (!shiftStr) return "-";
+  const s = shiftStr.toLowerCase();
+  if (s === "morning") return "เช้า";
+  if (s === "afternoon") return "บ่าย";
+  if (s === "custom") return "เวลาพิเศษ";
+  return shiftStr;
+};
+
 const calculateDistance = (
   lat1: number,
   lon1: number,
@@ -74,7 +83,10 @@ const calculateDistance = (
 };
 
 export default function CheckinPage() {
-  const [activeTab, setActiveTab] = useState<"checkin" | "history">("checkin");
+  // 🌟 เพิ่ม State แท็บใหม่ 'force_checkout'
+  const [activeTab, setActiveTab] = useState<
+    "checkin" | "history" | "force_checkout"
+  >("checkin");
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
@@ -113,9 +125,6 @@ export default function CheckinPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
-  // ==========================================
-  // 🌟 State & Refs สำหรับ Checkpoint & Favorites
-  // ==========================================
   const [showCheckpointModal, setShowCheckpointModal] = useState(false);
   const [checkpointTab, setCheckpointTab] = useState<"search" | "favorites">(
     "search",
@@ -130,29 +139,27 @@ export default function CheckinPage() {
     saveFavorite: false,
   });
 
+  // 🌟 State สำหรับระบบแอดมินบังคับออกงาน
+  const [pendingCheckouts, setPendingCheckouts] = useState<any[]>([]);
+  const [showForceModal, setShowForceModal] = useState({
+    show: false,
+    log: null as any,
+  });
+
   useEffect(() => {
-    // โหลด Google Maps Script
     if (!window.google && GOOGLE_MAPS_API_KEY) {
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
       script.async = true;
       document.body.appendChild(script);
       script.onload = () => setGoogleMapsLoaded(true);
-    } else if (window.google) {
-      setGoogleMapsLoaded(true);
-    }
+    } else if (window.google) setGoogleMapsLoaded(true);
 
     const params = new URLSearchParams(window.location.search);
-
-    // ดักจับ URL เพื่อเปิดหน้าประวัติ (รองรับทั้ง ?tab=history และ ?action=history)
-    if (params.get("tab") === "history" || params.get("action") === "history") {
+    if (params.get("tab") === "history" || params.get("action") === "history")
       setActiveTab("history");
-    }
-
-    // 🌟 ดักจับ URL เพื่อเปิดหน้าข้อมูลส่วนตัว (รองรับลิงก์ ?action=profile ของพี่แม็ค!)
-    if (params.get("tab") === "profile" || params.get("action") === "profile") {
+    if (params.get("tab") === "profile" || params.get("action") === "profile")
       setShowProfileSettings(true);
-    }
 
     const initLiff = async () => {
       try {
@@ -187,7 +194,6 @@ export default function CheckinPage() {
               .single();
             currentUser = newUser;
           }
-
           setDbUser(currentUser || {});
 
           const hasName =
@@ -198,7 +204,6 @@ export default function CheckinPage() {
             setIsNewUser(true);
             return;
           }
-
           if (currentUser.is_active === false) {
             setIsPendingApproval(true);
             return;
@@ -206,9 +211,7 @@ export default function CheckinPage() {
 
           setIsNewUser(false);
           setIsPendingApproval(false);
-        } else {
-          liff.login();
-        }
+        } else liff.login();
       } catch (error) {
         setUserProfile({
           userId: "U_LOCAL_TESTER",
@@ -222,19 +225,22 @@ export default function CheckinPage() {
     initLiff();
   }, []);
 
+  const canForceCheckout = ["admin", "manager", "it"].includes(dbUser?.role); // 🌟 สิทธิ์การเห็นแท็บพิเศษ
+
   useEffect(() => {
     if (isLiffInit && userProfile && !isNewUser && !isPendingApproval) {
       if (activeTab === "checkin") {
         checkTodayStatus();
         fetchActiveTopics();
-        fetchFavorites(); // โหลดสถานที่ประจำ
-        if (navigator.geolocation) {
+        fetchFavorites();
+        if (navigator.geolocation)
           navigator.geolocation.getCurrentPosition(
             () => {},
             () => {},
             { enableHighAccuracy: true, maximumAge: 0 },
           );
-        }
+      } else if (activeTab === "force_checkout") {
+        fetchPendingCheckouts(); // 🌟 ดึงข้อมูลคนค้างเวลา
       } else {
         fetchHistory();
       }
@@ -250,7 +256,6 @@ export default function CheckinPage() {
     isPendingApproval,
   ]);
 
-  // ตั้งค่า Google Places Autocomplete เมื่อเปิด Modal Checkpoint
   useEffect(() => {
     if (
       showCheckpointModal &&
@@ -260,11 +265,8 @@ export default function CheckinPage() {
     ) {
       const autocomplete = new window.google.maps.places.Autocomplete(
         autocompleteInputRef.current,
-        {
-          fields: ["formatted_address", "geometry", "name"],
-        },
+        { fields: ["formatted_address", "geometry", "name"] },
       );
-
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (place.geometry && place.geometry.location) {
@@ -282,6 +284,89 @@ export default function CheckinPage() {
     }
   }, [showCheckpointModal, checkpointTab, googleMapsLoaded]);
 
+  // 🌟 ฟังก์ชันดึงคนที่ลืมลงเวลาออก
+  const fetchPendingCheckouts = async () => {
+    if (!canForceCheckout) return;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 2); // ย้อนไปเช็ค 2 วันกันกะข้ามคืน
+    const { data } = await supabase
+      .from("attendance_logs")
+      .select(
+        `*, users (full_name, nickname, picture_url), attendance_topics (title, shift_type, start_time)`,
+      )
+      .is("check_out_time", null)
+      .gte("check_in_time", yesterday.toISOString())
+      .order("check_in_time", { ascending: true });
+    if (data) setPendingCheckouts(data);
+  };
+
+  // 🌟 ฟังก์ชันบังคับออกแบบ เลือกเวลาได้ (ปัจจุบัน หรือ 9 ชม.)
+  const executeForceCheckout = async (type: "now" | "9hours") => {
+    const log = showForceModal.log;
+    if (!log) return;
+    setLoading(true);
+    let outTime = new Date().toISOString();
+
+    if (type === "9hours") {
+      let sH = 9,
+        sM = 0;
+      const shiftType = getThaiShiftName(
+        log.shift || log.attendance_topics?.shift_type || "",
+      );
+      if (shiftType === "เช้า") {
+        sH = 9;
+        sM = 0;
+      } else if (shiftType === "บ่าย") {
+        sH = 13;
+        sM = 0;
+      } else if (shiftType.includes("พิเศษ") || shiftType.includes("custom")) {
+        const startTimeStr = log.attendance_topics?.start_time;
+        if (startTimeStr) {
+          const parts = startTimeStr.split(":").map(Number);
+          sH = parts[0];
+          sM = parts[1];
+        }
+      }
+
+      let expectedStart = new Date(log.check_in_time);
+      expectedStart.setHours(sH, sM, 0, 0);
+
+      if (
+        expectedStart > new Date(log.check_in_time) &&
+        expectedStart.getTime() - new Date(log.check_in_time).getTime() >
+          12 * 3600000
+      ) {
+        expectedStart.setDate(expectedStart.getDate() - 1);
+      }
+      if (
+        new Date(log.check_in_time) > expectedStart &&
+        new Date(log.check_in_time).getTime() - expectedStart.getTime() >
+          12 * 3600000
+      ) {
+        expectedStart.setDate(expectedStart.getDate() + 1);
+      }
+
+      const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
+      outTime = otLimit.toISOString();
+    }
+
+    const { error } = await supabase
+      .from("attendance_logs")
+      .update({
+        check_out_time: outTime,
+        status: "checked_out",
+      })
+      .eq("id", log.id);
+
+    if (error) showToast(error.message, "error");
+    else {
+      showToast("บังคับลงเวลาออกให้พนักงานสำเร็จ!", "success");
+      fetchPendingCheckouts();
+    }
+    setShowForceModal({ show: false, log: null });
+    setLoading(false);
+  };
+
   const showToast = (
     message: string,
     type: "success" | "error" = "success",
@@ -291,12 +376,10 @@ export default function CheckinPage() {
   };
 
   const fetchFavorites = async () => {
-    // 🌟 ดึงสถานที่ประจำทั้งหมดโดยไม่สนว่าใครเป็นคนสร้าง
     const { data } = await supabase
       .from("saved_locations")
       .select("*")
       .order("created_at", { ascending: false });
-
     if (data) setFavorites(data || []);
   };
 
@@ -318,13 +401,10 @@ export default function CheckinPage() {
       .order("check_in_time", { ascending: false })
       .limit(1)
       .single();
-
     if (data && !data.check_out_time) {
       setTodayLog(data);
       setCheckoutTopic(data.topic_id);
-    } else {
-      setTodayLog(null);
-    }
+    } else setTodayLog(null);
     setIsCheckingStatus(false);
   };
 
@@ -384,29 +464,22 @@ export default function CheckinPage() {
       .data.publicUrl;
   };
 
-  // ==========================================
-  // 📍 จัดการ Checkpoint ระหว่างวัน
-  // ==========================================
   const submitCheckpoint = async () => {
-    if (!cpData.title || cpData.lat === 0 || cpData.lng === 0) {
+    if (!cpData.title || cpData.lat === 0 || cpData.lng === 0)
       return showToast(
         "กรุณาค้นหาและเลือกสถานที่จากแผนที่ หรือ สถานที่ประจำ",
         "error",
       );
-    }
     setLoading(true);
     try {
-      // 🌟 1. เช็คสถานที่ซ้ำ "แบบภาพรวม" (ไม่สนใจว่าเป็นของ User ไหน)
       if (cpData.saveFavorite) {
         const { data: existingFav } = await supabase
           .from("saved_locations")
           .select("id")
-          .eq("title", cpData.title); // ดึงเช็คแค่ชื่อ (Title) เท่านั้น!
-
-        if (existingFav && existingFav.length > 0) {
+          .eq("title", cpData.title);
+        if (existingFav && existingFav.length > 0)
           showToast("มีสถานที่ชื่อนี้ในระบบแล้ว จะใช้ข้อมูลเดิมครับ", "error");
-        } else {
-          // ถ้าไม่ซ้ำ ถึงจะบันทึกเพิ่มลงส่วนกลาง
+        else {
           await supabase.from("saved_locations").insert([
             {
               user_id: userProfile.userId,
@@ -418,8 +491,6 @@ export default function CheckinPage() {
           fetchFavorites();
         }
       }
-
-      // 2. บันทึกลงตาราง Checkpoint
       const { error } = await supabase.from("attendance_checkpoints").insert([
         {
           log_id: todayLog.id,
@@ -429,12 +500,9 @@ export default function CheckinPage() {
         },
       ]);
       if (error) throw error;
-
       showToast("บันทึกจุด Checkpoint เรียบร้อย!", "success");
       setShowCheckpointModal(false);
       setCpData({ title: "", lat: 0, lng: 0, saveFavorite: false });
-
-      // 3. ส่งข้อความเข้า LINE
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         await liff.sendMessages([
@@ -466,7 +534,6 @@ export default function CheckinPage() {
             throw new Error(
               `สัญญาณ GPS ยังไม่เสถียร (คลาดเคลื่อน ${Math.ceil(accuracy)}ม.)`,
             );
-
           if (
             selectedTopicData.radius_meters > 0 &&
             selectedTopicData.lat &&
@@ -483,7 +550,6 @@ export default function CheckinPage() {
                 distance < 1000
                   ? `${Math.ceil(distance)} เมตร`
                   : `${(distance / 1000).toFixed(2)} กิโลเมตร`;
-
               throw new Error(
                 `ไม่สามารถลงเวลาได้! คุณอยู่นอกสถานที่ทำงาน ${distanceText} (กำหนดไว้ ${selectedTopicData.radius_meters} ม.)`,
               );
@@ -611,7 +677,6 @@ export default function CheckinPage() {
       const d = String(date.getDate()).padStart(2, "0");
       return `${y}-${m}-${d}`;
     };
-
     let start = new Date();
     let end = new Date();
     if (historyFilter === "week") {
@@ -637,7 +702,6 @@ export default function CheckinPage() {
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
-    // 🌟 ดึงข้อมูล Logs และต้องพ่วง attendance_checkpoints(*) มาด้วยเสมอ!
     const { data } = await supabase
       .from("attendance_logs")
       .select(
@@ -647,7 +711,6 @@ export default function CheckinPage() {
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
-
     if (data) setLogs(data);
     setLoadingHistory(false);
   };
@@ -666,16 +729,14 @@ export default function CheckinPage() {
       year: "numeric",
     });
 
-  if (!isLiffInit) {
+  if (!isLiffInit)
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
         <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
         <p className="text-sm font-bold text-gray-500">กำลังตรวจสอบสิทธิ์...</p>
       </div>
     );
-  }
-
-  if (isNewUser || showProfileSettings) {
+  if (isNewUser || showProfileSettings)
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
         <ProfileSettings
@@ -693,9 +754,7 @@ export default function CheckinPage() {
         />
       </div>
     );
-  }
-
-  if (isPendingApproval) {
+  if (isPendingApproval)
     return (
       <div className="min-h-screen bg-slate-50 flex justify-center p-4 font-sans">
         <div className="w-full max-w-lg mt-[15vh] bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 p-10 text-center animate-in zoom-in duration-500">
@@ -712,7 +771,6 @@ export default function CheckinPage() {
         </div>
       </div>
     );
-  }
 
   const currentTopic = todayLog
     ? topics.find((t) => t.id === checkoutTopic) || todayLog.attendance_topics
@@ -733,7 +791,58 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal Checkpoint */}
+      {/* 🌟 Modal บังคับออกงานของ Admin */}
+      {showForceModal.show && showForceModal.log && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-black text-gray-900 text-center mb-2">
+              บังคับลงชื่อออก (Force Checkout)
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              คุณต้องการบังคับให้พนักงานคนนี้ลงเวลาออกงานเป็นเวลาใด?
+            </p>
+            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6 flex items-center gap-3">
+              <img
+                src={showForceModal.log.users?.picture_url}
+                className="w-12 h-12 rounded-full"
+                alt="profile"
+              />
+              <div>
+                <p className="font-bold text-gray-800 text-sm">
+                  {showForceModal.log.users?.full_name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  เข้างาน: {formatTime(showForceModal.log.check_in_time)}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => executeForceCheckout("9hours")}
+                disabled={loading}
+                className="w-full bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 font-bold py-3.5 rounded-xl transition-colors"
+              >
+                1. ออกงานอัตโนมัติ 9 ชม. นับจากกะ (ไม่ต้องมี OT)
+              </button>
+              <button
+                onClick={() => executeForceCheckout("now")}
+                disabled={loading}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl shadow-sm transition-colors"
+              >
+                2. ออกงาน ณ เวลาปัจจุบัน (มี OT)
+              </button>
+              <button
+                onClick={() => setShowForceModal({ show: false, log: null })}
+                disabled={loading}
+                className="w-full bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl transition-colors mt-2"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCheckpointModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-gray-900/40 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 flex flex-col max-h-[85vh]">
@@ -749,8 +858,6 @@ export default function CheckinPage() {
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
-
-            {/* Tabs Modal */}
             <div className="flex px-4 pt-3 gap-2 bg-white sticky top-[65px] z-10">
               <button
                 onClick={() => setCheckpointTab("search")}
@@ -765,7 +872,6 @@ export default function CheckinPage() {
                 <Star className="w-3.5 h-3.5 inline mr-1" /> สถานที่ประจำ
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
               {checkpointTab === "search" ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
@@ -848,7 +954,6 @@ export default function CheckinPage() {
                 </div>
               )}
             </div>
-
             <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 z-10">
               <button
                 onClick={submitCheckpoint}
@@ -889,21 +994,110 @@ export default function CheckinPage() {
             </div>
           )}
         </div>
+
+        {/* 🌟 Tab เมนูด้านบน */}
         <div className="flex">
           <button
             onClick={() => setActiveTab("checkin")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "checkin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+            className={`flex-1 py-4 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1.5 ${activeTab === "checkin" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
           >
             <MapPin className="w-4 h-4" /> ลงเวลาทำงาน
           </button>
+
+          {/* 🌟 Tab ใหม่สำหรับจัดการออกงาน (เห็นเฉพาะ Role ที่ได้รับสิทธิ์) */}
+          {canForceCheckout && (
+            <button
+              onClick={() => setActiveTab("force_checkout")}
+              className={`relative flex-1 py-4 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1.5 ${activeTab === "force_checkout" ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+            >
+              <Users className="w-4 h-4" /> จัดการออกงาน
+              {pendingCheckouts.length > 0 && (
+                <span className="absolute top-2.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white animate-pulse shadow-sm border border-white">
+                  {pendingCheckouts.length}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab("history")}
-            className={`flex-1 py-4 text-sm font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+            className={`flex-1 py-4 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1.5 ${activeTab === "history" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
           >
-            <History className="w-4 h-4" /> ประวัติของฉัน
+            <History className="w-4 h-4" /> ประวัติ
           </button>
         </div>
       </div>
+
+      {/* 🌟 TAB 1.5: จัดการออกงาน (Force Checkout) */}
+      {activeTab === "force_checkout" && (
+        <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-left-4 duration-300">
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-orange-500 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-bold text-orange-900 text-sm">
+                พนักงานที่ลืมลงเวลาออก
+              </h3>
+              <p className="text-xs text-orange-700 mt-1">
+                ใช้สิทธิ์แอดมิน
+                เพื่อบังคับลงเวลาออกงานให้กับพนักงานที่ไม่ได้เช็คเอาท์ในระบบ
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {pendingCheckouts.length === 0 ? (
+              <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center flex flex-col items-center">
+                <CheckCircle2 className="w-12 h-12 text-green-400 mb-2" />
+                <p className="font-bold text-gray-600">ไม่มีพนักงานตกค้าง</p>
+              </div>
+            ) : (
+              pendingCheckouts.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={
+                        log.users?.picture_url ||
+                        "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                      }
+                      alt="profile"
+                      className="w-10 h-10 rounded-full border border-gray-100 object-cover"
+                    />
+                    <div className="flex-1">
+                      <p className="font-bold text-sm text-gray-900">
+                        {log.users?.full_name || "พนักงาน"}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                        📍 {log.attendance_topics?.title || "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <div className="text-xs font-bold text-gray-500">
+                      เข้างาน:{" "}
+                      <span className="text-green-600">
+                        {formatTime(log.check_in_time)}
+                      </span>
+                      <br />
+                      <span className="text-[10px] font-medium">
+                        {formatDate(log.check_in_time)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowForceModal({ show: true, log })}
+                      className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-sm"
+                    >
+                      บังคับออกงาน
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: ลงเวลา */}
       {activeTab === "checkin" && (
@@ -929,7 +1123,6 @@ export default function CheckinPage() {
                 </div>
               </div>
 
-              {/* 🌟 ปุ่มใหม่: แวะจุด Checkpoint */}
               <div className="p-5 bg-blue-50 border-b border-blue-100">
                 <button
                   onClick={() => setShowCheckpointModal(true)}
@@ -1202,7 +1395,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* TAB 2: ประวัติ (คงเดิม) */}
+      {/* TAB 3: ประวัติ */}
       {activeTab === "history" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
@@ -1294,8 +1487,6 @@ export default function CheckinPage() {
                         <CalendarIcon className="w-3 h-3 inline pb-0.5" />{" "}
                         {formatDate(log.check_in_time)}
                       </div>
-
-                      {/* 🌟 ส่วนที่เพิ่มใหม่: โชว์จุด Checkpoint ใต้ชื่อ */}
                       {log.attendance_checkpoints &&
                         log.attendance_checkpoints.length > 0 && (
                           <div className="flex items-center gap-1 text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 w-fit">
@@ -1335,7 +1526,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal รายละเอียดประวัติ (แก้ปัญหาปุ่มล้นขอบ + ตัดคำสวยๆ) */}
+      {/* Modal รายละเอียดประวัติ (คงเดิม) */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -1350,9 +1541,7 @@ export default function CheckinPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
-              {/* 🌟 1. รูปถ่าย */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อ
@@ -1371,10 +1560,7 @@ export default function CheckinPage() {
                   </div>
                 )}
               </div>
-
-              {/* 🌟 2. รายละเอียดเข้า-ออก-จุดแวะ */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-4 shadow-inner">
-                {/* หัวข้องาน */}
                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                   <p className="text-[10px] font-bold text-gray-500 mb-0.5 flex items-center gap-1">
                     📍 หัวข้องาน
@@ -1383,9 +1569,7 @@ export default function CheckinPage() {
                     {selectedLog.attendance_topics?.title || "-"}
                   </p>
                 </div>
-
                 <div className="space-y-3">
-                  {/* --- บรรทัดที่ 1: เข้างาน --- */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-green-100 shadow-sm">
                     <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
@@ -1409,8 +1593,6 @@ export default function CheckinPage() {
                       </a>
                     )}
                   </div>
-
-                  {/* --- บรรทัดกลาง: จุดแวะ (แก้ปัญหาล้นขอบ + ตัดคำ) --- */}
                   {selectedLog.attendance_checkpoints &&
                     selectedLog.attendance_checkpoints.length > 0 &&
                     selectedLog.attendance_checkpoints
@@ -1424,17 +1606,11 @@ export default function CheckinPage() {
                           key={idx}
                           className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm ml-6 relative"
                         >
-                          {/* ขีดเส้นเชื่อมด้านซ้ายเพื่อให้ดูเป็น sub-item */}
                           <div className="absolute -left-4 top-1/2 w-4 border-t-2 border-dashed border-gray-300"></div>
-
                           <div className="flex-1 pr-2 min-w-0">
-                            {" "}
-                            {/* 🌟 min-w-0 บังคับไม่ให้ดันกล่องขยาย */}
                             <div className="flex items-start gap-1.5 mb-0.5">
                               <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1"></div>
                               <span className="text-xs font-bold text-gray-600 line-clamp-2">
-                                {" "}
-                                {/* 🌟 line-clamp-2 ตัดคำขึ้นบรรทัดใหม่ + จุดไข่ปลา */}
                                 {cp.note
                                   ? cp.note.replace("แวะจุด: ", "")
                                   : "จุดแวะ"}
@@ -1456,8 +1632,6 @@ export default function CheckinPage() {
                           )}
                         </div>
                       ))}
-
-                  {/* --- บรรทัดสุดท้าย: ออกงาน --- */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-red-100 shadow-sm">
                     <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
