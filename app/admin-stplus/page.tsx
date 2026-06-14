@@ -32,14 +32,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-// 🌟 ตัวช่วยแปลงชื่อกะภาษาอังกฤษเป็นไทย
 const getThaiShiftName = (shiftStr: string) => {
   if (!shiftStr) return "-";
   const s = shiftStr.toLowerCase();
   if (s === "morning") return "เช้า";
   if (s === "afternoon") return "บ่าย";
   if (s === "custom") return "เวลาพิเศษ";
-  return shiftStr; // ถ้าเป็นภาษาไทยอยู่แล้วก็คืนค่าเดิม
+  return shiftStr;
 };
 
 export default function AdminDashboard() {
@@ -64,7 +63,6 @@ export default function AdminDashboard() {
   const [leaves, setLeaves] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
 
-  // 🌟 เพิ่ม department เข้าไปใน State ของตัวกรอง
   const [filterAtt, setFilterAtt] = useState({
     department: "",
     userId: "",
@@ -84,14 +82,22 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // 🌟 เพิ่ม State ควบคุมตาเปิด/ปิด ในหน้า Admin Modal
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminConfirmPassword, setShowAdminConfirmPassword] =
+    useState(false);
+
   const [showAdminModal, setShowAdminModal] = useState(false);
+  // 🌟 เพิ่ม confirm_password เข้ามาใน State ของ Admin Form
   const [adminForm, setAdminForm] = useState({
     id: "",
     username: "",
     password: "",
+    confirm_password: "",
     full_name: "",
     role: "admin",
   });
+
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [empForm, setEmpForm] = useState({
     id: "",
@@ -222,7 +228,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // 🌟 Logic: คำนวณ OT (รองรับกะภาษาไทยที่ถูกแปลงมาแล้ว)
   const calculateOT = (log: any) => {
     if (!log.check_in_time || !log.check_out_time)
       return { text: "-", isOver: false, mins: 0 };
@@ -232,7 +237,7 @@ export default function AdminDashboard() {
     const inTotalMins = checkIn.getHours() * 60 + checkIn.getMinutes();
 
     let shiftType = log.shift || log.attendance_topics?.shift_type || "";
-    shiftType = getThaiShiftName(shiftType); // แปลงเป็นภาษาไทยก่อนนำไปเช็คเงื่อนไข
+    shiftType = getThaiShiftName(shiftType);
 
     if (shiftType === "เช้า") {
       if (inTotalMins <= 10 * 60) {
@@ -310,12 +315,9 @@ export default function AdminDashboard() {
         })
       : "-";
 
-  // 🌟 รายชื่อแผนกที่ไม่ซ้ำกัน
   const uniqueDepartments = Array.from(
     new Set(employees.map((emp) => emp.department).filter(Boolean)),
   );
-
-  // 🌟 ดึงข้อมูล "กะ" ไม่ซ้ำกัน (ผ่านการแปลงเป็นภาษาไทยแล้ว)
   const uniqueShifts = Array.from(
     new Set([
       ...topics
@@ -329,7 +331,6 @@ export default function AdminDashboard() {
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      // 🌟 เช็ค Department (แผนก)
       const matchDept = filterAtt.department
         ? (log.users?.department || "") === filterAtt.department
         : true;
@@ -340,7 +341,6 @@ export default function AdminDashboard() {
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
 
-      // 🌟 เช็ค Shift (แปลงเป็นไทยก่อนเทียบ)
       const logShift = getThaiShiftName(
         log.shift || log.attendance_topics?.shift_type || "",
       );
@@ -549,11 +549,15 @@ export default function AdminDashboard() {
     showToastMsg("อัปเดตข้อมูลส่วนตัวสำเร็จ");
   };
 
+  // 🌟 Logic: เพิ่มการดัก Error และเช็ค Confirm Password
   const handleSaveAdmin = async () => {
     if (!adminForm.username || !adminForm.password || !adminForm.full_name)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
+    if (adminForm.password !== adminForm.confirm_password)
+      return showToastMsg("รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง", "error");
+
     if (adminForm.id) {
-      await supabase
+      const { error } = await supabase
         .from("admin_users")
         .update({
           username: adminForm.username,
@@ -562,6 +566,8 @@ export default function AdminDashboard() {
           role: adminForm.role,
         })
         .eq("id", adminForm.id);
+
+      if (error) return showToastMsg(`แก้ไขล้มเหลว: ${error.message}`, "error");
       showToastMsg("แก้ไขข้อมูลผู้ดูแลระบบสำเร็จ");
     } else {
       const { data: exist } = await supabase
@@ -570,7 +576,8 @@ export default function AdminDashboard() {
         .eq("username", adminForm.username)
         .maybeSingle();
       if (exist) return showToastMsg("Username นี้มีคนใช้แล้ว", "error");
-      await supabase.from("admin_users").insert([
+
+      const { error } = await supabase.from("admin_users").insert([
         {
           username: adminForm.username,
           password: adminForm.password,
@@ -578,8 +585,12 @@ export default function AdminDashboard() {
           role: adminForm.role,
         },
       ]);
+
+      if (error)
+        return showToastMsg(`เพิ่มข้อมูลล้มเหลว: ${error.message}`, "error");
       showToastMsg("เพิ่มผู้ดูแลระบบสำเร็จ");
     }
+
     setShowAdminModal(false);
     fetchAllData();
   };
@@ -753,7 +764,6 @@ export default function AdminDashboard() {
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full"></div>
-                {/* 🌟 ขยาย Grid เพื่อรองรับตัวกรอง 4 ตัว + วันที่ */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   <div className="lg:col-span-1">
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
@@ -1269,6 +1279,7 @@ export default function AdminDashboard() {
                       id: "",
                       username: "",
                       password: "",
+                      confirm_password: "",
                       full_name: "",
                       role: "admin",
                     });
@@ -1315,7 +1326,10 @@ export default function AdminDashboard() {
                             <div className="flex items-center justify-center gap-2">
                               <button
                                 onClick={() => {
-                                  setAdminForm(adm);
+                                  setAdminForm({
+                                    ...adm,
+                                    confirm_password: adm.password,
+                                  });
                                   setShowAdminModal(true);
                                 }}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1340,7 +1354,7 @@ export default function AdminDashboard() {
                 {renderPagination(admins.length)}
               </div>
 
-              {/* Admin Modal */}
+              {/* 🌟 Admin Modal: อัปเกรดช่องรหัสผ่านมีตา และยืนยันรหัสผ่าน */}
               {showAdminModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
                   <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
@@ -1400,21 +1414,81 @@ export default function AdminDashboard() {
                           className="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
                         />
                       </div>
+
+                      {/* ช่อง Password มีตาเปิดปิด */}
                       <div>
                         <label className="text-xs font-bold text-gray-500 mb-1.5 block">
                           Password
                         </label>
-                        <input
-                          type="text"
-                          value={adminForm.password}
-                          onChange={(e) =>
-                            setAdminForm({
-                              ...adminForm,
-                              password: e.target.value,
-                            })
-                          }
-                          className="w-full border border-gray-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showAdminPassword ? "text" : "password"}
+                            value={adminForm.password}
+                            onChange={(e) =>
+                              setAdminForm({
+                                ...adminForm,
+                                password: e.target.value,
+                              })
+                            }
+                            className="w-full border border-gray-300 p-2.5 pr-10 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowAdminPassword(!showAdminPassword)
+                            }
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            {showAdminPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ช่อง Confirm Password มีตาเปิดปิด */}
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 mb-1.5 block">
+                          Confirm Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={
+                              showAdminConfirmPassword ? "text" : "password"
+                            }
+                            value={adminForm.confirm_password}
+                            onChange={(e) =>
+                              setAdminForm({
+                                ...adminForm,
+                                confirm_password: e.target.value,
+                              })
+                            }
+                            className={`w-full border p-2.5 pr-10 rounded-xl text-sm focus:ring-2 outline-none ${adminForm.confirm_password && adminForm.password !== adminForm.confirm_password ? "border-red-300 focus:ring-red-500" : "border-gray-300 focus:ring-purple-500"}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowAdminConfirmPassword(
+                                !showAdminConfirmPassword,
+                              )
+                            }
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            {showAdminConfirmPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                        {adminForm.confirm_password &&
+                          adminForm.password !== adminForm.confirm_password && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1.5">
+                              รหัสผ่านไม่ตรงกัน
+                            </p>
+                          )}
                       </div>
                     </div>
                     <div className="flex gap-2">
