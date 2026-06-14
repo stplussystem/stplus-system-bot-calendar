@@ -656,8 +656,8 @@ export default function AdminDashboard() {
           <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Activity className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white font-black text-lg tracking-wider">
-            ST PLUS ERP
+          <span className="text-white font-black text-md tracking-wider">
+            ST PLUS SYSTEM
           </span>
         </div>
 

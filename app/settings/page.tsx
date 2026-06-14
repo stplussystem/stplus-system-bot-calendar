@@ -1005,30 +1005,6 @@ export default function SettingsPage() {
                 </div>
               </button>
             )}
-            {isAdminOrManager && (
-              <button
-                // 🌟 เปลี่ยนจาก setActiveView เป็นการลิงก์ข้ามหน้า พร้อมแนบ ?menu=admins
-                onClick={() =>
-                  (window.location.href = "/admin-stplus?menu=admins")
-                }
-                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-rose-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
-                  <Users className="w-7 h-7 text-rose-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 text-base mb-1">
-                    สิทธิ์ผู้ใช้งาน (ระบบหลังบ้าน)
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    จัดการสิทธิ์, เปิด/ปิด เพิ่มและลบผู้ใช้งานในระบบหลังบ้าน
-                  </p>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-rose-50 transition-colors">
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                </div>
-              </button>
-            )}
             {canManageHolidays && (
               <button
                 onClick={() => setActiveView("holiday_form")}
@@ -1088,6 +1064,30 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </div>
+              </button>
+            )}
+            {isAdminOrManager && (
+              <button
+                // 🌟 เปลี่ยนจาก setActiveView เป็นการลิงก์ข้ามหน้า พร้อมแนบ ?menu=admins
+                onClick={() =>
+                  (window.location.href = "/admin-stplus?menu=admins")
+                }
+                className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-rose-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                  <Users className="w-7 h-7 text-rose-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 text-base mb-1">
+                    สิทธิ์ผู้ใช้งาน (ระบบหลังบ้าน)
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    จัดการสิทธิ์, เปิด/ปิด เพิ่มและลบผู้ใช้งานในระบบหลังบ้าน
+                  </p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-rose-50 transition-colors">
                   <ChevronRight className="w-5 h-5 text-gray-400" />
                 </div>
               </button>
