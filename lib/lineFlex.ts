@@ -1267,11 +1267,12 @@ export const generateLeaveRequestFlex = (
   };
 };
 
-// 🌟 2. Flex แจ้งผลอนุมัติกลับหาพนักงาน (สวยงามขึ้น)
+// 🌟 2. Flex แจ้งผลอนุมัติกลับหาพนักงาน (เพิ่มการโชว์จำนวนวัน)
 export const generateLeaveResultFlex = (
   employeeName: string,
   leaveTypeName: string,
   dateText: string,
+  durationText: string, // 🌟 เพิ่ม พารามิเตอร์โชว์จำนวนวัน
   isApproved: boolean,
   rejectReason: string,
 ) => {
@@ -1316,7 +1317,7 @@ export const generateLeaveResultFlex = (
           },
           {
             type: "text",
-            text: `รายการ: ${leaveTypeName}\nวันที่: ${dateText}`,
+            text: `รายการ: ${leaveTypeName}\nวันที่: ${dateText}\nจำนวน: ${durationText}`, // 🌟 โชว์จำนวนวันที่นี่
             size: "sm",
             color: "#666666",
             align: "center",

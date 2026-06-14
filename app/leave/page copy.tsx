@@ -14,10 +14,6 @@ import {
   CalendarX2,
   Share2,
   Filter,
-  CalendarDays,
-  ChevronDown,
-  ChevronUp,
-  Edit3, // 🌟 เพิ่มไอคอนใหม่
 } from "lucide-react";
 import {
   generateLeaveRequestFlex,
@@ -29,13 +25,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-const toLocalISODate = (date: Date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
 export default function LeavePage() {
   const [isLiffInit, setIsLiffInit] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -43,10 +32,9 @@ export default function LeavePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // 🌟 เพิ่มแท็บ dashboard
-  const [activeTab, setActiveTab] = useState<
-    "my_leave" | "dashboard" | "approval"
-  >("my_leave");
+  const [activeTab, setActiveTab] = useState<"my_leave" | "approval">(
+    "my_leave",
+  );
   const [showForm, setShowForm] = useState(false);
   const [selectedFilterUser, setSelectedFilterUser] = useState("all");
 
@@ -60,6 +48,7 @@ export default function LeavePage() {
     annual: 0,
     absent: 0,
   });
+
   const [leaveQuotas, setLeaveQuotas] = useState({
     personal: 6,
     sick: 30,
@@ -71,8 +60,8 @@ export default function LeavePage() {
 
   const [formData, setFormData] = useState({
     leaveType: "personal",
-    startDate: toLocalISODate(new Date()),
-    endDate: toLocalISODate(new Date()),
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
     isHourly: false,
     startTime: "09:00",
     endTime: "12:00",
@@ -89,23 +78,14 @@ export default function LeavePage() {
     req: null as any,
     reason: "",
   });
-
-  // 🌟 อัปเกรด State ของ Confirm Approve ให้เก็บข้อมูลการแก้ไข
-  const [editApprovalModal, setEditApprovalModal] = useState({
+  const [confirmApproveModal, setConfirmApproveModal] = useState({
     show: false,
     req: null as any,
-    startDate: "",
-    endDate: "",
-    durationDays: 0,
   });
-
   const [liffAlertModal, setLiffAlertModal] = useState({
     show: false,
     message: "",
   });
-
-  // 🌟 State สำหรับการกางกล่องใน Dashboard
-  const [expandedDates, setExpandedDates] = useState<string[]>([]);
 
   useEffect(() => {
     const initLiff = async () => {
@@ -124,6 +104,7 @@ export default function LeavePage() {
             .select("*")
             .eq("line_user_id", userProfile.userId)
             .single();
+
           setDbUser(
             user || {
               role: "user",
@@ -137,6 +118,7 @@ export default function LeavePage() {
             .select("personal_leave_quota, sick_leave_quota")
             .limit(1)
             .single();
+
           setLeaveQuotas({
             personal: settings?.personal_leave_quota || 6,
             sick: settings?.sick_leave_quota || 30,
@@ -253,14 +235,16 @@ export default function LeavePage() {
       .select("*")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
+
     const { data: allData } = await supabase
       .from("leave_requests")
       .select("*")
       .gte("start_date", `${currentYear}-01-01`)
       .order("created_at", { ascending: false });
+
     const { data: usersData } = await supabase
       .from("users")
-      .select("line_user_id, full_name, nickname, picture_url, department");
+      .select("line_user_id, full_name, nickname, picture_url");
 
     const userMap: Record<string, any> = {};
     if (usersData) usersData.forEach((u) => (userMap[u.line_user_id] = u));
@@ -272,7 +256,6 @@ export default function LeavePage() {
           full_name: "ไม่ทราบชื่อ",
           nickname: "",
           picture_url: "",
-          department: "",
         },
       }));
 
@@ -296,6 +279,7 @@ export default function LeavePage() {
       leaveObj.duration_hours > 0
         ? `${formatThaiDateFull(leaveObj.start_date)} (${leaveObj.start_time.substring(0, 5)}-${leaveObj.end_time.substring(0, 5)})`
         : `${formatThaiDateFull(leaveObj.start_date)} ถึง ${formatThaiDateFull(leaveObj.end_date)}`;
+
     const flexMessage = generateLeaveRequestFlex(
       dbUser?.full_name || profile.displayName,
       dbUser?.nickname || "",
@@ -333,11 +317,6 @@ export default function LeavePage() {
       req.duration_hours > 0
         ? `${formatThaiDateFull(req.start_date)}`
         : `${formatThaiDateFull(req.start_date)} ถึง ${formatThaiDateFull(req.end_date)}`;
-    // 🌟 สร้างข้อความจำนวนวัน
-    const durationText =
-      req.duration_hours > 0
-        ? `${req.duration_hours} ชั่วโมง`
-        : `${req.duration_days} วัน`;
     const reasonToUse =
       forcedRejectReason !== undefined
         ? forcedRejectReason
@@ -347,7 +326,6 @@ export default function LeavePage() {
       req.users?.full_name || "พนักงาน",
       leaveTypeName,
       timeText,
-      durationText,
       isApproved,
       reasonToUse,
     );
@@ -356,7 +334,19 @@ export default function LeavePage() {
 
   const handleSubmitLeave = async () => {
     if (!formData.reason) return showToast("กรุณาระบุเหตุผลการลา", "error");
+
     const duration = calculateDuration();
+    // 🌟 Comment: ปิดการเช็คโควตาไว้ก่อนตามที่ต้องการยังไม่ใช้งาน
+    /*
+    if (!formData.isHourly) {
+        if (formData.leaveType === "personal" && leaveStats.personal + duration.days > leaveQuotas.personal) {
+             return showToast(`โควตาลากิจไม่พอ (คงเหลือ ${leaveQuotas.personal - leaveStats.personal} วัน)`, "error");
+        }
+        if (formData.leaveType === "annual" && leaveStats.annual + duration.days > leaveQuotas.annual) {
+            return showToast(`โควตาลาพักร้อนไม่พอ (คงเหลือ ${leaveQuotas.annual - leaveStats.annual} วัน)`, "error");
+       }
+    }
+    */
 
     setSubmitting(true);
     try {
@@ -380,6 +370,7 @@ export default function LeavePage() {
         .single();
 
       if (error) throw error;
+
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         const timeText = formData.isHourly
@@ -391,6 +382,7 @@ export default function LeavePage() {
             text: `📝 บันทึกคำขออนุมัติลางาน\nวันที่: ${timeText}\nสถานะ: ⏳ รออนุมัติจากหัวหน้า`,
           },
         ]);
+
         const shared = await executeShareRequestToManager(newLeave);
         if (shared) setTimeout(() => liff.closeWindow(), 1500);
         else {
@@ -411,85 +403,24 @@ export default function LeavePage() {
 
   const handleResendShare = async (leaveObj: any) =>
     await executeShareRequestToManager(leaveObj);
-
-  // 🌟 เปิด Modal พร้อมดึงค่าเริ่มต้นมาให้แก้
-  const triggerApprove = (req: any) => {
-    setEditApprovalModal({
-      show: true,
-      req,
-      startDate: req.start_date,
-      endDate: req.end_date,
-      durationDays: req.duration_days,
-    });
-  };
-
-  // 🌟 Logic การคำนวณ Smart Date (เลื่อนวัน-หดวัน อัตโนมัติ)
-  const handleApprovalStartDateChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const newStart = e.target.value;
-    const startObj = new Date(newStart);
-    const newEndObj = new Date(
-      startObj.getTime() + (editApprovalModal.durationDays - 1) * 86400000,
-    );
-    setEditApprovalModal((prev) => ({
-      ...prev,
-      startDate: newStart,
-      endDate: toLocalISODate(newEndObj),
-    }));
-  };
-
-  const handleApprovalDurationChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const newDur = parseInt(e.target.value) || 1;
-    const startObj = new Date(editApprovalModal.startDate);
-    const newEndObj = new Date(startObj.getTime() + (newDur - 1) * 86400000);
-    setEditApprovalModal((prev) => ({
-      ...prev,
-      durationDays: newDur,
-      endDate: toLocalISODate(newEndObj),
-    }));
-  };
-
-  // 🌟 ยืนยันการอนุมัติและหักโควตาตามที่แก้ใหม่
+  const triggerApprove = (req: any) =>
+    setConfirmApproveModal({ show: true, req });
   const executeApprove = async () => {
-    const { req, startDate, endDate, durationDays } = editApprovalModal;
+    const req = confirmApproveModal.req;
     if (!req) return;
     try {
       await supabase
         .from("leave_requests")
-        .update({
-          status: "approved",
-          approver_id: profile.userId,
-          start_date: startDate,
-          end_date: endDate,
-          duration_days: durationDays,
-        })
+        .update({ status: "approved", approver_id: profile.userId })
         .eq("id", req.id);
-
       showToast("อนุมัติเรียบร้อย!", "success");
       fetchManagerData();
-
-      // ส่ง Flex พร้อมแนบข้อมูลที่อัปเดตใหม่
-      const updatedReq = {
-        ...req,
-        start_date: startDate,
-        end_date: endDate,
-        duration_days: durationDays,
-      };
       const liff = (await import("@line/liff")).default;
-      if (liff.isInClient()) await shareApprovalResult(updatedReq, true);
+      if (liff.isInClient()) await shareApprovalResult(req, true);
     } catch (err: any) {
       showToast("ผิดพลาด: " + err.message, "error");
     } finally {
-      setEditApprovalModal({
-        show: false,
-        req: null,
-        startDate: "",
-        endDate: "",
-        durationDays: 0,
-      });
+      setConfirmApproveModal({ show: false, req: null });
     }
   };
 
@@ -548,60 +479,6 @@ export default function LeavePage() {
     );
   };
 
-  // 🌟 Logic: คำนวณข้อมูล Dashboard (ตารางการลา)
-  const dashboardData = useMemo(() => {
-    const map = new Map();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    allLeaves
-      .filter((l) => l.status === "approved")
-      .forEach((l) => {
-        if (l.duration_hours > 0) {
-          const d = new Date(l.start_date);
-          d.setHours(0, 0, 0, 0);
-          if (d >= today) {
-            const ds = toLocalISODate(d);
-            if (!map.has(ds)) map.set(ds, []);
-            map.get(ds).push(l);
-          }
-        } else {
-          const s = new Date(l.start_date);
-          s.setHours(0, 0, 0, 0);
-          const e = new Date(l.end_date);
-          e.setHours(0, 0, 0, 0);
-          for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-            if (d >= today) {
-              const ds = toLocalISODate(d);
-              if (!map.has(ds)) map.set(ds, []);
-              map.get(ds).push(l);
-            }
-          }
-        }
-      });
-
-    const sortedKeys = Array.from(map.keys()).sort();
-    return sortedKeys.map((dateStr) => {
-      const d = new Date(dateStr);
-      const diffTime = d.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      let label = formatThaiDateFull(dateStr);
-      if (diffDays === 0) label = `วันนี้ (${label})`;
-      else if (diffDays === 1) label = `พรุ่งนี้ (${label})`;
-
-      return { dateStr, label, leaves: map.get(dateStr) };
-    });
-  }, [allLeaves]);
-
-  const toggleDateGroup = (dateStr: string) => {
-    setExpandedDates((prev) =>
-      prev.includes(dateStr)
-        ? prev.filter((d) => d !== dateStr)
-        : [...prev, dateStr],
-    );
-  };
-
   if (!isLiffInit || loading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -645,142 +522,6 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* 🌟 Modal: Smart Approval (แก้ไขวันได้) */}
-      {editApprovalModal.show && editApprovalModal.req && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
-            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
-              <img
-                src={editApprovalModal.req.users?.picture_url}
-                className="w-10 h-10 rounded-full"
-                alt="profile"
-              />
-              <div>
-                <h3 className="font-bold text-gray-900 leading-tight text-sm">
-                  {editApprovalModal.req.users?.full_name}
-                </h3>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md mt-1 inline-block ${editApprovalModal.req.leave_type === "annual" ? "bg-purple-100 text-purple-700" : editApprovalModal.req.leave_type === "personal" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
-                >
-                  {getLeaveTypeName(editApprovalModal.req.leave_type)}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <Edit3 className="w-4 h-4 text-blue-500" />{" "}
-              ปรับแก้วันลาก่อนอนุมัติ (ถ้ามี)
-            </p>
-
-            {editApprovalModal.req.duration_hours > 0 ? (
-              <div className="p-3 bg-gray-50 rounded-xl text-center text-sm font-bold text-gray-600 border border-gray-200 mb-6">
-                (การลาแบบรายชั่วโมง ไม่สามารถแก้ไขวันเวลาได้)
-              </div>
-            ) : (
-              <div className="space-y-4 mb-6">
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-500 block mb-1">
-                      วันที่เริ่มลา
-                    </label>
-                    <input
-                      type="date"
-                      value={editApprovalModal.startDate}
-                      onChange={handleApprovalStartDateChange}
-                      className="w-full text-xs font-bold border border-gray-300 p-2.5 rounded-xl outline-none focus:border-blue-500 bg-white"
-                    />
-                  </div>
-                  <div className="w-1/3">
-                    <label className="text-[10px] font-bold text-gray-500 block mb-1">
-                      จำนวนวัน
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={editApprovalModal.durationDays}
-                      onChange={handleApprovalDurationChange}
-                      className="w-full text-center text-xs font-black text-blue-600 border border-gray-300 p-2.5 rounded-xl outline-none focus:border-blue-500 bg-blue-50"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 block mb-1">
-                    วันที่สิ้นสุด (คำนวณอัตโนมัติ)
-                  </label>
-                  <input
-                    type="date"
-                    value={editApprovalModal.endDate}
-                    disabled
-                    className="w-full text-xs font-bold border border-gray-200 p-2.5 rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setEditApprovalModal({
-                    show: false,
-                    req: null,
-                    startDate: "",
-                    endDate: "",
-                    durationDays: 0,
-                  })
-                }
-                className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl text-sm transition-colors hover:bg-gray-200"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={executeApprove}
-                className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-blue-700 transition-colors"
-              >
-                ยืนยันอนุมัติ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {rejectModal.show && rejectModal.req && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
-            <h3 className="text-lg font-black text-red-600 mb-2 text-center">
-              ไม่อนุมัติการลา
-            </h3>
-            <p className="text-sm text-gray-500 mb-4 text-center">
-              โปรดระบุเหตุผลเพื่อแจ้งให้ {rejectModal.req.users?.full_name} ทราบ
-            </p>
-            <textarea
-              value={rejectModal.reason}
-              onChange={(e) =>
-                setRejectModal({ ...rejectModal, reason: e.target.value })
-              }
-              className="w-full border border-gray-300 rounded-xl p-3 text-sm outline-none focus:border-red-500 mb-4 bg-gray-50"
-              rows={3}
-              placeholder="เหตุผลที่ไม่อนุมัติ..."
-            ></textarea>
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setRejectModal({ show: false, req: null, reason: "" })
-                }
-                className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl text-sm"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleRejectSubmit}
-                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-red-700"
-              >
-                ยืนยันไม่อนุมัติ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="bg-gradient-to-br from-[#1e3a8a] to-[#3b82f6] pt-12 pb-16 px-6 text-white text-center rounded-b-[40px] shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
         <CalendarRange className="w-12 h-12 mx-auto mb-3 opacity-90" />
@@ -798,23 +539,17 @@ export default function LeavePage() {
             <div className="bg-white rounded-full p-1.5 shadow-md border border-gray-100 flex items-center mb-6">
               <button
                 onClick={() => setActiveTab("my_leave")}
-                className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all ${activeTab === "my_leave" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
               >
                 การลาของฉัน
               </button>
               <button
-                onClick={() => setActiveTab("dashboard")}
-                className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${activeTab === "dashboard" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
-              >
-                ตารางการลา
-              </button>
-              <button
                 onClick={() => setActiveTab("approval")}
-                className={`flex-1 py-3 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
+                className={`flex-1 py-3 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === "approval" ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}
               >
-                อนุมัติ{" "}
+                อนุมัติวันลา{" "}
                 {pendingRequests.length > 0 && (
-                  <span className="bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center shadow-sm animate-pulse">
+                  <span className="bg-red-500 text-white w-5 h-5 rounded-full text-[11px] flex items-center justify-center shadow-sm animate-pulse">
                     {pendingRequests.length}
                   </span>
                 )}
@@ -883,6 +618,7 @@ export default function LeavePage() {
                     className="w-4 h-4 accent-blue-600"
                   />
                 </label>
+
                 {formData.isHourly ? (
                   <div className="space-y-4 animate-in fade-in">
                     <div>
@@ -1014,11 +750,13 @@ export default function LeavePage() {
         {/* 🔹 การลางานของฉัน (My Leave) */}
         {activeTab === "my_leave" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
+            {/* 🌟 ปรับปรุงการ์ดสรุปวันลาใหม่ (เพิ่มขาดงาน และ Comment Quota) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-blue-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลากิจ</p>
                 <p className="text-xl font-black text-blue-600">
-                  {leaveStats.personal}
+                  {leaveStats.personal}{" "}
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.personal}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -1027,7 +765,8 @@ export default function LeavePage() {
               <div className="bg-purple-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">พักร้อน</p>
                 <p className="text-xl font-black text-purple-600">
-                  {leaveStats.annual}
+                  {leaveStats.annual}{" "}
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.annual}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -1036,7 +775,8 @@ export default function LeavePage() {
               <div className="bg-orange-50 border border-gray-100 rounded-3xl p-4 text-center shadow-sm">
                 <p className="text-xs font-bold text-gray-500 mb-1">ลาป่วย</p>
                 <p className="text-xl font-black text-orange-600">
-                  {leaveStats.sick}
+                  {leaveStats.sick}{" "}
+                  {/* <span className="text-sm font-medium text-gray-400">/ {leaveQuotas.sick}</span> */}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">
                   ใช้ไป (วัน)
@@ -1052,12 +792,14 @@ export default function LeavePage() {
                 </p>
               </div>
             </div>
+
             <button
               onClick={() => setShowForm(true)}
               className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-md hover:bg-blue-700 transition-transform active:scale-95"
             >
               <PlusCircle className="w-5 h-5" /> ยื่นขออนุมัติลางาน
             </button>
+
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-5 bg-slate-50 border-b border-gray-100">
                 <h3 className="font-bold text-sm text-gray-800">
@@ -1121,80 +863,10 @@ export default function LeavePage() {
           </div>
         )}
 
-        {/* 🌟 🔹 แท็บ Dashboard ตารางการลา */}
-        {activeTab === "dashboard" && !showForm && (
-          <div className="space-y-4 animate-in fade-in">
-            <h3 className="font-bold text-gray-800 text-sm mb-2 px-2 flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-blue-500" />{" "}
-              ตารางการลาที่กำลังจะมาถึง
-            </h3>
-            {dashboardData.length === 0 ? (
-              <div className="text-center text-gray-400 p-8 bg-white rounded-3xl shadow-sm border border-gray-100">
-                <CalendarX2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="font-bold text-sm">ไม่มีพนักงานลาในช่วงนี้</p>
-              </div>
-            ) : (
-              dashboardData.map((grp) => (
-                <div
-                  key={grp.dateStr}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-                >
-                  <button
-                    onClick={() => toggleDateGroup(grp.dateStr)}
-                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                  >
-                    <span className="font-bold text-gray-800 text-sm">
-                      {grp.label}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2.5 py-1 rounded-lg">
-                        ลา {grp.leaves.length} คน
-                      </span>
-                      {expandedDates.includes(grp.dateStr) ? (
-                        <ChevronUp className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      )}
-                    </div>
-                  </button>
-                  {expandedDates.includes(grp.dateStr) && (
-                    <div className="p-2 border-t border-gray-100 divide-y divide-gray-50 bg-white">
-                      {grp.leaves.map((l: any, i: number) => (
-                        <div
-                          key={i}
-                          className="py-3 px-2 flex items-center gap-3"
-                        >
-                          <img
-                            src={l.users?.picture_url}
-                            className="w-8 h-8 rounded-full border border-gray-200 object-cover"
-                            alt="profile"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-gray-900 truncate">
-                              {l.users?.full_name}
-                            </p>
-                            <p className="text-[10px] text-gray-500 truncate">
-                              {l.users?.department || "พนักงาน"}
-                            </p>
-                          </div>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 ${l.leave_type === "annual" ? "bg-purple-100 text-purple-600" : l.leave_type === "sick" ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600"}`}
-                          >
-                            {getLeaveTypeName(l.leave_type)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
         {/* 🔹 ศูนย์อนุมัติ (Approval Center) */}
         {activeTab === "approval" && !showForm && (
           <div className="space-y-5 animate-in fade-in">
+            {/* ยืนยันอนุมัติลางาน */}
             <div className="bg-white rounded-3xl shadow-sm border border-blue-200 overflow-hidden">
               <div className="p-5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
