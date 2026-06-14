@@ -23,14 +23,24 @@ import {
   FilterX,
   Eye,
   EyeOff,
-  ChevronDown, // 🌟 เพิ่ม Icon ใหม่เข้ามา
+  ChevronDown,
 } from "lucide-react";
-import * as XLSX from "xlsx"; // 🌟 Import ไลบรารี Export Excel ตัวท็อป
+import * as XLSX from "xlsx";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
+
+// 🌟 ตัวช่วยแปลงชื่อกะภาษาอังกฤษเป็นไทย
+const getThaiShiftName = (shiftStr: string) => {
+  if (!shiftStr) return "-";
+  const s = shiftStr.toLowerCase();
+  if (s === "morning") return "เช้า";
+  if (s === "afternoon") return "บ่าย";
+  if (s === "custom") return "เวลาพิเศษ";
+  return shiftStr; // ถ้าเป็นภาษาไทยอยู่แล้วก็คืนค่าเดิม
+};
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -45,19 +55,18 @@ export default function AdminDashboard() {
     type: "success",
   });
 
-  // 🌟 Avatar Menu State
   const [showUserMenu, setShowUserMenu] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // --- Data States ---
   const [employees, setEmployees] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
 
-  // --- Filter States ---
+  // 🌟 เพิ่ม department เข้าไปใน State ของตัวกรอง
   const [filterAtt, setFilterAtt] = useState({
+    department: "",
     userId: "",
     topic: "",
     startDate: "",
@@ -67,7 +76,6 @@ export default function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
-  // --- Profile States (เพิ่ม Confirm Password และ Toggle ดูรหัส) ---
   const [profileForm, setProfileForm] = useState({
     full_name: "",
     password: "",
@@ -76,7 +84,6 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // --- Modal States ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminForm, setAdminForm] = useState({
     id: "",
@@ -99,7 +106,6 @@ export default function AdminDashboard() {
     setCurrentPage(1);
   }, [activeMenu, filterAtt, itemsPerPage]);
 
-  // ซ่อน Dropdown เมื่อคลิกที่อื่น
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -216,9 +222,7 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // =====================================
-  // 🌟 Logic: คำนวณ OT สุดโหด
-  // =====================================
+  // 🌟 Logic: คำนวณ OT (รองรับกะภาษาไทยที่ถูกแปลงมาแล้ว)
   const calculateOT = (log: any) => {
     if (!log.check_in_time || !log.check_out_time)
       return { text: "-", isOver: false, mins: 0 };
@@ -227,11 +231,8 @@ export default function AdminDashboard() {
     const checkOut = new Date(log.check_out_time);
     const inTotalMins = checkIn.getHours() * 60 + checkIn.getMinutes();
 
-    let shiftType = log.shift || "";
-    // ถ้าไม่มีชื่อกะ ให้ลองใช้จากหัวข้องาน
-    if (!shiftType && log.attendance_topics?.shift_type) {
-      shiftType = log.attendance_topics.shift_type;
-    }
+    let shiftType = log.shift || log.attendance_topics?.shift_type || "";
+    shiftType = getThaiShiftName(shiftType); // แปลงเป็นภาษาไทยก่อนนำไปเช็คเงื่อนไข
 
     if (shiftType === "เช้า") {
       if (inTotalMins <= 10 * 60) {
@@ -263,20 +264,15 @@ export default function AdminDashboard() {
           };
         }
       }
-    }
-    // เงื่อนไขกะพิเศษ
-    else if (
-      shiftType.toLowerCase().includes("พิเศษ") ||
-      shiftType.toLowerCase().includes("custom")
-    ) {
-      const startTimeStr = log.attendance_topics?.start_time; // ดึงเวลาเริ่มจากฐานข้อมูล
+    } else if (shiftType.includes("พิเศษ") || shiftType.includes("custom")) {
+      const startTimeStr = log.attendance_topics?.start_time;
       if (startTimeStr) {
         const [sH, sM] = startTimeStr.split(":").map(Number);
-        const startLimitMins = sH * 60 + sM + 60; // เส้นตายเข้างาน (+1 ชม.)
+        const startLimitMins = sH * 60 + sM + 60;
 
         if (inTotalMins <= startLimitMins) {
           const limit = new Date(checkIn);
-          limit.setHours(sH + 8, sM, 0, 0); // เส้นตายคิด OT คือเริ่มงาน + 8 ชม.
+          limit.setHours(sH + 8, sM, 0, 0);
 
           if (checkOut > limit) {
             const overMins = Math.floor(
@@ -288,12 +284,10 @@ export default function AdminDashboard() {
               mins: overMins,
             };
           } else {
-            // 🌟 กรณีเวลาไม่เกิน 8 ชม. ให้แสดงคำว่า งานพิเศษ
             return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
           }
         }
       }
-      // 🌟 กรณีไม่มีเวลาบอก หรือเข้างานสายกว่ากำหนด 1 ชม.
       return { text: "(งานพิเศษ)", isOver: false, mins: 0 };
     }
 
@@ -316,10 +310,17 @@ export default function AdminDashboard() {
         })
       : "-";
 
-  // 🌟 ดึงข้อมูล "กะ" ไม่ซ้ำกันจากตาราง attendance_topics
+  // 🌟 รายชื่อแผนกที่ไม่ซ้ำกัน
+  const uniqueDepartments = Array.from(
+    new Set(employees.map((emp) => emp.department).filter(Boolean)),
+  );
+
+  // 🌟 ดึงข้อมูล "กะ" ไม่ซ้ำกัน (ผ่านการแปลงเป็นภาษาไทยแล้ว)
   const uniqueShifts = Array.from(
     new Set([
-      ...topics.map((t) => t.shift_type).filter(Boolean),
+      ...topics
+        .map((t) => getThaiShiftName(t.shift_type))
+        .filter((s) => s !== "-"),
       "เช้า",
       "บ่าย",
       "เวลาพิเศษ",
@@ -328,17 +329,22 @@ export default function AdminDashboard() {
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
+      // 🌟 เช็ค Department (แผนก)
+      const matchDept = filterAtt.department
+        ? (log.users?.department || "") === filterAtt.department
+        : true;
       const matchUser = filterAtt.userId
         ? log.user_id === filterAtt.userId
         : true;
       const matchTopic = filterAtt.topic
         ? (log.attendance_topics?.title || "") === filterAtt.topic
         : true;
-      // กรองจากกะใน topic หรือ กะที่บันทึกไว้ใน log
-      const matchShift = filterAtt.shift
-        ? log.attendance_topics?.shift_type === filterAtt.shift ||
-          log.shift === filterAtt.shift
-        : true;
+
+      // 🌟 เช็ค Shift (แปลงเป็นไทยก่อนเทียบ)
+      const logShift = getThaiShiftName(
+        log.shift || log.attendance_topics?.shift_type || "",
+      );
+      const matchShift = filterAtt.shift ? logShift === filterAtt.shift : true;
 
       let matchDate = true;
       if (filterAtt.startDate && filterAtt.endDate) {
@@ -346,7 +352,7 @@ export default function AdminDashboard() {
         matchDate =
           logDate >= filterAtt.startDate && logDate <= filterAtt.endDate;
       }
-      return matchUser && matchTopic && matchShift && matchDate;
+      return matchDept && matchUser && matchTopic && matchShift && matchDate;
     });
   }, [logs, filterAtt]);
 
@@ -423,9 +429,6 @@ export default function AdminDashboard() {
     );
   };
 
-  // =====================================
-  // 🌟 Export Excel (XLSX) แบบ Auto-Width
-  // =====================================
   const handleExportExcel = (type: "attendance" | "leaves") => {
     let csvRows: any[][] = [];
     let fileName = "";
@@ -452,14 +455,15 @@ export default function AdminDashboard() {
         csvRows.push([
           log.users?.full_name || "-",
           log.users?.nickname || "-",
-          log.users?.department || "-",
-          log.attendance_topics?.team_type || "-",
+          log.users?.department || log.attendance_topics?.team_type || "-",
           log.attendance_topics?.title || "-",
-          log.shift || log.attendance_topics?.shift_type || "-",
+          getThaiShiftName(
+            log.shift || log.attendance_topics?.shift_type || "-",
+          ),
           formatDate(log.check_in_time),
           formatTime(log.check_in_time),
           formatTime(log.check_out_time),
-          ot.text, // 🌟 ดึงข้อความ OT ใส่ลง Cell โดยตรง ข้อมูลไม่หลุดแน่นอน
+          ot.text,
         ]);
       });
       const totalHours = Math.floor(totalOTMins / 60);
@@ -508,7 +512,6 @@ export default function AdminDashboard() {
 
     const ws = XLSX.utils.aoa_to_sheet(csvRows);
 
-    // 🌟 Auto-fit Column Widths คำนวณความกว้างอัตโนมัติ
     const colWidths = csvRows[0].map((_, colIndex) => ({
       wch:
         Math.max(
@@ -516,7 +519,7 @@ export default function AdminDashboard() {
             const cellVal = row[colIndex];
             return cellVal ? cellVal.toString().length : 0;
           }),
-        ) + 4, // บวก Padding เข้าไปเผื่อ
+        ) + 4,
     }));
     ws["!cols"] = colWidths;
 
@@ -525,11 +528,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, fileName);
   };
 
-  // --- Handlers ---
   const handleSaveProfile = async () => {
     if (!profileForm.full_name || !profileForm.password)
       return showToastMsg("กรุณากรอกข้อมูลให้ครบ", "error");
-    // 🌟 เช็ค Confirm Password
     if (profileForm.password !== profileForm.confirm_password)
       return showToastMsg("รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง", "error");
 
@@ -680,7 +681,7 @@ export default function AdminDashboard() {
 
       {/* --- Main Content --- */}
       <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
-        {/* 🌟 Header Menu */}
+        {/* Header Menu */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0 shadow-sm z-10">
           <div className="flex items-center gap-4">
             <button
@@ -702,7 +703,6 @@ export default function AdminDashboard() {
             </h2>
           </div>
 
-          {/* 🌟 Avatar Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -753,10 +753,33 @@ export default function AdminDashboard() {
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full"></div>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  <div>
+                {/* 🌟 ขยาย Grid เพื่อรองรับตัวกรอง 4 ตัว + วันที่ */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div className="lg:col-span-1">
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
-                      ค้นหาพนักงาน
+                      แผนก
+                    </label>
+                    <select
+                      value={filterAtt.department}
+                      onChange={(e) =>
+                        setFilterAtt({
+                          ...filterAtt,
+                          department: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">ทุกแผนก</option>
+                      {uniqueDepartments.map((dept, idx) => (
+                        <option key={idx} value={dept as string}>
+                          {dept as string}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="text-xs font-bold text-gray-500 mb-1 block">
+                      พนักงาน
                     </label>
                     <select
                       value={filterAtt.userId}
@@ -773,7 +796,7 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
-                  <div>
+                  <div className="lg:col-span-1">
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       ชื่องาน
                     </label>
@@ -792,7 +815,7 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
-                  <div>
+                  <div className="lg:col-span-1">
                     <label className="text-xs font-bold text-gray-500 mb-1 block">
                       กะการทำงาน
                     </label>
@@ -811,7 +834,7 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
-                  <div className="md:col-span-2 flex items-end gap-2">
+                  <div className="lg:col-span-2 flex items-end gap-2">
                     <div className="flex-1">
                       <label className="text-xs font-bold text-gray-500 mb-1 block">
                         ตั้งแต่วันที่
@@ -844,10 +867,10 @@ export default function AdminDashboard() {
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
-                    {/* 🌟 ปุ่ม Clear Filters */}
                     <button
                       onClick={() =>
                         setFilterAtt({
+                          department: "",
                           userId: "",
                           topic: "",
                           startDate: "",
@@ -915,26 +938,20 @@ export default function AdminDashboard() {
                                 {log.users?.nickname || "-"}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
-                                {log.users?.department || "-"}
+                                {log.users?.department ||
+                                  log.attendance_topics?.team_type ||
+                                  "-"}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
                                 {log.attendance_topics?.title || "-"}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-[11px] font-bold">
-                                  {log.shift ||
-                                  log.attendance_topics?.shift_type ===
-                                    "morning"
-                                    ? "เช้า"
-                                    : log.shift ||
-                                        log.attendance_topics?.shift_type ===
-                                          "afternoon"
-                                      ? "บ่าย"
-                                      : log.shift ||
-                                          log.attendance_topics?.shift_type ===
-                                            "custom"
-                                        ? "เวลาพิเศษ"
-                                        : "-"}
+                                  {getThaiShiftName(
+                                    log.shift ||
+                                      log.attendance_topics?.shift_type ||
+                                      "-",
+                                  )}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-center text-gray-600">
@@ -1143,7 +1160,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 4: ข้อมูลส่วนตัว (Profile) 🌟 อัปเกรดระบบ Password */}
+          {/* TAB 4: ข้อมูลส่วนตัว (Profile) */}
           {activeMenu === "profile" && (
             <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-sm border border-gray-200 animate-in zoom-in-95">
               <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
