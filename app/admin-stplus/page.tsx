@@ -140,7 +140,7 @@ export default function AdminDashboard() {
     const isAuth = localStorage.getItem("stplus_admin_auth");
     const username = localStorage.getItem("stplus_admin_user");
     if (!isAuth || !username) {
-      window.location.href = "/admin-login";
+      window.location.href = "/login";
       return;
     }
     const { data } = await supabase
@@ -161,10 +161,23 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // 1. ล้างค่าใน LocalStorage ของระบบเรา
     localStorage.removeItem("stplus_admin_auth");
     localStorage.removeItem("stplus_admin_user");
-    window.location.href = "/admin-login";
+
+    // 2. สั่ง Logout ออกจากระบบ Supabase ด้วย (ถ้ามีการล็อคอินทิ้งไว้)
+    await supabase.auth.signOut();
+
+    // 3. เคลียร์ Cookie ทั้งหมดในระบบ เพื่อความปลอดภัย 100%
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    // 4. เปลี่ยนพาธเด้งกลับไปที่หน้า login ที่ถูกต้อง
+    window.location.href = "/login";
   };
 
   const fetchAllData = async () => {
