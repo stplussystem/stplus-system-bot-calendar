@@ -33,6 +33,7 @@ import {
   UserMinus,
   Map,
   Search,
+  UserCog,
 } from "lucide-react";
 
 declare global {
@@ -271,6 +272,7 @@ export default function SettingsPage() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
+  const isAdmin = dbUser?.role === "admin";
   const isAdminOrManager =
     dbUser?.role === "admin" || dbUser?.role === "manager";
   const isHR = dbUser?.role === "hr";
@@ -1068,7 +1070,7 @@ export default function SettingsPage() {
                 </div>
               </button>
             )}
-            {isAdminOrManager && (
+            {isAdmin && (
               <button
                 // 🌟 เปลี่ยนจาก setActiveView เป็นการลิงก์ข้ามหน้า พร้อมแนบ ?menu=admins
                 onClick={() =>
@@ -1077,7 +1079,7 @@ export default function SettingsPage() {
                 className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 hover:border-rose-500 hover:shadow-md transition-all flex items-center gap-4 text-left group"
               >
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
-                  <Users className="w-7 h-7 text-rose-400" />
+                  <UserCog className="w-7 h-7 text-rose-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-900 text-base mb-1">

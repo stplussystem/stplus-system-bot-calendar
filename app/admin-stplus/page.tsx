@@ -107,6 +107,11 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     checkAuth();
+    // 🌟 ดักจับ URL ว่ามี ?menu=admins ส่งมาด้วยหรือเปล่า
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("menu") === "admins") {
+      setActiveMenu("admins");
+    }
   }, []);
   useEffect(() => {
     setCurrentPage(1);
