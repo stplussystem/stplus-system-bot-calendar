@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 import { getAttendanceMessage } from "@/lib/lineFlex";
 
+// 🌟 นำเข้า Component ProfileSettings ของจริงมาใช้งาน
+import ProfileSettings from "@/app/components/ProfileSettings";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -50,15 +53,13 @@ export default function CheckinPage() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentLog, setCurrentLog] = useState<any>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [cameraActive, setCameraActive] = useState(false);
 
   // ==========================================
   // 3. History States
   // ==========================================
   const [logs, setLogs] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState("month"); // "week", "month", "custom"
+  const [historyFilter, setHistoryFilter] = useState("month");
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
   // ==========================================
@@ -70,11 +71,6 @@ export default function CheckinPage() {
     message: "",
     type: "success",
   });
-  const [profileForm, setProfileForm] = useState({
-    full_name: "",
-    nickname: "",
-  });
-  const [updatingProfile, setUpdatingProfile] = useState(false);
   const [cpNote, setCpNote] = useState("");
   const [showCpModal, setShowCpModal] = useState(false);
 
@@ -82,7 +78,6 @@ export default function CheckinPage() {
   // ▶️ Lifecycle & Initialization
   // ==========================================
   useEffect(() => {
-    // 🌟 ดักจับ URL จาก LINE Rich Menu
     const params = new URLSearchParams(window.location.search);
     if (params.get("action") === "checkin" || params.get("tab") === "checkin")
       setActiveTab("checkin");
@@ -116,15 +111,11 @@ export default function CheckinPage() {
   }, []);
 
   useEffect(() => {
-    if (userProfile && activeTab === "history") {
-      fetchHistory();
-    }
+    if (userProfile && activeTab === "history") fetchHistory();
   }, [historyFilter, userProfile, activeTab]);
 
   useEffect(() => {
-    if (userProfile && activeTab === "checkin") {
-      checkTodayStatus();
-    }
+    if (userProfile && activeTab === "checkin") checkTodayStatus();
   }, [userProfile, activeTab]);
 
   // ==========================================
@@ -164,10 +155,6 @@ export default function CheckinPage() {
       setShowProfileSettings(true); // บังคับอัปเดตชื่อจริง
     }
     setDbUser(user);
-    setProfileForm({
-      full_name: user?.full_name || "",
-      nickname: user?.nickname || "",
-    });
   };
 
   const checkTodayStatus = async () => {
@@ -194,7 +181,6 @@ export default function CheckinPage() {
       const diff = start.getDate() - day + (day === 0 ? -6 : 1);
       start.setDate(diff);
     } else if (historyFilter === "month") {
-      // 🌟 ตัดรอบวันที่ 21 ถึง 20
       const todayDate = start.getDate();
       if (todayDate <= 20) {
         start.setMonth(start.getMonth() - 1);
@@ -210,7 +196,6 @@ export default function CheckinPage() {
     const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}T00:00:00+07:00`;
     const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T23:59:59+07:00`;
 
-    // 🌟 ดึงข้อมูล Logs + Checkpoints พ่วงมาด้วย
     const { data } = await supabase
       .from("attendance_logs")
       .select(
@@ -226,7 +211,7 @@ export default function CheckinPage() {
   };
 
   // ==========================================
-  // ▶️ Actions (Save Profile, Geolocation, Actions)
+  // ▶️ Actions (Geolocation & Toast)
   // ==========================================
   const showToastMsg = (
     message: string,
@@ -237,23 +222,6 @@ export default function CheckinPage() {
       () => setToast({ show: false, message: "", type: "success" }),
       3000,
     );
-  };
-
-  const handleUpdateProfile = async () => {
-    if (!profileForm.full_name)
-      return showToastMsg("กรุณากรอกชื่อ-นามสกุล", "error");
-    setUpdatingProfile(true);
-    await supabase
-      .from("users")
-      .update({
-        full_name: profileForm.full_name,
-        nickname: profileForm.nickname,
-      })
-      .eq("line_user_id", userProfile.userId);
-    setDbUser({ ...dbUser, ...profileForm });
-    showToastMsg("บันทึกข้อมูลสำเร็จ");
-    setShowProfileSettings(false);
-    setUpdatingProfile(false);
   };
 
   const getLocation = (): Promise<GeolocationPosition> => {
@@ -299,7 +267,6 @@ export default function CheckinPage() {
       checkTodayStatus();
       setPhoto(null);
 
-      // ส่งข้อความ Flex Message
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         const dStr = formatThaiDate(inTime);
@@ -377,7 +344,6 @@ export default function CheckinPage() {
       showToastMsg("ลงเวลาออกงานสำเร็จ");
       checkTodayStatus();
 
-      // ส่งข้อความ Flex Message
       const liff = (await import("@line/liff")).default;
       if (liff.isInClient()) {
         const { data: fullLog } = await supabase
@@ -439,7 +405,7 @@ export default function CheckinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-20">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-20 relative">
       {/* 🔴 Toast */}
       {toast.show && (
         <div
@@ -454,67 +420,24 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal 1: ตั้งค่าโปรไฟล์ */}
-      {showProfileSettings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95">
-            <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
-              <UserCog className="w-5 h-5 text-blue-600" /> ข้อมูลส่วนตัวของคุณ
-            </h3>
-            <p className="text-sm text-gray-500 mb-5">
-              กรุณาตรวจสอบและอัปเดตชื่อ-นามสกุลจริง เพื่อใช้ในระบบของบริษัทครับ
-            </p>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1.5">
-                  ชื่อ-นามสกุล (ภาษาไทย) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={profileForm.full_name}
-                  onChange={(e) =>
-                    setProfileForm({
-                      ...profileForm,
-                      full_name: e.target.value,
-                    })
-                  }
-                  className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="เช่น สมชาย ใจดี"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1.5">
-                  ชื่อเล่น (ไม่บังคับ)
-                </label>
-                <input
-                  type="text"
-                  value={profileForm.nickname}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, nickname: e.target.value })
-                  }
-                  className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="เช่น บอย"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {dbUser?.full_name && (
-                <button
-                  onClick={() => setShowProfileSettings(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
-                >
-                  ปิด
-                </button>
-              )}
-              <button
-                onClick={handleUpdateProfile}
-                disabled={updatingProfile}
-                className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-blue-700"
-              >
-                {updatingProfile ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
-              </button>
-            </div>
-          </div>
+      {/* 🌟 Modal 1: ตั้งค่าโปรไฟล์ (เรียกใช้ Component ของจริง) */}
+      {showProfileSettings && userProfile && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          {/* ส่ง Props เข้าไปให้ ProfileSettings ทำงาน */}
+          <ProfileSettings
+            profile={userProfile}
+            dbUser={dbUser}
+            isNewUser={
+              !dbUser?.full_name ||
+              dbUser?.full_name === userProfile.displayName
+            }
+            setShowProfileSettings={setShowProfileSettings}
+            onSaveSuccess={(updatedUser) => {
+              setDbUser(updatedUser);
+              setShowProfileSettings(false);
+            }}
+            supabase={supabase}
+          />
         </div>
       )}
 
@@ -554,7 +477,7 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 Modal 3: รายละเอียดประวัติ (อัปเกรดแผนที่ + รูปกล้อง + เรียงบรรทัดใหม่) */}
+      {/* 🌟 Modal 3: รายละเอียดประวัติ */}
       {selectedLog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -571,7 +494,6 @@ export default function CheckinPage() {
             </div>
 
             <div className="p-5 overflow-y-auto space-y-5 custom-scrollbar">
-              {/* รูปถ่าย */}
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-500">
                   📸 รูปถ่ายลงชื่อ
@@ -591,9 +513,7 @@ export default function CheckinPage() {
                 )}
               </div>
 
-              {/* รายละเอียดเข้า-ออก-จุดแวะ */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100 space-y-4 shadow-inner">
-                {/* หัวข้องาน */}
                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                   <p className="text-[10px] font-bold text-gray-500 mb-0.5 flex items-center gap-1">
                     📍 หัวข้องาน
@@ -604,7 +524,6 @@ export default function CheckinPage() {
                 </div>
 
                 <div className="space-y-3">
-                  {/* บรรทัดที่ 1: เข้างาน */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-green-100 shadow-sm">
                     <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
@@ -629,7 +548,6 @@ export default function CheckinPage() {
                     )}
                   </div>
 
-                  {/* บรรทัดกลาง: จุดแวะ */}
                   {selectedLog.attendance_checkpoints &&
                     selectedLog.attendance_checkpoints.length > 0 &&
                     selectedLog.attendance_checkpoints
@@ -670,7 +588,6 @@ export default function CheckinPage() {
                         </div>
                       ))}
 
-                  {/* บรรทัดสุดท้าย: ออกงาน */}
                   <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-red-100 shadow-sm">
                     <div className="flex-1 pr-2 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">

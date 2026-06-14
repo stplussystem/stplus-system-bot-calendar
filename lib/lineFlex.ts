@@ -1137,7 +1137,11 @@ export const generateCheckinTimelineFlex = (
       contents: [
         {
           type: "button",
-          action: { type: "uri", label: "ลงเวลาออกงาน", uri: liffUrl },
+          action: {
+            type: "uri",
+            label: "ลงเวลาออกงาน",
+            uri: "https://liff.line.me/2010143328-wyg8T4P5/checkin",
+          },
           color: "#EF454D",
           style: "primary",
         },

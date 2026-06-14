@@ -376,8 +376,9 @@ export default function AdminDashboard() {
       csvRows.push([
         log.users?.full_name || "-",
         log.users?.nickname || "-",
-        log.attendance_topics?.team_type || "-",
+        log.users?.department || "-",
         log.attendance_topics?.title || "-",
+        log.attendance_topics?.shift_type || "-",
         shiftName,
         formatDate(log.check_in_time),
         formatTime(log.check_in_time),
@@ -795,14 +796,23 @@ export default function AdminDashboard() {
                                 {log.users?.nickname || "-"}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
-                                {log.attendance_topics?.team_type || "-"}
+                                {log.users?.department || "-"}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
                                 {log.attendance_topics?.title || "-"}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">
-                                  {shiftName}
+                                  {log.attendance_topics?.shift_type ===
+                                  "morning"
+                                    ? "เช้า"
+                                    : log.attendance_topics?.shift_type ===
+                                        "afternoon"
+                                      ? "บ่าย"
+                                      : log.attendance_topics?.shift_type ===
+                                          "custom"
+                                        ? "เวลาพิเศษ"
+                                        : "-"}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-center text-gray-600">

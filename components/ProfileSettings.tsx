@@ -9,7 +9,7 @@ import {
   CheckCircle2,
   Loader2,
   X,
-  Briefcase, // 🌟 เพิ่มไอคอนกระเป๋าทำงาน
+  Briefcase,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,15 +32,25 @@ export default function ProfileSettings({
 }: ProfileSettingsProps) {
   const [regFullName, setRegFullName] = useState(dbUser?.full_name || "");
   const [regNickname, setRegNickname] = useState(dbUser?.nickname || "");
-  const [regDepartment, setRegDepartment] = useState(dbUser?.department || ""); // 🌟 เพิ่ม State สำหรับแผนก
+  const [regDepartment, setRegDepartment] = useState(dbUser?.department || "");
   const [regGmail, setRegGmail] = useState(dbUser?.gmail || "");
   const [regCalendarId, setRegCalendarId] = useState(
     dbUser?.personal_calendar_id || "",
   );
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // 🌟 รายชื่อแผนก/ตำแหน่ง สำหรับทำ Dropdown
+  const departmentOptions = [
+    "ช่างติดตั้ง",
+    "ออฟฟิศ",
+    "Support",
+    "HR",
+    "บัญชี",
+    "การเงิน",
+    "ผู้บริหาร",
+  ];
+
   const handleSaveProfile = async () => {
-    // 🌟 บังคับให้กรอก แผนก/ตำแหน่ง ด้วย
     if (!regFullName || !regNickname || !regDepartment) {
       return toast.warning(
         "กรุณากรอก ชื่อ-สกุล, ชื่อเล่น และ แผนก/ตำแหน่ง ให้ครบถ้วนครับ",
@@ -54,7 +64,7 @@ export default function ProfileSettings({
         .update({
           full_name: regFullName,
           nickname: regNickname,
-          department: regDepartment, // 🌟 ส่งข้อมูลแผนกไปบันทึก
+          department: regDepartment,
           gmail: regGmail,
           personal_calendar_id: regCalendarId,
         })
@@ -67,7 +77,7 @@ export default function ProfileSettings({
         ...dbUser,
         full_name: regFullName,
         nickname: regNickname,
-        department: regDepartment, // 🌟 อัปเดตข้อมูลก้อนใหม่
+        department: regDepartment,
         gmail: regGmail,
         personal_calendar_id: regCalendarId,
       });
@@ -130,19 +140,28 @@ export default function ProfileSettings({
           </div>
         </div>
 
-        {/* 🌟 เพิ่มช่องกรอก แผนก/ตำแหน่ง แบบ Grid คู่กับ Gmail */}
+        {/* 🌟 เปลี่ยนช่องแผนกให้เป็น Dropdown */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <Briefcase size={16} /> แผนก / ตำแหน่ง
+              <Briefcase size={16} /> แผนก / ตำแหน่ง{" "}
+              <span className="text-red-500">* จำเป็น</span>
             </label>
-            <input
-              type="text"
+            <select
               value={regDepartment}
               onChange={(e) => setRegDepartment(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              placeholder="เช่น IT Support, ช่างติดตั้ง"
-            />
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+              required
+            >
+              <option value="" disabled>
+                -- เลือกแผนก/ตำแหน่ง --
+              </option>
+              {departmentOptions.map((dept, index) => (
+                <option key={index} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
