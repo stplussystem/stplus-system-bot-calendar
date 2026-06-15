@@ -403,16 +403,14 @@ export default function AttendanceAdminPage() {
             "error",
           );
         } else {
-          await supabase
-            .from("saved_locations")
-            .insert([
-              {
-                user_id: "admin_system",
-                title: favTitleToSave,
-                lat: parseFloat(formData.lat),
-                lng: parseFloat(formData.lng),
-              },
-            ]);
+          await supabase.from("saved_locations").insert([
+            {
+              user_id: "admin_system",
+              title: favTitleToSave,
+              lat: parseFloat(formData.lat),
+              lng: parseFloat(formData.lng),
+            },
+          ]);
           fetchAllFavorites();
         }
       }
@@ -577,7 +575,7 @@ export default function AttendanceAdminPage() {
             </div>
 
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+              {/* <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
                 <label className="flex items-center gap-2 text-sm font-bold text-blue-900 cursor-pointer">
                   <input
                     type="checkbox"
@@ -595,7 +593,7 @@ export default function AttendanceAdminPage() {
                   <Infinity className="h-4 w-4 text-blue-600" /> หัวข้องานประจำ
                   (ไม่มีวันหมดอายุ)
                 </label>
-              </div>
+              </div> */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-gray-700 mb-2 block">
