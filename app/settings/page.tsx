@@ -170,7 +170,7 @@ export default function SettingsPage() {
 
   // === State: Cron Job ===
   const [cronTime, setCronTime] = useState("07:00");
-  const [autoCheckoutTime, setAutoCheckoutTime] = useState("06:00"); // 🌟 เพิ่ม State สำหรับตั้งเวลา Auto-Checkout
+  const [autoCheckoutTime, setAutoCheckoutTime] = useState("06:00"); // 🌟 เวลา Auto-Checkout
   const [cronTargetRoles, setCronTargetRoles] = useState<string[]>([
     "manager",
     "admin",
@@ -384,11 +384,11 @@ export default function SettingsPage() {
       const timeObj = data.find((d) => d.setting_key === "cron_bot_time");
       const checkoutObj = data.find(
         (d) => d.setting_key === "cron_auto_checkout_time",
-      ); // 🌟 ดึงค่าตั้งเวลาออกงาน
+      );
       const targetObj = data.find((d) => d.setting_key === "cron_bot_target");
 
       if (timeObj) setCronTime(timeObj.setting_value);
-      if (checkoutObj) setAutoCheckoutTime(checkoutObj.setting_value); // 🌟 เซ็ตค่าตั้งเวลาออกงาน
+      if (checkoutObj) setAutoCheckoutTime(checkoutObj.setting_value);
 
       if (targetObj) {
         try {
@@ -418,7 +418,7 @@ export default function SettingsPage() {
         {
           setting_key: "cron_auto_checkout_time",
           setting_value: autoCheckoutTime,
-        }, // 🌟 บันทึกค่าตั้งเวลาออกงาน
+        },
         {
           setting_key: "cron_bot_target",
           setting_value: JSON.stringify(targetData),
@@ -437,6 +437,9 @@ export default function SettingsPage() {
     }
   };
 
+  // ==========================================
+  // ฟังก์ชัน Office
+  // ==========================================
   const fetchOfficeSettings = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -506,6 +509,9 @@ export default function SettingsPage() {
     }
   };
 
+  // ==========================================
+  // ฟังก์ชัน Holidays
+  // ==========================================
   const fetchHolidays = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -1087,9 +1093,611 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* View Office, Holidays, Roles ... (เหมือนเดิม) */}
-      {/* ... โค้ดเดิมของ Office, Holidays, Roles ... */}
+      {/* 🌟 View 2: Office Form */}
+      {activeView === "office_form" && (
+        <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
+          <button
+            onClick={() => setActiveView("menu")}
+            className="mb-5 flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200 w-fit"
+          >
+            <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
+          </button>
 
+          <div className="mb-6">
+            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-blue-600" />{" "}
+              ตั้งค่าสถานที่ประจำ
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              ปรับแต่งพิกัด GPS รัศมี และเวลาทำงาน สำหรับออฟฟิศ
+            </p>
+          </div>
+
+          {selectedTopic && (
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden space-y-0">
+              <div className="p-6 border-b border-gray-100 space-y-5 bg-white">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                    ชื่อสถานที่ (แสดงในแอป)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    value={formData.title}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                      เวลาเข้างาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.start_time}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            start_time: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                      เวลาออกงาน
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="time"
+                        className="w-full p-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        value={formData.end_time}
+                        onChange={(e) =>
+                          setFormData({ ...formData, end_time: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-b border-gray-100 bg-slate-50 space-y-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPinHouse className="w-5 h-5 text-indigo-500" />
+                  <h3 className="font-bold text-gray-900">
+                    การตั้งค่า GPS & รัศมี
+                  </h3>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+                    <LinkIcon className="h-4 w-4" /> พิกัดออฟฟิศ
+                  </label>
+                  <div className="relative mb-3">
+                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500" />
+                    <input
+                      type="text"
+                      ref={autocompleteInputRef}
+                      placeholder="🔍 ค้นหาที่ตั้งออฟฟิศด้วย Google Maps..."
+                      className="w-full border border-blue-300 rounded-lg p-3 pl-10 text-sm font-bold outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <div className="flex-1 border-b border-gray-300"></div>
+                    <span className="text-xs text-gray-500 font-bold">
+                      หรือวางลิงก์เอง
+                    </span>
+                    <div className="flex-1 border-b border-gray-300"></div>
+                  </div>
+                  <details className="mb-3 group">
+                    <summary className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 list-none flex items-center gap-1.5 select-none">
+                      <span className="bg-blue-100 text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0">
+                        ?
+                      </span>
+                      วิธีดูพิกัดจากมือถือ (คลิก)
+                    </summary>
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
+                      <p>
+                        1. เปิดแอป <b>Google Maps</b>
+                      </p>
+                      <p>
+                        2. <b>แตะค้าง</b> (Long Press)
+                        ตรงจุดที่ต้องการให้ขึ้นหมุดสีแดง (Dropped Pin)
+                      </p>
+                      <p>
+                        3. เลื่อนดูรายละเอียดด้านล่าง จะเห็นตัวเลขพิกัด (เช่น{" "}
+                        <code className="bg-white px-1.5 py-0.5 rounded text-blue-600 border border-blue-200 shadow-sm font-mono">
+                          13.7563, 100.5018
+                        </code>
+                        ) ให้กดค้างเพื่อก๊อปปี้ตัวเลขมาวางได้เลย
+                      </p>
+                      <p>
+                        4. *** ห้ามใส่วงเล็บในกรณีก็อบเฉพาะตัวเลขมา
+                        ให้เอาวงเล็บออก <b>13.7563, 100.5018</b>
+                      </p>
+                    </div>
+                  </details>
+                  <input
+                    type="text"
+                    placeholder="วางลิงก์ Maps หรือ วางพิกัด"
+                    className="w-full border border-gray-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50 mb-4"
+                    value={formData.maps_url}
+                    onChange={(e) => handleMapsUrlParse(e.target.value)}
+                  />
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">
+                        ละติจูด (Lat)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 bg-gray-100 border border-gray-200 rounded-lg font-mono text-xs text-gray-500 cursor-not-allowed"
+                        value={formData.lat}
+                        readOnly
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">
+                        ลองจิจูด (Lng)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 bg-gray-100 border border-gray-200 rounded-lg font-mono text-xs text-gray-500 cursor-not-allowed"
+                        value={formData.lng}
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex justify-between">
+                    <span>รัศมีที่อนุญาตให้ลงเวลา (เมตร)</span>
+                    <span className="text-indigo-600">
+                      {formData.radius_meters} ม.
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="1000"
+                    step="50"
+                    className="w-full accent-indigo-600"
+                    value={formData.radius_meters}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        radius_meters: parseInt(e.target.value),
+                      })
+                    }
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
+                    <span>เข้มงวด (50m)</span>
+                    <span>ยืดหยุ่น (1000m)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-b border-gray-100 space-y-4 bg-white">
+                <div className="flex items-center gap-2 mb-1">
+                  <Camera className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-bold text-gray-900">การยืนยันตัวตน</h3>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                    โหมดรูปถ่าย
+                  </label>
+                  <select
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none"
+                    value={formData.photo_mode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, photo_mode: e.target.value })
+                    }
+                  >
+                    <option value="none">ไม่ต้องแนบรูป</option>
+                    <option value="camera">ต้องถ่ายจากกล้องเท่านั้น</option>
+                    <option value="gallery">
+                      เลือกจากอัลบั้ม หรือ ถ่ายสดก็ได้
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50">
+                <button
+                  onClick={handleSaveOffice}
+                  disabled={saving}
+                  className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-2xl flex justify-center items-center gap-2 shadow-lg transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5" /> บันทึกการตั้งค่าออฟฟิศ
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🌟 View 3: Holiday Form */}
+      {activeView === "holiday_form" && (
+        <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
+          <button
+            onClick={() => setActiveView("menu")}
+            className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-white px-4 py-2 rounded-full border shadow-sm w-fit"
+          >
+            <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
+          </button>
+          <div className="flex gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
+            {yearOptions.map((y) => (
+              <button
+                key={y}
+                onClick={() => setHolidayYear(y)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all shrink-0 ${holidayYear === y ? "border-orange-500 bg-orange-50 text-orange-700 shadow-sm" : "border-gray-100 bg-white text-gray-500"}`}
+              >
+                วันหยุดปี {y}
+              </button>
+            ))}
+          </div>
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200">
+            <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-blue-600" /> ประกาศวันหยุดรวม
+            </h3>
+            {announcementUrl && (
+              <a
+                href={announcementUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full bg-blue-50 text-blue-700 font-bold py-3 rounded-xl flex justify-center items-center gap-2 mb-3"
+              >
+                <Eye className="w-5 h-5" /> ดูประกาศปัจจุบัน
+              </a>
+            )}
+            <label className="w-full bg-gray-50 border border-dashed border-gray-300 text-gray-600 font-bold py-3 rounded-xl flex justify-center items-center gap-2 cursor-pointer">
+              {uploading ? "กำลังอัปโหลด..." : "อัปโหลดรูปประกาศใหม่"}
+              <input
+                type="file"
+                className="hidden"
+                onChange={handleUploadAnnouncement}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-4 bg-slate-50 flex justify-between items-center border-b border-gray-100">
+              <h3 className="font-bold text-sm text-gray-800">
+                รายการวันหยุด ปี {holidayYear}
+              </h3>
+              <div className="flex gap-2">
+                {holidays.length === 0 && (
+                  <button
+                    onClick={triggerLoadTemplate}
+                    className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                  >
+                    โหลดแม่แบบ
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <PlusCircle className="w-3 h-3" /> เพิ่ม
+                </button>
+              </div>
+            </div>
+            <div className="p-0 bg-white">
+              {showAddForm && (
+                <div className="bg-blue-50/50 p-4 m-4 rounded-xl border border-blue-100">
+                  <input
+                    type="date"
+                    value={newHoliday.date}
+                    onChange={(e) =>
+                      setNewHoliday({ ...newHoliday, date: e.target.value })
+                    }
+                    className="w-full p-2.5 border rounded-lg text-sm mb-3 outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={newHoliday.title}
+                    onChange={(e) =>
+                      setNewHoliday({ ...newHoliday, title: e.target.value })
+                    }
+                    placeholder="ชื่อวันหยุด"
+                    className="w-full p-2.5 border rounded-lg text-sm mb-3 outline-none focus:border-blue-500"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="px-4 py-2 text-xs font-bold bg-white border rounded-lg"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      onClick={handleAddHoliday}
+                      className="px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg"
+                    >
+                      บันทึก
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="divide-y divide-gray-100">
+                {holidays.map((h) => (
+                  <div key={h.id} className="p-4">
+                    {editingHolidayId !== h.id ? (
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p
+                            className={`text-sm font-bold ${h.is_changed ? "text-gray-400 line-through" : "text-gray-900"}`}
+                          >
+                            {h.title}
+                          </p>
+                          <p
+                            className={`text-xs ${h.is_changed ? "text-gray-400 line-through" : "text-blue-600 font-bold"}`}
+                          >
+                            {formatThaiDate(h.date)}
+                          </p>
+                          {h.is_changed && (
+                            <div className="mt-3 bg-red-50 p-3 rounded-xl border border-red-100/50">
+                              <p className="text-[12px] text-red-600 font-bold mb-2">
+                                ย้ายไปหยุดวันที่:{" "}
+                                {formatThaiDate(h.changed_date)}
+                              </p>
+                              {h.change_document_url ? (
+                                <a
+                                  href={h.change_document_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] bg-white text-red-600 px-3 py-1.5 rounded-lg border font-bold"
+                                >
+                                  ดูเอกสาร
+                                </a>
+                              ) : (
+                                <label className="text-[11px] bg-white text-gray-600 px-3 py-1.5 rounded-lg border cursor-pointer font-bold">
+                                  อัปโหลดเอกสาร
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) =>
+                                      handleUploadChangeDoc(e, h.id)
+                                    }
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 ml-3">
+                          <button
+                            onClick={() => {
+                              setEditingHolidayId(h.id);
+                              setEditHolidayData({
+                                date: h.date,
+                                title: h.title,
+                                is_changed: h.is_changed || false,
+                                changed_date: h.changed_date || h.date,
+                              });
+                            }}
+                            className="p-2 text-gray-400 hover:text-orange-500 border rounded-lg"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => triggerDeleteHoliday(h.id)}
+                            className="p-2 text-gray-400 hover:text-red-500 border rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-orange-50/80 p-4 rounded-xl border border-orange-200 space-y-4">
+                        <input
+                          type="date"
+                          value={editHolidayData.date}
+                          onChange={(e) =>
+                            setEditHolidayData({
+                              ...editHolidayData,
+                              date: e.target.value,
+                            })
+                          }
+                          className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
+                        />
+                        <input
+                          type="text"
+                          value={editHolidayData.title}
+                          onChange={(e) =>
+                            setEditHolidayData({
+                              ...editHolidayData,
+                              title: e.target.value,
+                            })
+                          }
+                          className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
+                        />
+                        <label className="text-sm font-bold flex gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editHolidayData.is_changed}
+                            onChange={(e) =>
+                              setEditHolidayData({
+                                ...editHolidayData,
+                                is_changed: e.target.checked,
+                              })
+                            }
+                            className="w-4 h-4 text-orange-600"
+                          />{" "}
+                          มีการเลื่อนวันหยุดนี้
+                        </label>
+                        {editHolidayData.is_changed && (
+                          <input
+                            type="date"
+                            value={editHolidayData.changed_date}
+                            onChange={(e) =>
+                              setEditHolidayData({
+                                ...editHolidayData,
+                                changed_date: e.target.value,
+                              })
+                            }
+                            className="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-orange-500"
+                          />
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingHolidayId(null)}
+                            className="flex-1 bg-white border font-bold py-2.5 rounded-xl text-sm"
+                          >
+                            ยกเลิก
+                          </button>
+                          <button
+                            onClick={() => saveEditHoliday(h.id)}
+                            className="flex-1 bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm"
+                          >
+                            บันทึก
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 View 4: Roles & Users */}
+      {activeView === "roles_form" && (
+        <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
+          <button
+            onClick={() => setActiveView("menu")}
+            className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-900 bg-white px-4 py-2 rounded-full border shadow-sm w-fit"
+          >
+            <ChevronLeft className="w-4 h-4" /> กลับเมนูหลัก
+          </button>
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+              <Users className="w-6 h-6 text-purple-600" />{" "}
+              จัดการสิทธิ์ผู้ใช้งาน
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              เปลี่ยนสิทธิ์ เปิด/ปิดระงับไอดี และแก้ไขข้อมูล
+            </p>
+          </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h3 className="font-bold text-sm text-gray-800">
+                พนักงานทั้งหมด ({filteredUsersList.length})
+              </h3>
+              <div className="relative">
+                <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="w-full sm:w-40 bg-white border border-gray-200 text-xs font-bold text-gray-600 rounded-lg py-2 pl-8 pr-3 outline-none focus:border-purple-500 appearance-none shadow-sm cursor-pointer"
+                >
+                  <option value="all">ดูทุกสิทธิ์ (All)</option>
+                  <option value="user">พนักงานทั่วไป (USER)</option>
+                  <option value="hr">ฝ่ายบุคคล (HR)</option>
+                  <option value="it">SUPPORT (ฝ่ายสนับสนุน)</option>
+                  <option value="manager">หัวหน้างาน (MANAGER)</option>
+                  <option value="admin">ผู้ดูแลระบบ (ADMIN)</option>
+                </select>
+              </div>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto custom-scrollbar">
+              {filteredUsersList.length === 0 ? (
+                <div className="p-10 text-center text-gray-400 font-bold text-sm">
+                  ไม่พบข้อมูลผู้ใช้งาน
+                </div>
+              ) : (
+                filteredUsersList.map((u) => (
+                  <div
+                    key={u.id}
+                    className={`p-4 flex flex-col gap-3 transition-colors ${u.is_active === false ? "bg-red-50/30 grayscale opacity-70" : "hover:bg-gray-50"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={
+                          u.picture_url ||
+                          "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                        }
+                        alt="profile"
+                        className="w-10 h-10 rounded-full border border-gray-200 object-cover"
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                          {u.full_name || "ไม่ได้ตั้งชื่อ"}{" "}
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="text-purple-600 bg-purple-50 p-1 rounded-md hover:bg-purple-100"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {u.department || "ไม่ระบุตำแหน่ง"}{" "}
+                          {u.nickname && `(${u.nickname})`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleToggleActive(
+                            u.line_user_id,
+                            u.is_active !== false,
+                          )
+                        }
+                        className="p-2"
+                      >
+                        {u.is_active !== false ? (
+                          <ToggleRight className="w-8 h-8 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="w-8 h-8 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={u.role || "user"}
+                        onChange={(e) => triggerRoleChange(u, e.target.value)}
+                        disabled={u.is_active === false}
+                        className="flex-1 bg-white border border-gray-200 text-xs font-bold text-gray-700 rounded-lg p-2.5 outline-none focus:border-purple-500 shadow-sm cursor-pointer"
+                      >
+                        <option value="user">พนักงานทั่วไป (USER)</option>
+                        <option value="hr">ฝ่ายบุคคล (HR)</option>
+                        <option value="it">SUPPORT (ฝ่ายสนับสนุน)</option>
+                        <option value="manager">หัวหน้างาน (MANAGER)</option>
+                        <option value="admin">ผู้ดูแลระบบ (ADMIN)</option>
+                      </select>
+                      <button
+                        onClick={() => triggerDeleteUser(u)}
+                        className="p-2.5 text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {u.is_active === false && (
+                      <p className="text-[10px] font-bold text-red-500 text-center bg-red-100 py-1 rounded-md">
+                        บัญชีนี้ถูกระงับการใช้งาน
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 View 5: Cron Job Bot */}
       {activeView === "cron_form" && (
         <div className="p-4 md:p-6 max-w-lg w-full mx-auto animate-in fade-in slide-in-from-right-4 space-y-5">
           <button
