@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import imageCompression from "browser-image-compression";
-import Select, { components } from "react-select"; // 🌟 Import react-select
 import {
   MapPin,
   Clock,
@@ -81,33 +80,6 @@ const calculateDistance = (
       Math.sin(deltaLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-};
-
-// 🌟 Component สร้างตัวเลือก (Option) ที่มีรูปโปรไฟล์และชื่อ
-const AttendeeCustomOption = (props: any) => {
-  return (
-    <components.Option {...props}>
-      <div className="flex items-center gap-3">
-        {props.data.value === "all" ? (
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-            <Users size={16} />
-          </div>
-        ) : (
-          <img
-            src={
-              props.data.image ||
-              "https://cdn-icons-png.flaticon.com/512/847/847969.png"
-            }
-            alt="profile"
-            className="w-8 h-8 rounded-full border border-gray-200 object-cover shrink-0"
-          />
-        )}
-        <span className="text-sm font-bold text-gray-800">
-          {props.data.label}
-        </span>
-      </div>
-    </components.Option>
-  );
 };
 
 export default function CheckinPage() {
@@ -260,7 +232,7 @@ export default function CheckinPage() {
   const fetchHistoryUsers = async () => {
     const { data } = await supabase
       .from("users")
-      .select("line_user_id, full_name, nickname, picture_url")
+      .select("line_user_id, full_name")
       .order("full_name");
     if (data) setHistoryUsers(data);
   };
@@ -794,29 +766,33 @@ export default function CheckinPage() {
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
-    // 🌟 1. ดึงรายชื่อพนักงานมาเตรียมไว้ก่อน (แก้ปัญหา DB Join Error)
+    // 🌟 1. ดึงรายชื่อพนักงานมาเตรียมไว้ก่อน (เพื่อแก้ปัญหา Database Error)
     let currentUsers = historyUsers;
     if (isManagerView && currentUsers.length === 0) {
       const { data: uData } = await supabase
         .from("users")
-        .select("line_user_id, full_name, nickname, picture_url");
+        .select("line_user_id, full_name, picture_url");
       if (uData) {
         currentUsers = uData;
         setHistoryUsers(uData);
       }
     }
 
-    // 🌟 2. ดึงประวัติการลงเวลา (ไม่มีการ JOIN users)
+    // 🌟 โค้ดจะสั้นลง แค่สั่ง .select("..., users(...)") ตัวเดียวจบ!
     let query = supabase
       .from("attendance_logs")
       .select(
-        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
+        `
+        *, 
+        attendance_topics ( title, team_type ), 
+        attendance_checkpoints ( * ), 
+        users!inner(full_name, picture_url) 
+      `,
       )
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
 
-    // 🌟 3. กรองสิทธิ์การดูข้อมูล
     if (isManagerView) {
       if (selectedHistoryUser !== "all")
         query = query.eq("user_id", selectedHistoryUser);
@@ -825,22 +801,7 @@ export default function CheckinPage() {
     }
 
     const { data } = await query;
-
-    // 🌟 4. ประกอบร่างรายชื่อพนักงานเข้ากับประวัติ (Manual Join)
-    if (data) {
-      const mappedLogs = data.map((log) => {
-        const matchUser = currentUsers.find(
-          (u) => u.line_user_id === log.user_id,
-        );
-        return {
-          ...log,
-          users: matchUser || null,
-        };
-      });
-      setLogs(mappedLogs);
-    } else {
-      setLogs([]);
-    }
+    if (data) setLogs(data);
 
     setLoadingHistory(false);
   };
@@ -858,19 +819,6 @@ export default function CheckinPage() {
       month: "short",
       year: "numeric",
     });
-
-  // 🌟 ฟอร์แมตรายชื่อเพื่อใช้กับ React-Select
-  const userOptions = [
-    { value: "all", label: "ดูทุกคน", image: null },
-    ...historyUsers.map((u) => ({
-      value: u.line_user_id,
-      label: `${u.full_name || "ไม่ระบุชื่อ"} ${u.nickname ? `(${u.nickname})` : ""}`,
-      image: u.picture_url,
-    })),
-  ];
-
-  const selectedOption =
-    userOptions.find((o) => o.value === selectedHistoryUser) || userOptions[0];
 
   if (!isLiffInit)
     return (
@@ -1569,37 +1517,21 @@ export default function CheckinPage() {
             </button>
           </div>
 
-          {/* 🌟 1. แทรก Dropdown ด้วย react-select (เฉพาะ Role: Manager, Admin, HR) */}
+          {/* 🌟 1. แทรก Dropdown ชื่อพนักงาน เฉพาะ Role: Manager, Admin, HR ตรงใต้ปุ่ม */}
           {isManagerView && (
-            <div className="mb-4 animate-in fade-in relative z-50">
-              <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
-                <Users size={18} className="text-blue-500" /> ค้นหาพนักงาน
-              </label>
-              <Select
-                options={userOptions}
-                value={selectedOption}
-                onChange={(selected: any) =>
-                  setSelectedHistoryUser(selected.value)
-                }
-                components={{ Option: AttendeeCustomOption }}
-                placeholder="ค้นหาพนักงาน..."
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    padding: "4px",
-                    borderRadius: "0.75rem",
-                    borderColor: "#e2e8f0",
-                    backgroundColor: "#f8fafc",
-                    boxShadow: "none",
-                  }),
-                  menu: (base) => ({
-                    ...base,
-                    zIndex: 9999,
-                    borderRadius: "0.75rem",
-                    overflow: "hidden",
-                  }),
-                }}
-              />
+            <div className="mb-4 animate-in fade-in">
+              <select
+                value={selectedHistoryUser}
+                onChange={(e) => setSelectedHistoryUser(e.target.value)}
+                className="w-full text-sm font-bold p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-white text-gray-900 opacity-100 [-webkit-text-fill-color:#111827] shadow-sm appearance-none"
+              >
+                <option value="all">ดูทุกคน</option>
+                {historyUsers.map((u) => (
+                  <option key={u.line_user_id} value={u.line_user_id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
