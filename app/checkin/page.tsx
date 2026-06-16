@@ -1694,12 +1694,20 @@ export default function CheckinPage() {
                     <p className="text-[10px] font-bold text-green-600 uppercase mb-0.5">
                       เข้า: {formatTime(log.check_in_time)}
                     </p>
-                    <p className="text-[10px] font-bold text-red-500 uppercase mb-2">
-                      ออก:{" "}
-                      {log.check_out_time
-                        ? formatTime(log.check_out_time)
-                        : "ยังไม่ลงชื่อ"}
-                    </p>
+                    <div className="text-[10px] font-bold text-red-500 uppercase mb-2 flex items-center justify-end gap-1">
+                      <span>
+                        ออก:{" "}
+                        {log.check_out_time
+                          ? formatTime(log.check_out_time)
+                          : "ยังไม่ลงชื่อ"}
+                      </span>
+                      {/* 🌟 ป้ายกำกับเล็กๆ ถ้าบอทเตะออก */}
+                      {log.status === "auto_checked_out" && (
+                        <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded border border-orange-200 text-[8px] normal-case tracking-wider">
+                          Auto
+                        </span>
+                      )}
+                    </div>
                     <button className="text-[10px] bg-gray-50 text-gray-500 hover:bg-gray-100 font-bold px-2.5 py-1 rounded-md border border-gray-200 transition-colors">
                       ดูรายละเอียด
                     </button>
@@ -1825,11 +1833,17 @@ export default function CheckinPage() {
                           ลงชื่อออกงาน
                         </span>
                       </div>
-                      <p className="text-lg font-black text-red-500">
+                      <p className="text-lg font-black text-red-500 mb-1">
                         {selectedLog.check_out_time
                           ? formatTime(selectedLog.check_out_time)
                           : "ยังไม่ได้ลงชื่อ"}
                       </p>
+                      {/* 🌟 แสดงคำอธิบายชัดเจนถ้าบอทลงให้ */}
+                      {selectedLog.status === "auto_checked_out" && (
+                        <p className="text-[10px] text-orange-600 font-bold bg-orange-50 inline-block px-2 py-1 rounded border border-orange-100">
+                          🤖 ระบบลงเวลาให้อัตโนมัติ (เลยเวลา)
+                        </p>
+                      )}
                     </div>
                     {selectedLog.check_out_lat && selectedLog.check_out_lng && (
                       <a

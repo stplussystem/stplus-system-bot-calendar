@@ -979,8 +979,23 @@ export default function AdminDashboard() {
                               <td className="px-4 py-3 text-center font-bold text-green-600">
                                 {formatTime(log.check_in_time)}
                               </td>
-                              <td className="px-4 py-3 text-center font-bold text-gray-800">
-                                {formatTime(log.check_out_time)}
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                {log.check_out_time ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-red-600">
+                                      {formatTime(log.check_out_time)}
+                                    </span>
+
+                                    {/* 🌟 ถ้าเป็นบอทลงให้ จะโชว์ป้ายกำกับสีส้ม */}
+                                    {log.status === "auto_checked_out" && (
+                                      <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                                        Auto Checkout
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
                               </td>
                               <td
                                 className={`px-4 py-3 text-center font-bold ${ot.isOver ? "text-red-600 bg-red-50/50" : ot.text.includes("งานพิเศษ") ? "text-purple-600 bg-purple-50/50" : "text-gray-400"}`}
