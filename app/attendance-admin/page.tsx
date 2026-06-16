@@ -685,12 +685,12 @@ export default function AttendanceAdminPage() {
               {formData.work_type === "onsite" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                   <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-blue-900 mb-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-blue-900 mb-2">
                       <Users className="h-4 w-4" />{" "}
                       หัวหน้าทีมที่รับผิดชอบไซต์นี้
                     </label>
                     <select
-                      className="w-full border border-blue-200 rounded-lg p-3 text-sm outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-blue-200 rounded-lg p-3 text-xs outline-none bg-white focus:ring-2 focus:ring-blue-500"
                       value={formData.team_type}
                       onChange={(e) =>
                         setFormData({ ...formData, team_type: e.target.value })
@@ -710,7 +710,7 @@ export default function AttendanceAdminPage() {
                   </div>
 
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <label className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-4">
+                    <label className="flex items-center gap-2 text-xs font-bold text-gray-900 mb-4">
                       <MapPinHouse className="h-5 w-5 text-indigo-500" />{" "}
                       ค้นหา/ตั้งค่าพิกัดสถานที่ (3 รูปแบบ)
                     </label>
@@ -1014,7 +1014,7 @@ export default function AttendanceAdminPage() {
                   (รูปถ่าย)
                 </label>
                 <select
-                  className="w-full border border-emerald-200 rounded-lg p-3 text-sm outline-none bg-white focus:ring-2 focus:ring-emerald-500 appearance-none font-bold text-gray-700 cursor-pointer"
+                  className="w-full border border-emerald-200 rounded-lg p-3 text-xs outline-none bg-white focus:ring-2 focus:ring-emerald-500 appearance-none font-bold text-gray-700 cursor-pointer"
                   value={formData.photo_mode}
                   onChange={(e) =>
                     setFormData({ ...formData, photo_mode: e.target.value })
