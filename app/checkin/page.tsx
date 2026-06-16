@@ -778,47 +778,30 @@ export default function CheckinPage() {
       }
     }
 
-    // 🌟 2. ดึงประวัติการลงเวลา (เอาคำสั่ง users(...) ออก ป้องกันฐานข้อมูลพัง)
+    // 🌟 โค้ดจะสั้นลง แค่สั่ง .select("..., users(...)") ตัวเดียวจบ!
     let query = supabase
       .from("attendance_logs")
       .select(
-        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
+        `
+        *, 
+        attendance_topics ( title, team_type ), 
+        attendance_checkpoints ( * ), 
+        users!inner(full_name, picture_url) 
+      `,
       )
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
 
-    // 🌟 3. กรองสิทธิ์การดูข้อมูล
     if (isManagerView) {
-      if (selectedHistoryUser !== "all") {
+      if (selectedHistoryUser !== "all")
         query = query.eq("user_id", selectedHistoryUser);
-      }
     } else {
       query = query.eq("user_id", userProfile?.userId);
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Fetch Error: ", error);
-      showToast("เกิดข้อผิดพลาดในการดึงข้อมูล", "error");
-    }
-
-    if (data) {
-      // 🌟 4. ประกอบร่างรายชื่อพนักงานเข้ากับประวัติ (Manual Join)
-      const mappedLogs = data.map((log) => {
-        const matchUser = currentUsers.find(
-          (u) => u.line_user_id === log.user_id,
-        );
-        return {
-          ...log,
-          users: matchUser || null,
-        };
-      });
-      setLogs(mappedLogs);
-    } else {
-      setLogs([]);
-    }
+    const { data } = await query;
+    if (data) setLogs(data);
 
     setLoadingHistory(false);
   };
