@@ -766,15 +766,29 @@ export default function CheckinPage() {
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
+    // 🌟 1. ดึงรายชื่อพนักงานมาเตรียมไว้ก่อน (เพื่อแก้ปัญหา Database Error)
+    let currentUsers = historyUsers;
+    if (isManagerView && currentUsers.length === 0) {
+      const { data: uData } = await supabase
+        .from("users")
+        .select("line_user_id, full_name, picture_url");
+      if (uData) {
+        currentUsers = uData;
+        setHistoryUsers(uData);
+      }
+    }
+
+    // 🌟 2. ดึงประวัติการลงเวลา (เอาคำสั่ง users(...) ออก ป้องกันฐานข้อมูลพัง)
     let query = supabase
       .from("attendance_logs")
       .select(
-        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * ), users(full_name, picture_url)`,
+        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
       )
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
 
+    // 🌟 3. กรองสิทธิ์การดูข้อมูล
     if (isManagerView) {
       if (selectedHistoryUser !== "all") {
         query = query.eq("user_id", selectedHistoryUser);
@@ -783,8 +797,29 @@ export default function CheckinPage() {
       query = query.eq("user_id", userProfile?.userId);
     }
 
-    const { data } = await query;
-    if (data) setLogs(data);
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Fetch Error: ", error);
+      showToast("เกิดข้อผิดพลาดในการดึงข้อมูล", "error");
+    }
+
+    if (data) {
+      // 🌟 4. ประกอบร่างรายชื่อพนักงานเข้ากับประวัติ (Manual Join)
+      const mappedLogs = data.map((log) => {
+        const matchUser = currentUsers.find(
+          (u) => u.line_user_id === log.user_id,
+        );
+        return {
+          ...log,
+          users: matchUser || null,
+        };
+      });
+      setLogs(mappedLogs);
+    } else {
+      setLogs([]);
+    }
+
     setLoadingHistory(false);
   };
 
