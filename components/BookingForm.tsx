@@ -284,7 +284,7 @@ export default function BookingForm({
           value={date}
           min={todayDate}
           onChange={(e) => setDate(e.target.value)}
-          className="appearance-none block w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+          className="appearance-none block w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
         />
       </div>
 
@@ -297,7 +297,7 @@ export default function BookingForm({
             type="time"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+            className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
           />
         </div>
         <div>
@@ -308,7 +308,7 @@ export default function BookingForm({
             type="time"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
-            className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+            className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
           />
         </div>
       </div>
