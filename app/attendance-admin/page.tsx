@@ -594,30 +594,35 @@ export default function AttendanceAdminPage() {
                   (ไม่มีวันหมดอายุ)
                 </label>
               </div> */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-gray-700 mb-2 block">
+              {/* 🌟 ปรับเป็น grid-cols-2 เพื่อให้อยู่บรรทัดเดียวกันเสมอ พร้อมเพิ่ม gap-3 */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 🌟 ใส่ min-w-0 ป้องกัน input ทะลุกรอบ */}
+                <div className="min-w-0">
+                  <label className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 block truncate">
                     เริ่มวันที่
                   </label>
                   <input
                     type="date"
                     required
                     min={editingId ? undefined : todayStr}
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
+                    // 🌟 ปรับขนาด text และ padding ในจอมือถือให้เล็กลงนิดนึง เพื่อให้พอดีกรอบ
+                    className="w-full border border-gray-300 rounded-lg p-2.5 sm:p-3 text-xs sm:text-sm outline-none bg-white"
                     value={formData.start_date}
                     onChange={(e) =>
                       setFormData({ ...formData, start_date: e.target.value })
                     }
                   />
                 </div>
-                <div>
+
+                {/* 🌟 ใส่ min-w-0 ป้องกัน input ทะลุกรอบ */}
+                <div className="min-w-0">
                   <label
-                    className={`text-sm font-semibold mb-2 block ${isPermanent ? "text-gray-400" : "text-gray-700"}`}
+                    className={`text-xs sm:text-sm font-semibold mb-2 block truncate ${isPermanent ? "text-gray-400" : "text-gray-700"}`}
                   >
                     ถึงวันที่
                   </label>
                   {isPermanent ? (
-                    <div className="w-full border border-gray-200 bg-gray-100 rounded-lg p-3 text-sm text-gray-500 font-semibold text-center">
+                    <div className="w-full border border-gray-200 bg-gray-100 rounded-lg p-2.5 sm:p-3 text-xs sm:text-sm text-gray-500 font-semibold text-center">
                       ไม่มีกำหนด
                     </div>
                   ) : (
@@ -625,7 +630,7 @@ export default function AttendanceAdminPage() {
                       type="date"
                       required
                       min={editingId ? undefined : formData.start_date}
-                      className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none bg-white"
+                      className="w-full border border-gray-300 rounded-lg p-2.5 sm:p-3 text-xs sm:text-sm outline-none bg-white"
                       value={formData.end_date}
                       onChange={(e) =>
                         setFormData({ ...formData, end_date: e.target.value })

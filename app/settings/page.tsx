@@ -1055,7 +1055,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-900 text-base mb-1">
-                    ตั้งค่าบอทปฏิทิน (Cron)
+                    ตั้งค่าเวลารันบอท (Cron)
                   </h3>
                   <p className="text-xs text-gray-500">
                     กำหนดเวลาและผู้รับสรุปคิวงาน
