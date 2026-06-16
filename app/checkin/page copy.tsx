@@ -83,6 +83,7 @@ const calculateDistance = (
 };
 
 export default function CheckinPage() {
+  // 🌟 เพิ่ม State แท็บใหม่ 'force_checkout'
   const [activeTab, setActiveTab] = useState<
     "checkin" | "history" | "force_checkout"
   >("checkin");
@@ -124,9 +125,6 @@ export default function CheckinPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
-  const [historyUsers, setHistoryUsers] = useState<any[]>([]);
-  const [selectedHistoryUser, setSelectedHistoryUser] = useState("all");
-
   const [showCheckpointModal, setShowCheckpointModal] = useState(false);
   const [checkpointTab, setCheckpointTab] = useState<"search" | "favorites">(
     "search",
@@ -141,6 +139,7 @@ export default function CheckinPage() {
     saveFavorite: false,
   });
 
+  // 🌟 State สำหรับระบบแอดมินบังคับออกงาน
   const [pendingCheckouts, setPendingCheckouts] = useState<any[]>([]);
   const [showForceModal, setShowForceModal] = useState({
     show: false,
@@ -226,18 +225,7 @@ export default function CheckinPage() {
     initLiff();
   }, []);
 
-  const canForceCheckout = ["admin", "manager", "hr", "it"].includes(
-    dbUser?.role,
-  );
-  const isManagerView = ["admin", "manager", "hr"].includes(dbUser?.role);
-
-  const fetchHistoryUsers = async () => {
-    const { data } = await supabase
-      .from("users")
-      .select("line_user_id, full_name")
-      .order("full_name");
-    if (data) setHistoryUsers(data);
-  };
+  const canForceCheckout = ["admin", "manager", "it"].includes(dbUser?.role); // 🌟 สิทธิ์การเห็นแท็บพิเศษ
 
   useEffect(() => {
     if (isLiffInit && userProfile && !isNewUser && !isPendingApproval) {
@@ -252,11 +240,8 @@ export default function CheckinPage() {
             { enableHighAccuracy: true, maximumAge: 0 },
           );
       } else if (activeTab === "force_checkout") {
-        fetchPendingCheckouts();
+        fetchPendingCheckouts(); // 🌟 ดึงข้อมูลคนค้างเวลา
       } else {
-        if (isManagerView && historyUsers.length === 0) {
-          fetchHistoryUsers();
-        }
         fetchHistory();
       }
     }
@@ -265,7 +250,6 @@ export default function CheckinPage() {
     historyFilter,
     customStartDate,
     customEndDate,
-    selectedHistoryUser,
     isLiffInit,
     userProfile,
     isNewUser,
@@ -300,10 +284,11 @@ export default function CheckinPage() {
     }
   }, [showCheckpointModal, checkpointTab, googleMapsLoaded]);
 
+  // 🌟 ฟังก์ชันดึงคนที่ลืมลงเวลาออก
   const fetchPendingCheckouts = async () => {
     if (!canForceCheckout) return;
     const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 2);
+    yesterday.setDate(yesterday.getDate() - 2); // ย้อนไปเช็ค 2 วันกันกะข้ามคืน
     const { data } = await supabase
       .from("attendance_logs")
       .select(
@@ -312,60 +297,10 @@ export default function CheckinPage() {
       .is("check_out_time", null)
       .gte("check_in_time", yesterday.toISOString())
       .order("check_in_time", { ascending: true });
-
-    if (data) {
-      const now = new Date();
-      const filteredData = data.filter((log) => {
-        let sH = 9,
-          sM = 0;
-        const shiftType = getThaiShiftName(
-          log.shift || log.attendance_topics?.shift_type || "",
-        );
-
-        if (shiftType === "เช้า") {
-          sH = 9;
-          sM = 0;
-        } else if (shiftType === "บ่าย") {
-          sH = 13;
-          sM = 0;
-        } else if (
-          shiftType.includes("พิเศษ") ||
-          shiftType.includes("custom")
-        ) {
-          const startTimeStr = log.attendance_topics?.start_time;
-          if (startTimeStr) {
-            const parts = startTimeStr.split(":").map(Number);
-            sH = parts[0];
-            sM = parts[1];
-          }
-        }
-
-        let expectedStart = new Date(log.check_in_time);
-        expectedStart.setHours(sH, sM, 0, 0);
-
-        if (
-          expectedStart > new Date(log.check_in_time) &&
-          expectedStart.getTime() - new Date(log.check_in_time).getTime() >
-            12 * 3600000
-        ) {
-          expectedStart.setDate(expectedStart.getDate() - 1);
-        }
-        if (
-          new Date(log.check_in_time) > expectedStart &&
-          new Date(log.check_in_time).getTime() - expectedStart.getTime() >
-            12 * 3600000
-        ) {
-          expectedStart.setDate(expectedStart.getDate() + 1);
-        }
-
-        const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
-
-        return now >= otLimit;
-      });
-      setPendingCheckouts(filteredData);
-    }
+    if (data) setPendingCheckouts(data);
   };
 
+  // 🌟 ฟังก์ชันบังคับออกแบบ เลือกเวลาได้ (ปัจจุบัน หรือ 9 ชม.)
   const executeForceCheckout = async (type: "now" | "9hours") => {
     const log = showForceModal.log;
     if (!log) return;
@@ -744,7 +679,6 @@ export default function CheckinPage() {
     };
     let start = new Date();
     let end = new Date();
-
     if (historyFilter === "week") {
       const day = start.getDay();
       const diff = start.getDate() - day + (day === 0 ? -6 : 1);
@@ -768,24 +702,15 @@ export default function CheckinPage() {
     const startStr = `${getThaiDateStr(start)}T00:00:00+07:00`;
     const endStr = `${getThaiDateStr(end)}T23:59:59+07:00`;
 
-    let query = supabase
+    const { data } = await supabase
       .from("attendance_logs")
       .select(
-        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * ), users(full_name, picture_url)`,
+        `*, attendance_topics ( title, team_type ), attendance_checkpoints ( * )`,
       )
+      .eq("user_id", userProfile?.userId)
       .gte("check_in_time", startStr)
       .lte("check_in_time", endStr)
       .order("check_in_time", { ascending: false });
-
-    if (isManagerView) {
-      if (selectedHistoryUser !== "all") {
-        query = query.eq("user_id", selectedHistoryUser);
-      }
-    } else {
-      query = query.eq("user_id", userProfile?.userId);
-    }
-
-    const { data } = await query;
     if (data) setLogs(data);
     setLoadingHistory(false);
   };
@@ -956,8 +881,7 @@ export default function CheckinPage() {
                       type="text"
                       ref={autocompleteInputRef}
                       placeholder="พิมพ์ชื่อสถานที่เพื่อค้นหา..."
-                      className="w-full bg-white border border-gray-300 rounded-xl py-3 pl-10 pr-4 text-sm font-bold text-gray-900 opacity-100 [-webkit-text-fill-color:#111827] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
-                      onChange={() => setSelectedFavId("")}
+                      className="w-full bg-white border border-gray-300 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
                     />
                   </div>
                   {cpData.title && (
@@ -1115,7 +1039,7 @@ export default function CheckinPage() {
               </h3>
               <p className="text-xs text-orange-700 mt-1">
                 ใช้สิทธิ์แอดมิน
-                เพื่อบังคับลงเวลาออกงานให้กับพนักงานที่เลยเวลาเลิกงานกะตัวเองมาแล้ว
+                เพื่อบังคับลงเวลาออกงานให้กับพนักงานที่ไม่ได้เช็คเอาท์ในระบบ
               </p>
             </div>
           </div>
@@ -1471,96 +1395,61 @@ export default function CheckinPage() {
         </div>
       )}
 
-      {/* 🌟 TAB 3: ประวัติ (อัปเกรดแบบ Manager Dashboard) */}
+      {/* TAB 3: ประวัติ */}
       {activeTab === "history" && (
         <div className="p-4 md:p-6 max-w-md w-full mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 space-y-3">
-            {isManagerView && (
-              <div>
-                <label className="text-[10px] text-gray-500 font-bold mb-1 block">
-                  ค้นหาพนักงาน
-                </label>
-                <select
-                  value={selectedHistoryUser}
-                  onChange={(e) => setSelectedHistoryUser(e.target.value)}
-                  className="w-full text-xs font-bold p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50 text-gray-900 opacity-100 [-webkit-text-fill-color:#111827]"
-                >
-                  <option value="all">ดูทุกคน</option>
-                  {historyUsers.map((u) => (
-                    <option key={u.line_user_id} value={u.line_user_id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-gray-500 font-bold mb-1 block">
-                  ตั้งแต่วันที่
-                </label>
-                <input
-                  type="date"
-                  className="w-full text-xs font-bold p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50 text-gray-900 opacity-100 [-webkit-text-fill-color:#111827]"
-                  value={customStartDate}
-                  onChange={(e) => {
-                    setHistoryFilter("custom");
-                    setCustomStartDate(e.target.value);
-                  }}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[10px] text-gray-500 font-bold mb-1 block">
-                  ถึงวันที่
-                </label>
-                <input
-                  type="date"
-                  className="w-full text-xs font-bold p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50 text-gray-900 opacity-100 [-webkit-text-fill-color:#111827]"
-                  value={customEndDate}
-                  onChange={(e) => {
-                    setHistoryFilter("custom");
-                    setCustomEndDate(e.target.value);
-                  }}
-                />
-              </div>
-              <button
-                onClick={() => {
-                  const today = new Date().toISOString().split("T")[0];
-                  setHistoryFilter("today");
-                  setCustomStartDate(today);
-                  setCustomEndDate(today);
-                  setSelectedHistoryUser("all");
-                }}
-                className="p-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors shrink-0"
-                title="รีเซ็ตการค้นหา"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-              <button
-                onClick={() => setHistoryFilter("today")}
-                className={`flex-1 text-[10px] font-bold py-2 px-2 rounded-lg transition-colors ${historyFilter === "today" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
-              >
-                วันนี้
-              </button>
-              <button
-                onClick={() => setHistoryFilter("week")}
-                className={`flex-1 text-[10px] font-bold py-2 px-2 rounded-lg transition-colors ${historyFilter === "week" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
-              >
-                สัปดาห์นี้
-              </button>
-              <button
-                onClick={() => setHistoryFilter("month")}
-                className={`flex-1 text-[10px] font-bold py-2 px-2 rounded-lg transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
-              >
-                รอบเดือน
-              </button>
-            </div>
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setHistoryFilter("today")}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "today" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+            >
+              วันนี้
+            </button>
+            <button
+              onClick={() => setHistoryFilter("week")}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "week" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+            >
+              สัปดาห์นี้
+            </button>
+            <button
+              onClick={() => setHistoryFilter("month")}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "month" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+            >
+              รอบเงินเดือน
+            </button>
+            <button
+              onClick={() => setHistoryFilter("custom")}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl transition-colors ${historyFilter === "custom" ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-600"}`}
+            >
+              กำหนดเอง
+            </button>
           </div>
-
+          {historyFilter === "custom" && (
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-4 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-500 font-bold mb-1">
+                  ตั้งแต่วันที่
+                </p>
+                <input
+                  type="date"
+                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-500 font-bold mb-1">
+                  ถึงวันที่
+                </p>
+                <input
+                  type="date"
+                  className="w-full text-xs p-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
           {loadingHistory ? (
             <div className="py-10 flex flex-col items-center justify-center text-gray-400">
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-3"></div>
@@ -1591,12 +1480,6 @@ export default function CheckinPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      {/* 🌟 แสดงชื่อพนักงานด้วย หากอยู่ในโหมดดูทุกคน */}
-                      {isManagerView && selectedHistoryUser === "all" && (
-                        <p className="text-[10px] font-bold text-blue-600 truncate mb-0.5">
-                          {log.users?.full_name}
-                        </p>
-                      )}
                       <h3 className="font-bold text-gray-900 text-sm mb-1 truncate">
                         {log.attendance_topics?.title || "ไม่ทราบหัวข้องาน"}
                       </h3>
