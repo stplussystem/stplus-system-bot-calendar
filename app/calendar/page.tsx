@@ -50,22 +50,13 @@ export default function CalendarPage() {
   const [deleteAppTarget, setDeleteAppTarget] = useState<any>(null);
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
 
-  // 🌟 ย้ายฟังก์ชันขึ้นมาไว้บน useEffect เพื่อแก้ปัญหา Cannot access variable
   const fetchAllUsers = async () => {
     const { data } = await supabase
       .from("users")
       .select("*")
       .not("full_name", "is", null);
-    if (data)
-      // setUserOptions(
-      //   data
-      //     .filter((u) => u.gmail && u.gmail.includes("@"))
-      //     .map((u) => ({
-      //       value: u.gmail,
-      //       label: `${u.full_name} (${u.nickname})`,
-      //       nickname: u.nickname,
-      //     })),
-      // );
+
+    if (data) {
       setUserOptions(
         data.map((u) => {
           // ตรวจสอบว่ามีอีเมลจริงไหม ถ้ามีให้ใช้ ถ้าไม่มีให้สร้างอีเมลจำลอง
@@ -78,9 +69,12 @@ export default function CalendarPage() {
             value: validEmail,
             label: `${u.full_name} (${u.nickname})`,
             nickname: u.nickname,
+            // 🌟 เพิ่มบรรทัดนี้ เพื่อส่งรูปภาพไปให้ BookingForm โชว์
+            image: u.picture_url,
           };
         }),
       );
+    }
   };
 
   const fetchMyAppointments = async (currentUserId?: string) => {
