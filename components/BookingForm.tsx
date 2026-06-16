@@ -69,16 +69,43 @@ export default function BookingForm({
   handleBooking,
   isSubmitting,
 }: BookingFormProps) {
+  // 🌟 ปรับแต่ง Option ใน Dropdown ให้โชว์รูปโปรไฟล์
   const AttendeeCustomOption = ({ data, innerRef, innerProps }: any) => (
     <div
       ref={innerRef}
       {...innerProps}
       className="flex items-center p-3 cursor-pointer hover:bg-blue-50 border-b border-slate-50 last:border-0"
     >
-      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
-        <User size={16} />
-      </div>
-      <span className="text-sm font-medium text-slate-700">{data.label}</span>
+      {data.image ? (
+        <img
+          src={data.image}
+          alt="profile"
+          className="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200 shrink-0"
+        />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 shrink-0">
+          <User size={16} />
+        </div>
+      )}
+      <span className="text-sm font-bold text-slate-700">{data.label}</span>
+    </div>
+  );
+
+  // 🌟 ปรับแต่ง Tag ที่ถูกเลือกแล้ว ให้โชว์รูปโปรไฟล์จิ๋วๆ ด้วย
+  const AttendeeMultiValueLabel = (props: any) => (
+    <div className="flex items-center gap-1.5 pr-1 py-0.5">
+      {props.data.image ? (
+        <img
+          src={props.data.image}
+          alt="profile"
+          className="w-5 h-5 rounded-full object-cover ml-1"
+        />
+      ) : (
+        <User size={14} className="ml-1 text-gray-500" />
+      )}
+      <span className="text-xs font-bold text-gray-700">
+        {props.data.label}
+      </span>
     </div>
   );
 
@@ -183,7 +210,10 @@ export default function BookingForm({
             options={userOptions}
             value={selectedAttendees}
             onChange={(val) => setSelectedAttendees(val as any[])}
-            components={{ Option: AttendeeCustomOption }}
+            components={{
+              Option: AttendeeCustomOption,
+              MultiValueLabel: AttendeeMultiValueLabel,
+            }}
             placeholder="ค้นหาพนักงาน..."
             styles={{
               control: (base) => ({

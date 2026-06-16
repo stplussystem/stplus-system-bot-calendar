@@ -861,7 +861,7 @@ export default function CheckinPage() {
 
   // 🌟 ฟอร์แมตรายชื่อเพื่อใช้กับ React-Select
   const userOptions = [
-    { value: "all", label: "ดูทุกคน", image: null },
+    { value: "all", label: "แสดงทั้งหมด", image: null },
     ...historyUsers.map((u) => ({
       value: u.line_user_id,
       label: `${u.full_name || "ไม่ระบุชื่อ"} ${u.nickname ? `(${u.nickname})` : ""}`,
@@ -1659,7 +1659,7 @@ export default function CheckinPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      {/* 🌟 แสดงชื่อพนักงานด้วย หากอยู่ในโหมดดูทุกคน */}
+                      {/* 🌟 แสดงชื่อพนักงานด้วย หากอยู่ในโหมดแสดงทั้งหมด */}
                       {isManagerView && selectedHistoryUser === "all" && (
                         <p className="text-[10px] font-bold text-blue-600 truncate mb-0.5">
                           {log.users?.full_name}

@@ -215,7 +215,7 @@ export default function AttendanceAdminPage() {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("line_user_id, nickname")
+        .select("line_user_id, nickname, picture_url")
         .order("nickname", { ascending: true });
       if (error) {
         setFetchError(`ดึงข้อมูลพนักงานไม่ได้: ${error.message}`);
@@ -825,11 +825,13 @@ export default function AttendanceAdminPage() {
                         <strong>⚠️ แจ้งเตือน:</strong> {fetchError}
                       </div>
                     )}
+
+                    {/* 🌟 อัปเกรดปุ่มแคปซูล ให้มีรูปภาพด้านหน้า */}
                     <div className="flex flex-wrap gap-2">
                       {employeeList.map((emp) => (
                         <label
                           key={emp.line_user_id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-xs font-bold transition-colors ${formData.allowed_users.includes(emp.line_user_id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                          className={`flex items-center gap-2 pr-3 pl-1 py-1 rounded-full border cursor-pointer text-xs font-bold transition-all shadow-sm ${formData.allowed_users.includes(emp.line_user_id) ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-orange-300"}`}
                         >
                           <input
                             type="checkbox"
@@ -839,7 +841,15 @@ export default function AttendanceAdminPage() {
                             )}
                             onChange={() => toggleUserAccess(emp.line_user_id)}
                           />
-                          {emp.nickname}
+                          <img
+                            src={
+                              emp.picture_url ||
+                              "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                            }
+                            alt="profile"
+                            className="w-6 h-6 rounded-full object-cover border border-white/50 bg-white"
+                          />
+                          {emp.nickname || "ไม่ระบุ"}
                         </label>
                       ))}
                     </div>
