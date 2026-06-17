@@ -392,6 +392,7 @@ export default function CheckinPage() {
     }
   };
 
+  // 🌟 อัปเกรดคำสั่ง Force Checkout จาก Admin
   const executeForceCheckout = async (type: "now" | "9hours") => {
     const log = showForceModal.log;
     if (!log) return;
@@ -422,6 +423,7 @@ export default function CheckinPage() {
       let expectedStart = new Date(log.check_in_time);
       expectedStart.setHours(sH, sM, 0, 0);
 
+      // ดักเคสข้ามคืน
       if (
         expectedStart > new Date(log.check_in_time) &&
         expectedStart.getTime() - new Date(log.check_in_time).getTime() >
@@ -437,6 +439,7 @@ export default function CheckinPage() {
         expectedStart.setDate(expectedStart.getDate() + 1);
       }
 
+      // ออกงานอัตโนมัติ = เวลาเริ่มกะ + 9 ชั่วโมงเป๊ะๆ
       const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
       outTime = otLimit.toISOString();
     }
@@ -445,7 +448,7 @@ export default function CheckinPage() {
       .from("attendance_logs")
       .update({
         check_out_time: outTime,
-        status: "checked_out",
+        status: type === "9hours" ? "auto_checked_out" : "checked_out", // 🌟 ประทับตราว่า Auto!
       })
       .eq("id", log.id);
 

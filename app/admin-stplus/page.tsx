@@ -235,10 +235,15 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // 🌟 อัปเกรดสูตร OT: รองรับกะข้ามคืน และคำนวณ 9 ชั่วโมง
+  // 🌟 อัปเกรดสูตร OT: รองรับกะข้ามคืน, คำนวณ 9 ชั่วโมง และมีกฎเหล็ก 2 ข้อตามโจทย์
   const calculateOT = (log: any) => {
     if (!log.check_in_time || !log.check_out_time)
       return { text: "-", isOver: false, mins: 0 };
+
+    // 🌟 กฎเหล็กข้อ 1: ถ้าเป็น Auto Checkout ไม่ต้องคำนวณ OT และแสดงเป็นขีด "-" เสมอ
+    if (log.status === "auto_checked_out") {
+      return { text: "-", isOver: false, mins: 0 };
+    }
 
     const checkIn = new Date(log.check_in_time);
     const checkOut = new Date(log.check_out_time);
@@ -267,18 +272,18 @@ export default function AdminDashboard() {
       return { text: "-", isOver: false, mins: 0 };
     }
 
-    // 🌟 1. หาเส้นตายและปรับวันที่สำหรับกะข้ามคืนอัตโนมัติ
+    // หาเส้นตายและปรับวันที่สำหรับกะข้ามคืนอัตโนมัติ
     let expectedStart = new Date(checkIn);
     expectedStart.setHours(sH, sM, 0, 0);
 
-    // ถ้าแสกนข้ามคืน เช่น 00:10 (ของวันใหม่) -> ปรับเวลาคาดหวังให้ถอยไปวันก่อนหน้า
+    // ถ้าแสกนข้ามคืน -> ปรับเวลาคาดหวังให้ถอยไปวันก่อนหน้า
     if (
       expectedStart > checkIn &&
       expectedStart.getTime() - checkIn.getTime() > 12 * 3600000
     ) {
       expectedStart.setDate(expectedStart.getDate() - 1);
     }
-    // ถ้าแสกนก่อนเวลามากๆ เช่น 23:50 (ของวันเก่า) -> ปรับเวลาคาดหวังให้เป็นวันใหม่
+    // ถ้าแสกนก่อนเวลามากๆ -> ปรับเวลาคาดหวังให้เป็นวันใหม่
     if (
       checkIn > expectedStart &&
       checkIn.getTime() - expectedStart.getTime() > 12 * 3600000
@@ -286,7 +291,7 @@ export default function AdminDashboard() {
       expectedStart.setDate(expectedStart.getDate() + 1);
     }
 
-    // 🌟 2. กำหนดเงื่อนไข: สายได้ไม่เกิน 1 ชม. / เริ่มคิด OT หลัง 9 ชม.
+    // กำหนดเงื่อนไขสาย (1 ชม.) และเส้นตาย OT (9 ชม.)
     const checkInLimit = new Date(expectedStart.getTime() + 60 * 60000);
     const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
 
@@ -294,22 +299,34 @@ export default function AdminDashboard() {
       shiftType.includes("พิเศษ") || shiftType.includes("custom");
     const suffix = isCustom ? " (งานพิเศษ)" : "";
 
-    // 🌟 3. คำนวณผลลัพธ์
-    if (checkIn <= checkInLimit) {
-      if (checkOut > otLimit) {
-        const overMins = Math.floor(
-          (checkOut.getTime() - otLimit.getTime()) / 60000,
-        );
-        return {
-          text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที${suffix}`,
-          isOver: true,
-          mins: overMins,
-        };
-      } else {
-        return { text: isCustom ? "(งานพิเศษ)" : "-", isOver: false, mins: 0 };
-      }
+    // 🌟 กฎเหล็กข้อ 2: เข้าสายเกิน 1 ชั่วโมง ตัดสิทธิ์ OT และโชว์ข้อความ
+    if (checkIn > checkInLimit) {
+      return {
+        text: "เข้างานสายเกิน 1 ชม",
+        isOver: true,
+        mins: 0,
+        isLate: true,
+      };
+    }
+
+    // ถ้าเข้างานไม่สาย ก็คิด OT ตามปกติ
+    if (checkOut > otLimit) {
+      const overMins = Math.floor(
+        (checkOut.getTime() - otLimit.getTime()) / 60000,
+      );
+      return {
+        text: `${Math.floor(overMins / 60)} ชม. ${overMins % 60} นาที${suffix}`,
+        isOver: true,
+        mins: overMins,
+        isLate: false,
+      };
     } else {
-      return { text: isCustom ? "(งานพิเศษ)" : "-", isOver: false, mins: 0 };
+      return {
+        text: isCustom ? "(งานพิเศษ)" : "-",
+        isOver: false,
+        mins: 0,
+        isLate: false,
+      };
     }
   };
 
@@ -464,7 +481,7 @@ export default function AdminDashboard() {
 
       filteredLogs.forEach((log) => {
         const ot = calculateOT(log);
-        if (ot.isOver) totalOTMins += ot.mins;
+        if (ot.isOver && !ot.isLate) totalOTMins += ot.mins; // ไม่เอาค่าเข้าสายมานับรวม
         csvRows.push([
           log.users?.full_name || "-",
           log.users?.nickname || "-",
@@ -981,7 +998,7 @@ export default function AdminDashboard() {
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {log.check_out_time ? (
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center justify-center gap-2">
                                     <span className="font-bold text-red-600">
                                       {formatTime(log.check_out_time)}
                                     </span>
@@ -994,11 +1011,13 @@ export default function AdminDashboard() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-gray-400">-</span>
+                                  <span className="text-gray-400 text-center block w-full">
+                                    -
+                                  </span>
                                 )}
                               </td>
                               <td
-                                className={`px-4 py-3 text-center font-bold ${ot.isOver ? "text-red-600 bg-red-50/50" : ot.text.includes("งานพิเศษ") ? "text-purple-600 bg-purple-50/50" : "text-gray-400"}`}
+                                className={`px-4 py-3 text-center font-bold ${ot.isOver && !ot.isLate ? "text-red-600 bg-red-50/50" : ot.isLate ? "text-orange-600 bg-orange-50/50" : ot.text.includes("งานพิเศษ") ? "text-purple-600 bg-purple-50/50" : "text-gray-400"}`}
                               >
                                 {ot.text}
                               </td>
