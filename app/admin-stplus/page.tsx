@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  ArchiveRestore,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -102,6 +103,10 @@ export default function AdminDashboard() {
     full_name: "",
     annual_leave_quota: 6,
   });
+
+  // 🌟 State สำหรับระบบล้างข้อมูลเก่า
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveDate, setArchiveDate] = useState("");
 
   useEffect(() => {
     checkAuth();
@@ -235,12 +240,10 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // 🌟 อัปเกรดสูตร OT: รองรับกะข้ามคืน, คำนวณ 9 ชั่วโมง และมีกฎเหล็ก 2 ข้อตามโจทย์
   const calculateOT = (log: any) => {
     if (!log.check_in_time || !log.check_out_time)
       return { text: "-", isOver: false, mins: 0 };
 
-    // 🌟 กฎเหล็กข้อ 1: ถ้าเป็น Auto Checkout ไม่ต้องคำนวณ OT และแสดงเป็นขีด "-" เสมอ
     if (log.status === "auto_checked_out") {
       return { text: "-", isOver: false, mins: 0 };
     }
@@ -272,18 +275,15 @@ export default function AdminDashboard() {
       return { text: "-", isOver: false, mins: 0 };
     }
 
-    // หาเส้นตายและปรับวันที่สำหรับกะข้ามคืนอัตโนมัติ
     let expectedStart = new Date(checkIn);
     expectedStart.setHours(sH, sM, 0, 0);
 
-    // ถ้าแสกนข้ามคืน -> ปรับเวลาคาดหวังให้ถอยไปวันก่อนหน้า
     if (
       expectedStart > checkIn &&
       expectedStart.getTime() - checkIn.getTime() > 12 * 3600000
     ) {
       expectedStart.setDate(expectedStart.getDate() - 1);
     }
-    // ถ้าแสกนก่อนเวลามากๆ -> ปรับเวลาคาดหวังให้เป็นวันใหม่
     if (
       checkIn > expectedStart &&
       checkIn.getTime() - expectedStart.getTime() > 12 * 3600000
@@ -291,7 +291,6 @@ export default function AdminDashboard() {
       expectedStart.setDate(expectedStart.getDate() + 1);
     }
 
-    // กำหนดเงื่อนไขสาย (1 ชม.) และเส้นตาย OT (9 ชม.)
     const checkInLimit = new Date(expectedStart.getTime() + 60 * 60000);
     const otLimit = new Date(expectedStart.getTime() + 9 * 3600000);
 
@@ -299,7 +298,6 @@ export default function AdminDashboard() {
       shiftType.includes("พิเศษ") || shiftType.includes("custom");
     const suffix = isCustom ? " (งานพิเศษ)" : "";
 
-    // 🌟 กฎเหล็กข้อ 2: เข้าสายเกิน 1 ชั่วโมง ตัดสิทธิ์ OT และโชว์ข้อความ
     if (checkIn > checkInLimit) {
       return {
         text: "เข้างานสายเกิน 1 ชม",
@@ -309,7 +307,6 @@ export default function AdminDashboard() {
       };
     }
 
-    // ถ้าเข้างานไม่สาย ก็คิด OT ตามปกติ
     if (checkOut > otLimit) {
       const overMins = Math.floor(
         (checkOut.getTime() - otLimit.getTime()) / 60000,
@@ -345,6 +342,67 @@ export default function AdminDashboard() {
           day: "numeric",
         })
       : "-";
+
+  // 🌟 ฟังก์ชันจัดการย้ายข้อมูลเก่าไป Archive
+  const handleArchiveOldData = async () => {
+    if (!archiveDate) return showToastMsg("กรุณาเลือกวันที่ก่อนครับ", "error");
+    setLoading(true);
+
+    try {
+      // ค้นหาข้อมูลที่เก่ากว่าวันที่ระบุ
+      const { data: oldLogs, error: fetchError } = await supabase
+        .from("attendance_logs")
+        .select("*")
+        .lt("check_in_time", `${archiveDate}T00:00:00+07:00`);
+
+      if (fetchError) throw fetchError;
+      if (!oldLogs || oldLogs.length === 0) {
+        showToastMsg(
+          `ไม่มีข้อมูลที่เก่ากว่าวันที่ ${archiveDate} ให้ย้ายครับ`,
+          "error",
+        );
+        setLoading(false);
+        setShowArchiveModal(false);
+        return;
+      }
+
+      // ย้ายข้อมูลไปใส่ตาราง Archive
+      const { error: insertError } = await supabase
+        .from("attendance_logs_archive")
+        .insert(oldLogs);
+
+      if (insertError) {
+        if (insertError.code === "42P01") {
+          throw new Error(
+            "ไม่พบตาราง attendance_logs_archive ใน Supabase (กรุณาสร้างตารางก่อนครับ)",
+          );
+        }
+        throw insertError;
+      }
+
+      // ลบข้อมูลออกจากตารางหลัก
+      const logIds = oldLogs.map((log) => log.id);
+
+      // การลบจำนวนมากอาจต้องลบทีละ batch แต่ในที่นี้สมมติว่าไม่เกินลิมิต Supabase
+      const { error: deleteError } = await supabase
+        .from("attendance_logs")
+        .delete()
+        .in("id", logIds);
+
+      if (deleteError) throw deleteError;
+
+      showToastMsg(
+        `ย้ายข้อมูลเก่าจำนวน ${oldLogs.length} รายการ เรียบร้อยแล้ว!`,
+        "success",
+      );
+      setShowArchiveModal(false);
+      fetchAllData(); // โหลดข้อมูลใหม่
+    } catch (err: any) {
+      showToastMsg(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const uniqueDepartments = Array.from(
     new Set(employees.map((emp) => emp.department).filter(Boolean)),
@@ -921,7 +979,15 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-end gap-3">
+                  {/* 🌟 ปุ่มเคลียร์ข้อมูลเก่า (ย้ายไป Archive) */}
+                  <button
+                    onClick={() => setShowArchiveModal(true)}
+                    className="bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
+                  >
+                    <ArchiveRestore className="w-4 h-4" /> ย้ายข้อมูลเก่าไป
+                    Archive
+                  </button>
                   <button
                     onClick={() => handleExportExcel("attendance")}
                     className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
@@ -1003,7 +1069,6 @@ export default function AdminDashboard() {
                                       {formatTime(log.check_out_time)}
                                     </span>
 
-                                    {/* 🌟 ถ้าเป็นบอทลงให้ จะโชว์ป้ายกำกับสีส้ม */}
                                     {log.status === "auto_checked_out" && (
                                       <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
                                         Auto Checkout
@@ -1029,6 +1094,53 @@ export default function AdminDashboard() {
                   </table>
                 </div>
                 {renderPagination(filteredLogs.length)}
+              </div>
+            </div>
+          )}
+
+          {/* 🌟 Modal สำหรับกดย้ายข้อมูลเก่า (Archive) */}
+          {showArchiveModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
+                <div className="flex flex-col items-center mb-5 text-center">
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-3">
+                    <ArchiveRestore className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 mb-1">
+                    ย้ายข้อมูลเก่าไป Archive
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    ข้อมูลประวัติที่เก่ากว่าวันที่เลือก
+                    จะถูกย้ายไปเก็บที่ตารางสำรอง (attendance_logs_archive)
+                    เพื่อให้ระบบทำงานไวขึ้น
+                  </p>
+                </div>
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-gray-600 mb-1.5 block">
+                    ย้ายข้อมูลที่เก่ากว่าวันที่{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={archiveDate}
+                    onChange={(e) => setArchiveDate(e.target.value)}
+                    className="w-full border border-gray-300 p-3 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowArchiveModal(false)}
+                    className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-200"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleArchiveOldData}
+                    className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm shadow-sm hover:bg-red-700"
+                  >
+                    ยืนยันการย้ายข้อมูล
+                  </button>
+                </div>
               </div>
             </div>
           )}

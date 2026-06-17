@@ -1,0 +1,38 @@
+name: Supabase Auto Backup to GDrive
+
+on:
+  repository_dispatch:
+    types: [trigger-backup]
+  workflow_dispatch: # เพิ่มปุ่มให้พี่แม็คกดรันเทสต์เองได้ด้วย
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install PostgreSQL Client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump Database
+        run: |
+          # สร้างชื่อไฟล์โดยใส่วันที่และเวลา
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          FILENAME="stplus_db_backup_$TIMESTAMP.sql"
+          echo "Dumping database to $FILENAME..."
+
+          # ใช้คำสั่งดูดข้อมูลจาก Supabase
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $FILENAME
+
+          # บันทึกชื่อไฟล์ส่งให้สเต็ปถัดไป
+          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+
+      - name: Upload to Google Drive
+        uses: adityak74/google-drive-upload-git-action@main
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
+          filename: ${{ env.FILENAME }}
+          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
+          name: ${{ env.FILENAME }}
+          overwrite: "false"
