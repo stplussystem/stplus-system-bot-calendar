@@ -36,7 +36,6 @@ export default function CalendarPage() {
   const [contactPerson, setContactPerson] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [date, setDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +51,6 @@ export default function CalendarPage() {
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
 
   const fetchAllUsers = async () => {
-    const targetEmail = profile?.email || dbUser?.gmail;
     const { data } = await supabase
       .from("users")
       .select("*")
@@ -83,49 +81,15 @@ export default function CalendarPage() {
     const targetUserId = currentUserId || profile?.userId;
     if (!targetUserId) return;
     setIsLoadingList(true);
-
-    const targetEmail = profile?.email || dbUser?.gmail || "NO_EMAIL";
-
-    try {
-      // 1. ดึงคิวงานที่ยูสเซอร์คนนี้เป็นคนสร้างเอง
-      const { data: ownerData, error: ownerError } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("user_id", targetUserId)
-        .eq("status", "active");
-
-      if (ownerError) throw ownerError;
-
-      // 2. ดึงคิวงานที่ยูสเซอร์คนนี้ถูกเชิญเข้าร่วม (ใช้ .contains มั่นใจได้ว่าข้อมูลอาเรย์ถูกต้อง)
-      const { data: inviteData, error: inviteError } = await supabase
-        .from("appointments")
-        .select("*")
-        .contains("attendees", [targetEmail])
-        .eq("status", "active");
-
-      if (inviteError) throw inviteError;
-
-      // 3. นำข้อมูลทั้ง 2 ส่วนมารวมกัน และตัดรายการที่อาจจะซ้ำออกให้เนียนกริบ
-      let combinedData = [...(ownerData || []), ...(inviteData || [])];
-      combinedData = Array.from(
-        new Map(combinedData.map((item) => [item.id, item])).values(),
-      );
-
-      // 4. เรียงลำดับตามวันที่เริ่มงาน และเวลาเริ่มงานจากเช้าไปเย็น
-      combinedData.sort((a, b) => {
-        if (a.appointment_date !== b.appointment_date) {
-          return a.appointment_date.localeCompare(b.appointment_date);
-        }
-        return a.start_time.localeCompare(b.start_time);
-      });
-
-      setMyAppointments(combinedData);
-    } catch (err) {
-      console.error("Fetch Appointments Error:", err);
-      toast.error("ดึงข้อมูลคิวงานไม่สำเร็จ หรือระบบฐานข้อมูลขัดข้อง");
-    } finally {
-      setIsLoadingList(false);
-    }
+    const { data } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("user_id", targetUserId)
+      .eq("status", "active")
+      .order("appointment_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    setMyAppointments(data || []);
+    setIsLoadingList(false);
   };
 
   useEffect(() => {
@@ -221,7 +185,6 @@ export default function CalendarPage() {
     setContactPerson("");
     setContactPhone("");
     setDate("");
-    setEndDate("");
     setStartTime("");
     setEndTime("");
     setSelectedAttendees([]);
@@ -255,16 +218,8 @@ export default function CalendarPage() {
   const handleBooking = async () => {
     if (!title || !date || !startTime || !endTime)
       return toast.warning("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วนครับ");
-
-    // คำนวณวันสิ้นสุดจริง (ถ้าไม่ได้เลือก ให้ถือว่าเป็นวันเดียวกัน)
-    const actualEndDate = endDate || date;
-
-    // 🔥 บล็อกแจ้งเตือน: จะเตือนก็ต่อเมื่อ "เลือกวันเดียวกัน" แต่เวลาสิ้นสุดดันน้อยกว่าหรือเท่ากับเวลาเริ่มต้น
-    if (date === actualEndDate && startTime >= endTime) {
-      return toast.error(
-        "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น (กรณีจัดงานภายในวันเดียว)",
-      );
-    }
+    if (startTime >= endTime)
+      return toast.error("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้นครับ");
 
     setIsSubmitting(true);
     try {
@@ -307,7 +262,6 @@ export default function CalendarPage() {
         contactPerson,
         contactPhone,
         date,
-        endDate: actualEndDate, // ใช้วันที่สิ้นสุดจริงในการส่งหา Google
         time: `${startTime} - ${endTime}`,
         displayName: dbUser.full_name,
         email: dbUser.gmail,
@@ -326,7 +280,6 @@ export default function CalendarPage() {
         contact_person: contactPerson,
         contact_phone: contactPhone,
         appointment_date: date,
-        end_date: actualEndDate, // บันทึกวันสิ้นสุดลง Supabase
         start_time: startTime,
         end_time: endTime,
         attendees: finalAttendees,
@@ -373,7 +326,35 @@ export default function CalendarPage() {
           },
         ]);
 
+        // if (liff.isInClient()) {
+        //   const attendeesText =
+        //     hasAttendees && selectedAttendees.length > 0
+        //       ? selectedAttendees.map((att: any) => att.nickname).join(", ")
+        //       : "-";
+        //   const phoneText = contactPhone ? ` (${contactPhone})` : "";
+        //   const targetLiffUrl =
+        //     "https://liff.line.me/2010143328-wyg8T4P5/calendar";
+
+        //   // 🌟 ส่ง 2 ข้อความ: Text ธรรมดา + Flex Message
+        //   const flexMessage = getSuccessMessage(
+        //     title,
+        //     location || "-",
+        //     `${contactPerson || "-"}${phoneText}`,
+        //     attendeesText,
+        //     formatThaiDate(date),
+        //     `${startTime} - ${endTime} น.`,
+        //     targetLiffUrl,
+        //   );
+
+        //   await liff.sendMessages([
+        //     { type: "text", text: "📅 บันทึกคิวงาน" },
+        //     flexMessage as any,
+        //   ]);
+        //   liff.closeWindow();
+        //   return;
+        // }
         if (liff.isInClient()) {
+          // ส่งแค่ข้อความสั้นๆ เพื่อให้ Webhook ทำงาน (เอาการดึง Flex ออก)
           await liff.sendMessages([{ type: "text", text: "📅 บันทึกคิวงาน" }]);
           liff.closeWindow();
           return;
@@ -399,7 +380,6 @@ export default function CalendarPage() {
     setContactPerson(app.contact_person || "");
     setContactPhone(app.contact_phone || "");
     setDate(app.appointment_date);
-    setEndDate(app.end_date || app.appointment_date);
     setStartTime(app.start_time.substring(0, 5));
     setEndTime(app.end_time.substring(0, 5));
     setCalendarType(app.appointment_type || "shared");
@@ -589,8 +569,6 @@ export default function CalendarPage() {
                   setContactPhone={setContactPhone}
                   date={date}
                   setDate={setDate}
-                  endDate={endDate}
-                  setEndDate={setEndDate}
                   todayDate={todayDate}
                   startTime={startTime}
                   setStartTime={setStartTime}
@@ -613,10 +591,7 @@ export default function CalendarPage() {
                   dbUser={dbUser}
                   onAddNewClick={(targetDate) => {
                     resetForm();
-                    if (targetDate) {
-                      setDate(targetDate);
-                      setEndDate(targetDate);
-                    }
+                    if (targetDate) setDate(targetDate);
                     setActiveTab("book");
                   }}
                 />
@@ -641,8 +616,6 @@ export default function CalendarPage() {
             setContactPhone={setContactPhone}
             date={date}
             setDate={setDate}
-            endDate={endDate}
-            setEndDate={setEndDate}
             startTime={startTime}
             setStartTime={setStartTime}
             endTime={endTime}

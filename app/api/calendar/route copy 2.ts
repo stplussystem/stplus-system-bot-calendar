@@ -19,7 +19,6 @@ export async function POST(request: Request) {
       location,
       contactPerson,
       date,
-      endDate,
       time,
       displayName,
       userId,
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
 
     const calendar = getCalendarAuth();
     const startDateTime = new Date(`${date}T${startTimeStr}:00+07:00`);
-    const endDateTime = new Date(`${endDate}T${endTimeStr}:00+07:00`);
+    const endDateTime = new Date(`${date}T${endTimeStr}:00+07:00`);
     const calendarIdToUse = targetCalendarId || process.env.GOOGLE_CALENDAR_ID;
 
     // 🔥 FIX ISSUE 1: ใส่ชื่อผู้เข้าร่วมใน Description แทนการใช้ attendees array ของ Google เพื่อป้องกัน Error Domain-Wide
@@ -78,7 +77,6 @@ export async function PUT(request: Request) {
       location,
       contactPerson,
       date,
-      endDate,
       time,
       displayName,
       userId,
@@ -96,7 +94,7 @@ export async function PUT(request: Request) {
 
     const calendar = getCalendarAuth();
     const startDateTime = new Date(`${date}T${startTimeStr}:00+07:00`);
-    const endDateTime = new Date(`${endDate}T${endTimeStr}:00+07:00`);
+    const endDateTime = new Date(`${date}T${endTimeStr}:00+07:00`);
     const calendarIdToUse = targetCalendarId || process.env.GOOGLE_CALENDAR_ID;
 
     const descriptionText = `ผู้บันทึก: ${displayName}\nอีเมล: ${email || "-"}\nผู้ติดต่อ: ${contactPerson || "-"}\nสถานที่: ${location || "-"}\nผู้เข้าร่วม: ${attendeeNames || "-"}\nLINE User ID: ${userId}`;
