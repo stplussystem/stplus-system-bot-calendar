@@ -52,7 +52,6 @@ export default function CalendarPage() {
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
 
   const fetchAllUsers = async () => {
-    const targetEmail = profile?.email || dbUser?.gmail;
     const { data } = await supabase
       .from("users")
       .select("*")
@@ -61,11 +60,14 @@ export default function CalendarPage() {
     if (data) {
       setUserOptions(
         data.map((u) => {
-          // ตรวจสอบว่ามีอีเมลจริงไหม ถ้ามีให้ใช้ ถ้าไม่มีให้สร้างอีเมลจำลอง
+          // 🔥 จุดที่แก้ไข: ดึง u.line_user_id มาใช้เพื่อการันตีว่าอีเมลจำลองของทุกคนจะไม่ซ้ำกัน
+          const uniqueId =
+            u.line_user_id || u.id || Math.random().toString(36).substring(7);
+
           const validEmail =
             u.gmail && u.gmail.includes("@")
               ? u.gmail
-              : `no-email-${u.id}@stplussystem.local`;
+              : `no-email-${uniqueId}@stplussystem.local`;
 
           return {
             value: validEmail,
