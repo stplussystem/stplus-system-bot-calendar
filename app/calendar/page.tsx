@@ -87,39 +87,37 @@ export default function CalendarPage() {
     const targetEmail = profile?.email || dbUser?.gmail || "NO_EMAIL";
 
     try {
-      // 1. ดึงคิวงานที่ยูสเซอร์คนนี้เป็นคนสร้างเอง
-      const { data: ownerData, error: ownerError } = await supabase
+      // 1. ดึงคิวงานที่ 'Active' ทั้งหมดมาก่อน เพื่อหลีกเลี่ยง Error การเช็ค Array ใน Database
+      const { data: allData, error } = await supabase
         .from("appointments")
         .select("*")
-        .eq("user_id", targetUserId)
         .eq("status", "active");
 
-      if (ownerError) throw ownerError;
+      if (error) throw error;
 
-      // 2. ดึงคิวงานที่ยูสเซอร์คนนี้ถูกเชิญเข้าร่วม (ใช้ .contains มั่นใจได้ว่าข้อมูลอาเรย์ถูกต้อง)
-      const { data: inviteData, error: inviteError } = await supabase
-        .from("appointments")
-        .select("*")
-        .contains("attendees", [targetEmail])
-        .eq("status", "active");
+      // 2. ให้ JavaScript ฝั่งหน้าบ้าน (Frontend) เป็นคนคัดกรองข้อมูลให้แทนชัวร์กว่า 100%
+      const filteredData = (allData || []).filter((app) => {
+        // เงื่อนไขที่ 1: ยูสเซอร์เป็นคนสร้างคิวงานเอง
+        const isOwner = app.user_id === targetUserId;
 
-      if (inviteError) throw inviteError;
+        // เงื่อนไขที่ 2: ยูสเซอร์ถูกเชิญ (เช็คว่ามี attendees และในนั้นมีอีเมลเรา)
+        const isInvited =
+          app.attendees &&
+          Array.isArray(app.attendees) &&
+          app.attendees.includes(targetEmail);
 
-      // 3. นำข้อมูลทั้ง 2 ส่วนมารวมกัน และตัดรายการที่อาจจะซ้ำออกให้เนียนกริบ
-      let combinedData = [...(ownerData || []), ...(inviteData || [])];
-      combinedData = Array.from(
-        new Map(combinedData.map((item) => [item.id, item])).values(),
-      );
+        return isOwner || isInvited;
+      });
 
-      // 4. เรียงลำดับตามวันที่เริ่มงาน และเวลาเริ่มงานจากเช้าไปเย็น
-      combinedData.sort((a, b) => {
+      // 3. เรียงลำดับตามวันที่เริ่มงาน และเวลาเริ่มงาน (เช้าไปเย็น)
+      filteredData.sort((a, b) => {
         if (a.appointment_date !== b.appointment_date) {
           return a.appointment_date.localeCompare(b.appointment_date);
         }
         return a.start_time.localeCompare(b.start_time);
       });
 
-      setMyAppointments(combinedData);
+      setMyAppointments(filteredData);
     } catch (err) {
       console.error("Fetch Appointments Error:", err);
       toast.error("ดึงข้อมูลคิวงานไม่สำเร็จ หรือระบบฐานข้อมูลขัดข้อง");
