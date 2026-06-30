@@ -35,7 +35,7 @@ interface AppointmentListProps {
   openEditModal: (app: any) => void;
   setDeleteAppTarget: (app: any) => void;
   onAddNewClick: (date?: string) => void;
-  dbUser: any;
+  dbUser: any; // 🔥 เพิ่ม Props นี้เพื่อรับข้อมูล User มาเช็คสิทธิ์
 }
 
 export default function AppointmentList({
@@ -47,7 +47,7 @@ export default function AppointmentList({
   openEditModal,
   setDeleteAppTarget,
   onAddNewClick,
-  dbUser,
+  dbUser, // 🔥 รับค่า dbUser เข้ามาใช้งาน
 }: AppointmentListProps) {
   const [customDate, setCustomDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,6 +55,7 @@ export default function AppointmentList({
   const [filterType, setFilterType] = useState("all");
 
   const [calendarFilter, setCalendarFilter] = useState("all");
+
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [calDate, setCalDate] = useState(new Date());
 
@@ -118,16 +119,13 @@ export default function AppointmentList({
       if (calendarFilter !== "all" && appType !== calendarFilter) return false;
 
       const appDate = app.appointment_date;
-      const appEndDate = app.end_date || app.appointment_date; // 🔥 เช็ควันสิ้นสุดด้วย
 
-      if (filterType === "all") return appEndDate >= todayStr;
-      if (filterType === "past") return appEndDate < todayStr;
-      if (filterType === "today")
-        return appDate <= todayStr && appEndDate >= todayStr;
-      if (filterType === "tomorrow")
-        return appDate <= getThaiDateStr(1) && appEndDate >= getThaiDateStr(1);
+      if (filterType === "all") return appDate >= todayStr;
+      if (filterType === "past") return appDate < todayStr;
+      if (filterType === "today") return appDate === todayStr;
+      if (filterType === "tomorrow") return appDate === getThaiDateStr(1);
       if (filterType === "week")
-        return appEndDate >= todayStr && appDate <= getThaiDateStr(6);
+        return appDate >= todayStr && appDate <= getThaiDateStr(6);
       if (filterType === "month") {
         const d = new Date(
           new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }),
@@ -140,12 +138,10 @@ export default function AppointmentList({
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, "0");
         const endOfMonth = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
-        return appEndDate >= todayStr && appDate <= endOfMonth;
+        return appDate >= todayStr && appDate <= endOfMonth;
       }
       if (filterType === "custom")
-        return customDate
-          ? appDate <= customDate && appEndDate >= customDate
-          : true;
+        return customDate ? appDate === customDate : true;
       return true;
     });
 
@@ -175,91 +171,27 @@ export default function AppointmentList({
     startIndex + itemsPerPage,
   );
 
-  const dayColors: { [key: number]: any } = {
-    0: {
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-100",
+  const dayColors: {
+    [key: number]: {
+      bg: string;
+      text: string;
+      border: string;
       accent: {
-        text: "text-red-600",
-        bg: "bg-red-600",
-        hover: "hover:bg-red-700",
-        lightBg: "bg-red-50",
-        lightHover: "hover:bg-red-100",
-      },
-    },
-    1: {
-      bg: "bg-yellow-50",
-      text: "text-yellow-700",
-      border: "border-yellow-100",
-      accent: {
-        text: "text-yellow-600",
-        bg: "bg-yellow-600",
-        hover: "hover:bg-yellow-700",
-        lightBg: "bg-yellow-50",
-        lightHover: "hover:bg-yellow-100",
-      },
-    },
-    2: {
-      bg: "bg-pink-50",
-      text: "text-pink-700",
-      border: "border-pink-100",
-      accent: {
-        text: "text-pink-600",
-        bg: "bg-pink-600",
-        hover: "hover:bg-pink-700",
-        lightBg: "bg-pink-50",
-        lightHover: "hover:bg-pink-100",
-      },
-    },
-    3: {
-      bg: "bg-green-50",
-      text: "text-green-700",
-      border: "border-green-100",
-      accent: {
-        text: "text-green-600",
-        bg: "bg-green-600",
-        hover: "hover:bg-green-700",
-        lightBg: "bg-green-50",
-        lightHover: "hover:bg-green-100",
-      },
-    },
-    4: {
-      bg: "bg-orange-50",
-      text: "text-orange-700",
-      border: "border-orange-100",
-      accent: {
-        text: "text-orange-600",
-        bg: "bg-orange-600",
-        hover: "hover:bg-orange-700",
-        lightBg: "bg-orange-50",
-        lightHover: "hover:bg-orange-100",
-      },
-    },
-    5: {
-      bg: "bg-sky-50",
-      text: "text-sky-700",
-      border: "border-sky-100",
-      accent: {
-        text: "text-sky-600",
-        bg: "bg-sky-600",
-        hover: "hover:bg-sky-700",
-        lightBg: "bg-sky-50",
-        lightHover: "hover:bg-sky-100",
-      },
-    },
-    6: {
-      bg: "bg-purple-50",
-      text: "text-purple-700",
-      border: "border-purple-100",
-      accent: {
-        text: "text-purple-600",
-        bg: "bg-purple-600",
-        hover: "hover:bg-purple-700",
-        lightBg: "bg-purple-50",
-        lightHover: "hover:bg-purple-100",
-      },
-    },
+        text: string;
+        bg: string;
+        hover: string;
+        lightBg: string;
+        lightHover: string;
+      };
+    };
+  } = {
+    0: { bg: "bg-red-50", text: "text-red-700", border: "border-red-100", accent: { text: "text-red-600", bg: "bg-red-600", hover: "hover:bg-red-700", lightBg: "bg-red-50", lightHover: "hover:bg-red-100" } },
+    1: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-100", accent: { text: "text-yellow-600", bg: "bg-yellow-600", hover: "hover:bg-yellow-700", lightBg: "bg-yellow-50", lightHover: "hover:bg-yellow-100" } },
+    2: { bg: "bg-pink-50", text: "text-pink-700", border: "border-pink-100", accent: { text: "text-pink-600", bg: "bg-pink-600", hover: "hover:bg-pink-700", lightBg: "bg-pink-50", lightHover: "hover:bg-pink-100" } },
+    3: { bg: "bg-green-50", text: "text-green-700", border: "border-green-100", accent: { text: "text-green-600", bg: "bg-green-600", hover: "hover:bg-green-700", lightBg: "bg-green-50", lightHover: "hover:bg-green-100" } },
+    4: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-100", accent: { text: "text-orange-600", bg: "bg-orange-600", hover: "hover:bg-orange-700", lightBg: "bg-orange-50", lightHover: "hover:bg-orange-100" } },
+    5: { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-100", accent: { text: "text-sky-600", bg: "bg-sky-600", hover: "hover:bg-sky-700", lightBg: "bg-sky-50", lightHover: "hover:bg-sky-100" } },
+    6: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-100", accent: { text: "text-purple-600", bg: "bg-purple-600", hover: "hover:bg-purple-700", lightBg: "bg-purple-50", lightHover: "hover:bg-purple-100" } },
   };
 
   const filterTabs = [
@@ -277,18 +209,8 @@ export default function AppointmentList({
   const prevMonth = () =>
     setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1));
   const monthNames = [
-    "มกราคม",
-    "กุมภาพันธ์",
-    "มีนาคม",
-    "เมษายน",
-    "พฤษภาคม",
-    "มิถุนายน",
-    "กรกฎาคม",
-    "สิงหาคม",
-    "กันยายน",
-    "ตุลาคม",
-    "พฤศจิกายน",
-    "ธันวาคม",
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
   ];
   const dayNamesShort = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
@@ -340,9 +262,7 @@ export default function AppointmentList({
           {days.map((day) => {
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const dayEvents = filteredAppointments.filter(
-              (app) =>
-                dateStr >= app.appointment_date &&
-                dateStr <= (app.end_date || app.appointment_date),
+              (app) => app.appointment_date === dateStr,
             );
             const isToday = dateStr === getThaiDateStr(0);
 
@@ -395,6 +315,7 @@ export default function AppointmentList({
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+      {/* 🔥 ส่วนของ Dropdown เลือกประเภทปฏิทินที่มีการเช็คสิทธิ์ตาม Role แล้ว */}
       <div className="mb-4 animate-in fade-in zoom-in-95">
         <div className="bg-white border border-slate-200 rounded-2xl p-2 flex items-center shadow-sm relative focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
           <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 mr-3 shrink-0">
@@ -411,14 +332,16 @@ export default function AppointmentList({
             >
               <option value="all"> ปฏิทินทั้งหมด</option>
               <option value="shared"> เฉพาะปฏิทินส่วนกลาง</option>
-              {(dbUser?.role === "it" ||
-                dbUser?.role === "admin" ||
-                dbUser?.role === "manager") && (
+              
+              {/* 🔥 กรองเงื่อนไขการแสดงผลเหมือนฝั่งฟอร์มเป๊ะๆ */}
+              {(dbUser?.role === "it" || dbUser?.role === "admin" || dbUser?.role === "manager") && (
                 <option value="it"> เฉพาะปฏิทินทีม Support</option>
               )}
+              
               {(dbUser?.role === "admin" || dbUser?.role === "manager") && (
                 <option value="manager"> เฉพาะปฏิทินผู้บริหาร</option>
               )}
+              
               {dbUser?.personal_calendar_id && (
                 <option value="personal">🔒 ปฏิทินส่วนตัวของฉัน</option>
               )}
@@ -469,7 +392,7 @@ export default function AppointmentList({
             </span>
           </div>
         </div>
-      )}
+      )}      
 
       <div className="border-b pb-3 mb-4 space-y-3">
         <div className="flex justify-between items-center">
@@ -480,12 +403,14 @@ export default function AppointmentList({
             <button
               onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-lg transition-all ${viewMode === "list" ? "bg-white shadow text-blue-600" : "text-slate-400 hover:text-slate-600"}`}
+              title="ดูแบบรายการ"
             >
               <List size={18} />
             </button>
             <button
               onClick={() => setViewMode("calendar")}
               className={`p-1.5 rounded-lg transition-all ${viewMode === "calendar" ? "bg-white shadow text-blue-600" : "text-slate-400 hover:text-slate-600"}`}
+              title="ดูแบบปฏิทิน"
             >
               <LayoutGrid size={18} />
             </button>
@@ -501,7 +426,11 @@ export default function AppointmentList({
               <button
                 key={tab.id}
                 onClick={() => setFilterType(tab.id)}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-all ${filterType === tab.id ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  filterType === tab.id
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
               >
                 {tab.label}
               </button>
@@ -542,6 +471,7 @@ export default function AppointmentList({
                 <div className="flex gap-2 mt-2 pt-3 border-t border-slate-50">
                   <div className="h-9 bg-slate-100 rounded-lg flex-1"></div>
                   <div className="h-9 bg-slate-100 rounded-lg flex-1"></div>
+                  <div className="h-9 bg-slate-50 rounded-lg flex-1"></div>
                 </div>
               </div>
             </div>
@@ -557,13 +487,18 @@ export default function AppointmentList({
           <h4 className="text-lg font-bold text-slate-700 mb-1">
             ไม่พบรายการคิวงาน
           </h4>
+          <p className="text-sm text-slate-500 mb-6 max-w-xs">
+            {filterType === "custom" && customDate
+              ? `ไม่มีคิวงานในวันที่ ${formatThaiDate(customDate)} ครับ`
+              : "คุณยังไม่มีกำหนดการใดๆ ในปฏิทินที่เลือกครับ"}
+          </p>
           <button
             onClick={() =>
               onAddNewClick(
                 filterType === "custom" && customDate ? customDate : "",
               )
             }
-            className="px-6 py-3 mt-4 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 hover:shadow-lg transition-all flex items-center gap-2"
           >
             <CalendarPlus size={18} /> เพิ่มคิวงานใหม่
           </button>
@@ -582,22 +517,11 @@ export default function AppointmentList({
             const date = new Date(item.appointment_date + "T00:00:00");
             const dayOfWeek = date.getDay();
             const colors = dayColors[dayOfWeek];
+
             const dayName = date.toLocaleDateString("th-TH", {
               weekday: "long",
             });
-
-            // 🔥 ปรับให้โชว์วันที่ 2 ฝั่ง ถ้าเป็นงานลากข้ามวัน
-            const hasEndDate =
-              item.end_date && item.end_date !== item.appointment_date;
-            const displayDateStr = hasEndDate
-              ? `${formatThaiDate(item.appointment_date)} - ${formatThaiDate(item.end_date)}`
-              : formatThaiDate(item.appointment_date);
-
-            // 🔥 ลอจิกเช็คสิทธิ์ (เป็นคนสร้าง หรือ เป็นแอดมิน) ถึงจะเห็นปุ่มแก้ไข/ลบ
-            const isOwnerOrAdmin =
-              dbUser?.line_user_id === item.user_id ||
-              dbUser?.role === "admin" ||
-              dbUser?.role === "manager";
+            const thaiDateStr = formatThaiDate(item.appointment_date);
 
             return (
               <div
@@ -609,7 +533,7 @@ export default function AppointmentList({
                 >
                   <span className={`font-bold ${colors.text}`}>{dayName}</span>
                   <span className={`text-xs font-semibold ${colors.text}`}>
-                    {displayDateStr}
+                    {thaiDateStr}
                   </span>
                 </div>
 
@@ -664,30 +588,50 @@ export default function AppointmentList({
                       <ReceiptText size={16} /> ดูรายละเอียด
                     </button>
 
-                    {/* 🔥 โชว์ปุ่ม แก้ไข/ลบ เฉพาะคนสร้างเท่านั้น */}
-                    {isOwnerOrAdmin && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(item)}
-                          className={`flex-1 py-2 text-xs md:text-sm font-semibold rounded-lg flex justify-center items-center gap-1 ${colors.accent.text} ${colors.accent.lightBg} ${colors.accent.lightHover}`}
-                        >
-                          <Edit size={16} /> แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteAppTarget(item)}
-                          className="flex-1 py-2 text-xs md:text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 flex justify-center items-center gap-1"
-                        >
-                          <Trash2 size={16} /> ลบ
-                        </button>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(item)}
+                      className={`flex-1 py-2 text-xs md:text-sm font-semibold rounded-lg flex justify-center items-center gap-1 ${colors.accent.text} ${colors.accent.lightBg} ${colors.accent.lightHover}`}
+                    >
+                      <Edit size={16} /> แก้ไข
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeleteAppTarget(item)}
+                      className="flex-1 py-2 text-xs md:text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 flex justify-center items-center gap-1"
+                    >
+                      <Trash2 size={16} /> ยกเลิก/ลบ
+                    </button>
                   </div>
                 </div>
               </div>
             );
           })}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:shadow-none transition-all flex items-center gap-1 text-sm font-bold"
+              >
+                <ChevronLeft size={18} /> ก่อนหน้า
+              </button>
+              <span className="text-sm font-bold text-slate-500 bg-white px-3 py-1 rounded-lg shadow-sm border border-slate-100">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:shadow-none transition-all flex items-center gap-1 text-sm font-bold"
+              >
+                ถัดไป <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

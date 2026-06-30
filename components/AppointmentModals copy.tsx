@@ -32,8 +32,6 @@ interface AppointmentModalsProps {
   setContactPhone: (val: string) => void;
   date: string;
   setDate: (val: string) => void;
-  endDate: string; // 🔥 เพิ่ม
-  setEndDate: (val: string) => void; // 🔥 เพิ่ม
   startTime: string;
   setStartTime: (val: string) => void;
   endTime: string;
@@ -65,8 +63,6 @@ export default function AppointmentModals({
   setContactPhone,
   date,
   setDate,
-  endDate,
-  setEndDate,
   startTime,
   setStartTime,
   endTime,
@@ -93,7 +89,21 @@ export default function AppointmentModals({
     </div>
   );
 
-  const dayColors: { [key: number]: any } = {
+  // 🔥 ออบเจกต์เก็บชุดสีประจำวัน (ลอจิกเดียวกับหน้ารายการ)
+  const dayColors: {
+    [key: number]: {
+      bg: string;
+      text: string;
+      border: string;
+      accent: {
+        text: string;
+        bg: string;
+        hover: string;
+        lightBg: string;
+        lightHover: string;
+      };
+    };
+  } = {
     0: {
       bg: "bg-red-50",
       text: "text-red-700",
@@ -180,11 +190,13 @@ export default function AppointmentModals({
     },
   };
 
+  // 🔥 ฟังก์ชันดึงสีของวันคิวงานสำหรับ Modal View
   const getViewColors = () => {
-    if (!viewAppTarget || !viewAppTarget.appointment_date) return dayColors[1];
+    if (!viewAppTarget || !viewAppTarget.appointment_date) return dayColors[1]; // ค่า default
     const dateObj = new Date(viewAppTarget.appointment_date + "T00:00:00");
     return dayColors[dateObj.getDay()];
   };
+
   const viewColors = getViewColors();
 
   return (
@@ -193,6 +205,7 @@ export default function AppointmentModals({
       {viewAppTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* 🔥 ปรับแก้: Header เปลี่ยนสีตามวัน */}
             <div
               className={`p-5 border-b flex justify-between items-center ${viewColors.bg} ${viewColors.border}`}
             >
@@ -220,18 +233,15 @@ export default function AppointmentModals({
                 </p>
               </div>
 
+              {/* 🔥 ปรับแก้: กล่องเวลาและวันที่เปลี่ยนสีตามวัน */}
               <div
                 className={`p-4 rounded-2xl border flex justify-between items-center ${viewColors.accent.lightBg} ${viewColors.border}`}
               >
                 <div>
-                  {/* 🔥 เช็คโชว์วันที่ 2 ฝั่ง */}
                   <p
                     className={`text-sm font-semibold mb-1 ${viewColors.text}`}
                   >
-                    {viewAppTarget.end_date &&
-                    viewAppTarget.end_date !== viewAppTarget.appointment_date
-                      ? `${formatThaiDate(viewAppTarget.appointment_date)} - ${formatThaiDate(viewAppTarget.end_date)}`
-                      : formatThaiDate(viewAppTarget.appointment_date)}
+                    {formatThaiDate(viewAppTarget.appointment_date)}
                   </p>
                   <p className={`text-lg font-bold ${viewColors.accent.text}`}>
                     {viewAppTarget.start_time.substring(0, 5)} -{" "}
@@ -323,7 +333,7 @@ export default function AppointmentModals({
         </div>
       )}
 
-      {/* 2. Modal แก้ไขคิวงาน */}
+      {/* 2. Modal แก้ไขคิวงาน (ยังคงดีไซน์เดิม) */}
       {editingApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -416,30 +426,15 @@ export default function AppointmentModals({
                 </div>
               )}
               <div className="pt-2 border-t border-slate-100">
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700 mb-1 block">
-                      วันที่เริ่ม
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700 mb-1 block">
-                      วันที่สิ้นสุด
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    />
-                  </div>
-                </div>
+                <label className="text-sm font-semibold text-slate-700 mb-1 block">
+                  วันที่
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="appearance-none block w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none mb-3"
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-semibold text-slate-700 mb-1 block">
@@ -491,7 +486,7 @@ export default function AppointmentModals({
         </div>
       )}
 
-      {/* 3. Modal ยืนยันการลบ */}
+      {/* 3. Modal ยืนยันการลบ (ยังคงดีไซน์เดิม) */}
       {deleteAppTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col p-6 text-center space-y-4">

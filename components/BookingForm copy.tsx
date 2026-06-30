@@ -33,8 +33,6 @@ interface BookingFormProps {
   setContactPhone: (val: string) => void;
   date: string;
   setDate: (val: string) => void;
-  endDate: string; // 🔥 เพิ่ม Props สำหรับวันที่สิ้นสุด
-  setEndDate: (val: string) => void; // 🔥 เพิ่ม Props
   todayDate: string;
   startTime: string;
   setStartTime: (val: string) => void;
@@ -63,8 +61,6 @@ export default function BookingForm({
   setContactPhone,
   date,
   setDate,
-  endDate, // 🔥 รับค่า
-  setEndDate, // 🔥 รับค่า
   todayDate,
   startTime,
   setStartTime,
@@ -73,6 +69,7 @@ export default function BookingForm({
   handleBooking,
   isSubmitting,
 }: BookingFormProps) {
+  // 🌟 ปรับแต่ง Option ใน Dropdown ให้โชว์รูปโปรไฟล์
   const AttendeeCustomOption = ({ data, innerRef, innerProps }: any) => (
     <div
       ref={innerRef}
@@ -94,6 +91,7 @@ export default function BookingForm({
     </div>
   );
 
+  // 🌟 ปรับแต่ง Tag ที่ถูกเลือกแล้ว ให้โชว์รูปโปรไฟล์จิ๋วๆ ด้วย
   const AttendeeMultiValueLabel = (props: any) => (
     <div className="flex items-center gap-1.5 pr-1 py-0.5">
       {props.data.image ? (
@@ -277,44 +275,23 @@ export default function BookingForm({
         </div>
       </div>
 
-      {/* 🔥 ปรับเป็น 2 ช่อง: วันที่เริ่ม - วันที่สิ้นสุด */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
-            <CalendarDays size={18} className="text-blue-500" /> วันที่เริ่ม
-          </label>
-          <input
-            type="date"
-            value={date}
-            min={todayDate}
-            onChange={(e) => {
-              setDate(e.target.value);
-              // อำนวยความสะดวก: ถ้าเลือกวันเริ่ม แล้ววันสิ้นสุดว่าง หรือน้อยกว่าวันเริ่ม ให้ปรับวันสิ้นสุดตามอัตโนมัติ
-              if (!endDate || e.target.value > endDate) {
-                setEndDate(e.target.value);
-              }
-            }}
-            className="appearance-none block w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
-          />
-        </div>
-        <div>
-          <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
-            <CalendarDays size={18} className="text-pink-500" /> วันที่สิ้นสุด
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            min={date || todayDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="appearance-none block w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
-          />
-        </div>
+      <div>
+        <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
+          <CalendarDays size={18} className="text-blue-500" /> วันที่
+        </label>
+        <input
+          type="date"
+          value={date}
+          min={todayDate}
+          onChange={(e) => setDate(e.target.value)}
+          className="appearance-none block w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 opacity-100 [-webkit-text-fill-color:#111827]"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
-            <Clock size={18} className="text-green-500" /> เวลาเริ่ม
+            <Clock size={18} className="text-green-500" /> เริ่ม
           </label>
           <input
             type="time"
@@ -325,7 +302,7 @@ export default function BookingForm({
         </div>
         <div>
           <label className="flex items-center text-sm font-semibold text-slate-700 mb-2 gap-2">
-            <Clock size={18} className="text-red-500" /> เวลาสิ้นสุด
+            <Clock size={18} className="text-red-500" /> ถึง
           </label>
           <input
             type="time"

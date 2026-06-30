@@ -36,6 +36,7 @@ export default function CalendarPage() {
   const [contactPerson, setContactPerson] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [date, setDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +52,7 @@ export default function CalendarPage() {
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
 
   const fetchAllUsers = async () => {
+    const targetEmail = profile?.email || dbUser?.gmail;
     const { data } = await supabase
       .from("users")
       .select("*")
@@ -81,10 +83,11 @@ export default function CalendarPage() {
     const targetUserId = currentUserId || profile?.userId;
     if (!targetUserId) return;
     setIsLoadingList(true);
+    const targetEmail = profile?.email || dbUser?.gmail;
     const { data } = await supabase
       .from("appointments")
       .select("*")
-      .eq("user_id", targetUserId)
+      .or(`user_id.eq.${targetUserId},attendees.cs.{"${targetEmail}"}`)
       .eq("status", "active")
       .order("appointment_date", { ascending: true })
       .order("start_time", { ascending: true });
@@ -185,6 +188,7 @@ export default function CalendarPage() {
     setContactPerson("");
     setContactPhone("");
     setDate("");
+    setEndDate("");
     setStartTime("");
     setEndTime("");
     setSelectedAttendees([]);
@@ -262,6 +266,7 @@ export default function CalendarPage() {
         contactPerson,
         contactPhone,
         date,
+        endDate: endDate || date,
         time: `${startTime} - ${endTime}`,
         displayName: dbUser.full_name,
         email: dbUser.gmail,
@@ -280,6 +285,7 @@ export default function CalendarPage() {
         contact_person: contactPerson,
         contact_phone: contactPhone,
         appointment_date: date,
+        end_date: endDate || date,
         start_time: startTime,
         end_time: endTime,
         attendees: finalAttendees,
@@ -380,6 +386,7 @@ export default function CalendarPage() {
     setContactPerson(app.contact_person || "");
     setContactPhone(app.contact_phone || "");
     setDate(app.appointment_date);
+    setEndDate(app.end_date || app.appointment_date);
     setStartTime(app.start_time.substring(0, 5));
     setEndTime(app.end_time.substring(0, 5));
     setCalendarType(app.appointment_type || "shared");
@@ -569,6 +576,8 @@ export default function CalendarPage() {
                   setContactPhone={setContactPhone}
                   date={date}
                   setDate={setDate}
+                  endDate={endDate}
+                  setEndDate={setEndDate}
                   todayDate={todayDate}
                   startTime={startTime}
                   setStartTime={setStartTime}
@@ -591,7 +600,10 @@ export default function CalendarPage() {
                   dbUser={dbUser}
                   onAddNewClick={(targetDate) => {
                     resetForm();
-                    if (targetDate) setDate(targetDate);
+                    if (targetDate) {
+                      setDate(targetDate);
+                      setEndDate(targetDate);
+                    }
                     setActiveTab("book");
                   }}
                 />
@@ -616,6 +628,8 @@ export default function CalendarPage() {
             setContactPhone={setContactPhone}
             date={date}
             setDate={setDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
             startTime={startTime}
             setStartTime={setStartTime}
             endTime={endTime}

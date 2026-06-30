@@ -3,7 +3,7 @@ name: Supabase Auto Backup to GDrive
 on:
   repository_dispatch:
     types: [trigger-backup]
-  workflow_dispatch: # เพิ่มปุ่มให้พี่แม็คกดรันเทสต์เองได้ด้วย
+  workflow_dispatch:
 
 jobs:
   backup:
@@ -13,7 +13,11 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install PostgreSQL Client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
 
       - name: Dump Database
         run: |
@@ -22,17 +26,47 @@ jobs:
           FILENAME="stplus_db_backup_$TIMESTAMP.sql"
           echo "Dumping database to $FILENAME..."
 
-          # ใช้คำสั่งดูดข้อมูลจาก Supabase
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $FILENAME
+          # บังคับใช้ pg_dump เวอร์ชั่น 17 โดยระบุโฟลเดอร์ตรงๆ
+          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $FILENAME
 
           # บันทึกชื่อไฟล์ส่งให้สเต็ปถัดไป
           echo "FILENAME=$FILENAME" >> $GITHUB_ENV
 
-      - name: Upload to Google Drive
-        uses: adityak74/google-drive-upload-git-action@main
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
-          filename: ${{ env.FILENAME }}
-          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
-          name: ${{ env.FILENAME }}
-          overwrite: "false"
+      - name: Upload to Google Drive via API
+        env:
+          CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "Getting Access Token..."
+          TOKEN_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$CLIENT_SECRET" \
+            -d "refresh_token=$REFRESH_TOKEN" \
+            -d "grant_type=refresh_token")
+
+          ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r .access_token)
+
+          if [ "$ACCESS_TOKEN" == "null" ] || [ -z "$ACCESS_TOKEN" ]; then
+            echo "❌ Google ปฏิเสธการออกกุญแจ! สาเหตุคือ:"
+            echo "$TOKEN_RESPONSE"
+            exit 1
+          fi
+
+          echo "Uploading $FILENAME to Google Drive..."
+          UPLOAD_RESPONSE=$(curl -s -X POST -L \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -F "metadata={\"name\": \"$FILENAME\", \"parents\": [\"$FOLDER_ID\"]};type=application/json;charset=UTF-8" \
+            -F "file=@$FILENAME" \
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+            
+          echo "💌 ใบเสร็จตอบกลับจาก Google Drive:"
+          echo "$UPLOAD_RESPONSE"
+
+          if echo "$UPLOAD_RESPONSE" | grep -q '"error"'; then
+            echo "❌ อัปโหลดไฟล์ไม่สำเร็จ!"
+            exit 1
+          else
+            echo "✅ อัปโหลดเข้า Google Drive สมบูรณ์แบบ!"
+          fi
