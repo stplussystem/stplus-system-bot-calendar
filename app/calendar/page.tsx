@@ -268,28 +268,52 @@ export default function CalendarPage() {
 
     setIsSubmitting(true);
     try {
+      // 🔥 1. ดึงคิวงานที่ 'Active' และเป็นปฏิทินประเภทเดียวกันขึ้นมาเช็คทั้งหมด
       const { data: existingBookings, error: checkError } = await supabase
         .from("appointments")
         .select(
-          "id, start_time, end_time, appointment_type, title, contact_person",
+          "id, appointment_date, end_date, start_time, end_time, appointment_type, title, contact_person",
         )
-        .eq("appointment_date", date)
+        .eq("appointment_type", calendarType)
         .eq("status", "active");
+
       if (checkError) throw checkError;
 
+      // 🔥 2. ตรวจสอบการทับซ้อนด้วยระบบ Timestamp
       const overlappingBooking = existingBookings?.find((booking) => {
         if (editingApp && booking.id === editingApp.id) return false;
-        if (booking.appointment_type !== calendarType) return false;
-        return (
-          startTime < booking.end_time.substring(0, 5) &&
-          endTime > booking.start_time.substring(0, 5)
-        );
+
+        // แปลงวัน-เวลาของนัดหมาย 'ใหม่' ที่กำลังจะบันทึก ให้เป็น Timestamp
+        const newStart = new Date(`${date}T${startTime}:00`).getTime();
+        const newEnd = new Date(`${actualEndDate}T${endTime}:00`).getTime();
+
+        // แปลงวัน-เวลาของนัดหมาย 'เดิม' ในระบบ ให้เป็น Timestamp
+        const existStartDate = booking.appointment_date;
+        const existEndDate = booking.end_date || booking.appointment_date; // รองรับข้อมูลเก่าที่อาจจะไม่มี end_date
+        const existStart = new Date(
+          `${existStartDate}T${booking.start_time}`,
+        ).getTime();
+        const existEnd = new Date(
+          `${existEndDate}T${booking.end_time}`,
+        ).getTime();
+
+        // ลอจิกทับซ้อนสากล: งานใหม่เริ่ม "ก่อน" งานเก่าจบ AND งานใหม่จบ "หลัง" งานเก่าเริ่ม
+        return newStart < existEnd && newEnd > existStart;
       });
 
+      // 🔥 3. ถ้าเจอว่าทับซ้อน ให้เด้งแจ้งเตือนพร้อมบอกวัน-เวลาของงานที่ซ้อน
       if (overlappingBooking) {
-        toast.warning("เวลานี้มีคิวงานแล้ว!", {
-          description: `ซ้อนกับ: ${overlappingBooking.title} (คุณ: ${overlappingBooking.contact_person || "-"})`,
+        // จัดรูปแบบเวลาสิ้นสุดให้สวยงาม (ถ้าข้ามวันโชว์วันที่ด้วย ถ้าวันเดียวกันโชว์แค่เวลา)
+        const existEndStr =
+          overlappingBooking.end_date &&
+          overlappingBooking.end_date !== overlappingBooking.appointment_date
+            ? `${formatThaiDate(overlappingBooking.end_date)} เวลา ${overlappingBooking.end_time.substring(0, 5)} น.`
+            : `${overlappingBooking.end_time.substring(0, 5)} น.`;
+
+        toast.warning("ไม่สามารถบันทึกได้! เวลานี้มีคิวงานแล้ว", {
+          description: `ซ้อนกับ: "${overlappingBooking.title}"\n(เริ่ม: ${formatThaiDate(overlappingBooking.appointment_date)} เวลา ${overlappingBooking.start_time.substring(0, 5)} น. ถึง ${existEndStr})`,
         });
+
         setIsSubmitting(false);
         return;
       }
