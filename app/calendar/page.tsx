@@ -278,24 +278,28 @@ export default function CalendarPage() {
         .eq("status", "active");
 
       if (checkError) throw checkError;
+      // 🛠️ 1.1 ฟังก์ชันช่วยแปลง วัน-เวลา เป็น Timestamp แบบชัวร์ 100% (แก้บั๊ก iOS/Safari ลอจิกพัง)
+      const getSafeTimestamp = (dateStr: string, timeStr: string) => {
+        // เปลี่ยนขีดกลาง (-) เป็นทับ (/) เพราะ Safari มักมีปัญหากับขีดกลาง
+        const safeDate = dateStr.replace(/-/g, "/");
+        // ตัดเวลาให้เหลือแค่ 5 ตัวแรก (HH:mm) แล้วบังคับเติม :00 ให้ครบฟอร์แมตมาตรฐาน
+        const safeTime = timeStr.substring(0, 5);
+        return new Date(`${safeDate} ${safeTime}:00`).getTime();
+      };
 
-      // 🔥 2. ตรวจสอบการทับซ้อนด้วยระบบ Timestamp
+      // 🔥 2. ตรวจสอบการทับซ้อนด้วยระบบ Timestamp แบบ Bulletproof
       const overlappingBooking = existingBookings?.find((booking) => {
         if (editingApp && booking.id === editingApp.id) return false;
 
-        // แปลงวัน-เวลาของนัดหมาย 'ใหม่' ที่กำลังจะบันทึก ให้เป็น Timestamp
-        const newStart = new Date(`${date}T${startTime}:00`).getTime();
-        const newEnd = new Date(`${actualEndDate}T${endTime}:00`).getTime();
+        // แปลงวัน-เวลาของนัดหมาย 'ใหม่'
+        const newStart = getSafeTimestamp(date, startTime);
+        const newEnd = getSafeTimestamp(actualEndDate, endTime);
 
-        // แปลงวัน-เวลาของนัดหมาย 'เดิม' ในระบบ ให้เป็น Timestamp
+        // แปลงวัน-เวลาของนัดหมาย 'เดิม'
         const existStartDate = booking.appointment_date;
-        const existEndDate = booking.end_date || booking.appointment_date; // รองรับข้อมูลเก่าที่อาจจะไม่มี end_date
-        const existStart = new Date(
-          `${existStartDate}T${booking.start_time}`,
-        ).getTime();
-        const existEnd = new Date(
-          `${existEndDate}T${booking.end_time}`,
-        ).getTime();
+        const existEndDate = booking.end_date || booking.appointment_date;
+        const existStart = getSafeTimestamp(existStartDate, booking.start_time);
+        const existEnd = getSafeTimestamp(existEndDate, booking.end_time);
 
         // ลอจิกทับซ้อนสากล: งานใหม่เริ่ม "ก่อน" งานเก่าจบ AND งานใหม่จบ "หลัง" งานเก่าเริ่ม
         return newStart < existEnd && newEnd > existStart;
@@ -303,7 +307,7 @@ export default function CalendarPage() {
 
       // 🔥 3. ถ้าเจอว่าทับซ้อน ให้เด้งแจ้งเตือนพร้อมบอกวัน-เวลาของงานที่ซ้อน
       if (overlappingBooking) {
-        // จัดรูปแบบเวลาสิ้นสุดให้สวยงาม (ถ้าข้ามวันโชว์วันที่ด้วย ถ้าวันเดียวกันโชว์แค่เวลา)
+        // จัดรูปแบบเวลาสิ้นสุดให้สวยงาม
         const existEndStr =
           overlappingBooking.end_date &&
           overlappingBooking.end_date !== overlappingBooking.appointment_date
