@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        # 🔥 แก้ปัญหา Warning Node.js 20 Deprecated โดยการอัปเกรดเป็น v4
+        uses: actions/checkout@v4
 
       - name: Install PostgreSQL Client
         run: |
@@ -21,15 +22,23 @@ jobs:
 
       - name: Dump Database
         run: |
-          # สร้างชื่อไฟล์โดยใส่วันที่และเวลา
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           FILENAME="stplus_db_backup_$TIMESTAMP.sql"
           echo "Dumping database to $FILENAME..."
 
-          # บังคับใช้ pg_dump เวอร์ชั่น 17 โดยระบุโฟลเดอร์ตรงๆ
-          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $FILENAME
+          # 🔥 เพิ่มการดักจับ Error กรณีที่ดึงข้อมูลจาก Supabase ไม่สำเร็จ
+          if ! /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $FILENAME; then
+            echo "❌ pg_dump ทำงานล้มเหลว! กรุณาเช็ค SUPABASE_DB_URL หรือ ปัญหาการเชื่อมต่อ IPv4"
+            exit 1
+          fi
 
-          # บันทึกชื่อไฟล์ส่งให้สเต็ปถัดไป
+          # 🔥 เช็คว่าไฟล์ที่ Backup มามีขนาดเป็น 0 หรือไม่ (ถ้าใช่ แปลว่าดึงข้อมูลมาไม่ได้)
+          if [ ! -s "$FILENAME" ]; then
+            echo "❌ ไฟล์ Backup ว่างเปล่า (0 bytes)! การดึงข้อมูลผิดพลาด"
+            exit 1
+          fi
+
+          echo "✅ Dump ฐานข้อมูลสำเร็จ!"
           echo "FILENAME=$FILENAME" >> $GITHUB_ENV
 
       - name: Upload to Google Drive via API

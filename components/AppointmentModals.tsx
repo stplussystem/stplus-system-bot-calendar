@@ -46,6 +46,9 @@ interface AppointmentModalsProps {
   handleBooking: () => void;
   executeDelete: () => void;
   formatThaiDate: (dateStr: string) => string;
+  overlapWarning?: any;
+  setOverlapWarning?: (val: any) => void;
+  executeBooking?: (payload: any, dbPayload: any) => void;
 }
 
 export default function AppointmentModals({
@@ -522,6 +525,70 @@ export default function AppointmentModals({
                   <Loader2 className="animate-spin" size={18} />
                 ) : (
                   "ยืนยันลบ"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal แจ้งเตือนคิวชน (Soft Warning) */}
+      {overlapWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col p-6 space-y-4">
+            <div className="mx-auto w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-1 shadow-inner">
+              <AlertCircle size={32} />
+            </div>
+
+            <h3 className="font-black text-xl text-slate-800 text-center">
+              เตือน: ผู้เข้าร่วมติดคิวงานอื่น
+            </h3>
+            <p className="text-slate-600 text-sm text-center leading-relaxed">
+              ผู้เข้าร่วมที่คุณเลือกบางท่าน มีนัดหมายทับซ้อนในช่วงเวลานี้ครับ:
+            </p>
+
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 max-h-48 overflow-y-auto space-y-3">
+              {overlapWarning.conflicts.map((conflict: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="bg-white p-3 rounded-lg shadow-sm border border-orange-100/50"
+                >
+                  <p className="text-xs font-bold text-orange-600 mb-1">
+                    {conflict.names}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-700">
+                    ติดงาน: {conflict.title}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    🗓️ เริ่ม: {conflict.timeStr}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-4 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setOverlapWarning!(null)}
+                className="flex-1 py-3.5 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                กลับไปแก้ไข
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  executeBooking!(
+                    overlapWarning.payload,
+                    overlapWarning.dbPayload,
+                  )
+                }
+                disabled={isSubmitting}
+                className="flex-1 py-3.5 font-bold text-white bg-orange-500 rounded-xl hover:bg-orange-600 flex justify-center items-center gap-2 shadow-md transition-all"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  "ยืนยันบันทึกต่อ"
                 )}
               </button>
             </div>

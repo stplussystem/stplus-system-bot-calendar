@@ -69,10 +69,19 @@ export async function GET(request: Request) {
     }
 
     // ⏰ 3. เช็คเวลา (ให้ Vercel เรียกมาทุกชั่วโมง แล้วโค้ดเช็คเวลาตรงนี้)
-    const now = new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }),
-    );
-    const currentHour = String(now.getHours()).padStart(2, "0");
+    const now = new Date();
+
+    // 🔥 ดึงชั่วโมงของไทย (00-23) แบบตรงๆ ป้องกันบั๊ก Vercel Timezone
+    let currentHour = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      hour: "numeric",
+      hour12: false,
+    }).format(now);
+
+    // จัดการกรณี Node.js บางเวอร์ชันคืนค่าเที่ยงคืนเป็น "24" ให้กลายเป็น "00"
+    if (currentHour === "24") currentHour = "00";
+    currentHour = currentHour.padStart(2, "0");
+
     const [targetHour] = timeSetting.split(":");
 
     // 🌟 ระบบล็อคเวลากลับมาทำงานแล้ว! 🌟
@@ -82,10 +91,19 @@ export async function GET(request: Request) {
       });
     }
 
-    // 📅 4. หาวันที่ของ "วันนี้"
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
+    // 📅 4. หาวันที่ของ "วันนี้" (เวลาไทย) แบบชัวร์ 100%
+    const y = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+    }).format(now);
+    const m = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      month: "2-digit",
+    }).format(now);
+    const d = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      day: "2-digit",
+    }).format(now);
     const todayStr = `${y}-${m}-${d}`;
 
     // ==========================================

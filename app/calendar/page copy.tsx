@@ -50,7 +50,6 @@ export default function CalendarPage() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [deleteAppTarget, setDeleteAppTarget] = useState<any>(null);
   const [viewAppTarget, setViewAppTarget] = useState<any>(null);
-  const [overlapWarning, setOverlapWarning] = useState<any>(null);
 
   const fetchAllUsers = async () => {
     const { data } = await supabase
@@ -253,170 +252,170 @@ export default function CalendarPage() {
     return `${days[d.getDay()]}ที่ ${day}/${month}/${parseInt(year) + 543}`;
   };
 
-  // 🛠️ ฟังก์ชันช่วยแปลง วัน-เวลา เป็น Timestamp แบบชัวร์ 100%
-  const getSafeTimestamp = (dateStr: string, timeStr: string) => {
-    const safeDate = dateStr.replace(/-/g, "/");
-    const safeTime = timeStr.substring(0, 5);
-    return new Date(`${safeDate} ${safeTime}:00`).getTime();
-  };
-
-  // 🔥 1. ฟังก์ชันจังหวะเช็ค (Check) ก่อนบันทึก
   const handleBooking = async () => {
     if (!title || !date || !startTime || !endTime)
       return toast.warning("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วนครับ");
 
+    // คำนวณวันสิ้นสุดจริง (ถ้าไม่ได้เลือก ให้ถือว่าเป็นวันเดียวกัน)
     const actualEndDate = endDate || date;
 
+    // 🔥 บล็อกแจ้งเตือน: จะเตือนก็ต่อเมื่อ "เลือกวันเดียวกัน" แต่เวลาสิ้นสุดดันน้อยกว่าหรือเท่ากับเวลาเริ่มต้น
     if (date === actualEndDate && startTime >= endTime) {
-      return toast.error("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น (กรณีจัดงานภายในวันเดียว)");
+      return toast.error(
+        "เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น (กรณีจัดงานภายในวันเดียว)",
+      );
     }
 
     setIsSubmitting(true);
     try {
-      // ดึงคิวงาน Active ทั้งหมดในระบบมาเพื่อตรวจสอบ
-      const { data: allActiveBookings, error: checkError } = await supabase
+      // 🔥 1. ดึงคิวงานที่ 'Active' และเป็นปฏิทินประเภทเดียวกันขึ้นมาเช็คทั้งหมด
+      const { data: existingBookings, error: checkError } = await supabase
         .from("appointments")
-        .select("id, appointment_date, end_date, start_time, end_time, appointment_type, title, contact_person, attendees")
+        .select(
+          "id, appointment_date, end_date, start_time, end_time, appointment_type, title, contact_person",
+        )
+        .eq("appointment_type", calendarType)
         .eq("status", "active");
 
       if (checkError) throw checkError;
+      // 🛠️ 1.1 ฟังก์ชันช่วยแปลง วัน-เวลา เป็น Timestamp แบบชัวร์ 100% (แก้บั๊ก iOS/Safari ลอจิกพัง)
+      const getSafeTimestamp = (dateStr: string, timeStr: string) => {
+        // เปลี่ยนขีดกลาง (-) เป็นทับ (/) เพราะ Safari มักมีปัญหากับขีดกลาง
+        const safeDate = dateStr.replace(/-/g, "/");
+        // ตัดเวลาให้เหลือแค่ 5 ตัวแรก (HH:mm) แล้วบังคับเติม :00 ให้ครบฟอร์แมตมาตรฐาน
+        const safeTime = timeStr.substring(0, 5);
+        return new Date(`${safeDate} ${safeTime}:00`).getTime();
+      };
 
-      const newStart = getSafeTimestamp(date, startTime);
-      const newEnd = getSafeTimestamp(actualEndDate, endTime);
-
-      // 🛑 ตรวจสอบที่ 1: บล็อกเด็ดขาด (Hard Block) ถ้าปฏิทินของห้อง/ผู้บริหารนั้นๆ ชนกันเอง
-      const calendarConflict = allActiveBookings?.find((booking) => {
+      // 🔥 2. ตรวจสอบการทับซ้อนด้วยระบบ Timestamp แบบ Bulletproof
+      const overlappingBooking = existingBookings?.find((booking) => {
         if (editingApp && booking.id === editingApp.id) return false;
-        if (booking.appointment_type !== calendarType) return false;
 
-        const existStart = getSafeTimestamp(booking.appointment_date, booking.start_time);
-        const existEnd = getSafeTimestamp(booking.end_date || booking.appointment_date, booking.end_time);
+        // แปลงวัน-เวลาของนัดหมาย 'ใหม่'
+        const newStart = getSafeTimestamp(date, startTime);
+        const newEnd = getSafeTimestamp(actualEndDate, endTime);
 
+        // แปลงวัน-เวลาของนัดหมาย 'เดิม'
+        const existStartDate = booking.appointment_date;
+        const existEndDate = booking.end_date || booking.appointment_date;
+        const existStart = getSafeTimestamp(existStartDate, booking.start_time);
+        const existEnd = getSafeTimestamp(existEndDate, booking.end_time);
+
+        // ลอจิกทับซ้อนสากล: งานใหม่เริ่ม "ก่อน" งานเก่าจบ AND งานใหม่จบ "หลัง" งานเก่าเริ่ม
         return newStart < existEnd && newEnd > existStart;
       });
 
-      if (calendarConflict) {
-        const existEndStr = calendarConflict.end_date && calendarConflict.end_date !== calendarConflict.appointment_date
-            ? `${formatThaiDate(calendarConflict.end_date)} เวลา ${calendarConflict.end_time.substring(0, 5)} น.`
-            : `${calendarConflict.end_time.substring(0, 5)} น.`;
+      // 🔥 3. ถ้าเจอว่าทับซ้อน ให้เด้งแจ้งเตือนพร้อมบอกวัน-เวลาของงานที่ซ้อน
+      if (overlappingBooking) {
+        // จัดรูปแบบเวลาสิ้นสุดให้สวยงาม
+        const existEndStr =
+          overlappingBooking.end_date &&
+          overlappingBooking.end_date !== overlappingBooking.appointment_date
+            ? `${formatThaiDate(overlappingBooking.end_date)} เวลา ${overlappingBooking.end_time.substring(0, 5)} น.`
+            : `${overlappingBooking.end_time.substring(0, 5)} น.`;
 
-        toast.warning("ไม่สามารถบันทึกได้! เวลานี้ปฏิทินมีคิวงานแล้ว", {
-          description: `ซ้อนกับ: "${calendarConflict.title}"\n(เริ่ม: ${formatThaiDate(calendarConflict.appointment_date)} เวลา ${calendarConflict.start_time.substring(0, 5)} น. ถึง ${existEndStr})`,
+        toast.warning("ไม่สามารถบันทึกได้! เวลานี้มีคิวงานแล้ว", {
+          description: `ซ้อนกับ: "${overlappingBooking.title}"\n(เริ่ม: ${formatThaiDate(overlappingBooking.appointment_date)} เวลา ${overlappingBooking.start_time.substring(0, 5)} น. ถึง ${existEndStr})`,
         });
+
         setIsSubmitting(false);
         return;
       }
 
-      // ⚠️ ตรวจสอบที่ 2: แจ้งเตือนแบบยืดหยุ่น (Soft Warning) ถ้าผู้เข้าร่วมติดคิวงานอื่น
-      let attendeeConflicts: any[] = [];
-      if (hasAttendees && selectedAttendees.length > 0) {
-        const attendeeEmails = selectedAttendees.map((a) => a.value);
-
-        allActiveBookings?.forEach((booking) => {
-          if (editingApp && booking.id === editingApp.id) return;
-
-          const existStart = getSafeTimestamp(booking.appointment_date, booking.start_time);
-          const existEnd = getSafeTimestamp(booking.end_date || booking.appointment_date, booking.end_time);
-          const isTimeOverlap = newStart < existEnd && newEnd > existStart;
-
-          if (isTimeOverlap && booking.attendees && Array.isArray(booking.attendees)) {
-            const overlapEmails = attendeeEmails.filter((email) => booking.attendees.includes(email));
-            
-            if (overlapEmails.length > 0) {
-              const overlapNames = selectedAttendees
-                .filter((a) => overlapEmails.includes(a.value))
-                .map((a) => a.label);
-
-              attendeeConflicts.push({
-                names: overlapNames.join(", "),
-                title: booking.title,
-                timeStr: `${formatThaiDate(booking.appointment_date)} ${booking.start_time.substring(0, 5)} น.`,
-              });
-            }
-          }
-        });
-      }
-
-      // จัดเตรียมข้อมูล (Payload)
-      const finalAttendees = hasAttendees ? selectedAttendees.map((att) => att.value) : [];
-      const attendeeNamesText = hasAttendees ? selectedAttendees.map((att) => att.label).join(", ") : "-";
+      const finalAttendees = hasAttendees
+        ? selectedAttendees.map((att) => att.value)
+        : [];
+      const attendeeNamesText = hasAttendees
+        ? selectedAttendees.map((att) => att.label).join(", ")
+        : "-";
 
       const payload = {
-        title, location, contactPerson, contactPhone, date,
-        endDate: actualEndDate,
+        title,
+        location,
+        contactPerson,
+        contactPhone,
+        date,
+        endDate: actualEndDate, // ใช้วันที่สิ้นสุดจริงในการส่งหา Google
         time: `${startTime} - ${endTime}`,
-        displayName: dbUser.full_name, email: dbUser.gmail,
-        attendees: finalAttendees, attendeeNames: attendeeNamesText,
-        userId: profile.userId, calendarType, eventId: editingApp?.gcal_event_id,
-        targetCalendarId: calendarType === "personal" ? dbUser.personal_calendar_id : undefined,
+        displayName: dbUser.full_name,
+        email: dbUser.gmail,
+        attendees: finalAttendees,
+        attendeeNames: attendeeNamesText,
+        userId: profile.userId,
+        calendarType,
+        eventId: editingApp?.gcal_event_id,
+        targetCalendarId:
+          calendarType === "personal" ? dbUser.personal_calendar_id : undefined,
       };
 
       const dbPayload = {
-        title, location, contact_person: contactPerson, contact_phone: contactPhone,
-        appointment_date: date, end_date: actualEndDate,
-        start_time: startTime, end_time: endTime,
-        attendees: finalAttendees, appointment_type: calendarType,
+        title,
+        location,
+        contact_person: contactPerson,
+        contact_phone: contactPhone,
+        appointment_date: date,
+        end_date: actualEndDate, // บันทึกวันสิ้นสุดลง Supabase
+        start_time: startTime,
+        end_time: endTime,
+        attendees: finalAttendees,
+        appointment_type: calendarType,
       };
 
-      // ถ้ามีผู้เข้าร่วมติดคิว ให้เปิดหน้าต่าง Modal แทนการบันทึกทันที
-      if (attendeeConflicts.length > 0) {
-        setOverlapWarning({ conflicts: attendeeConflicts, payload, dbPayload });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // ถ้าทุกอย่างผ่านฉลุย บันทึกได้เลย
-      await executeBooking(payload, dbPayload);
-
-    } catch (error: any) {
-      toast.error(editingApp ? "อัปเดตไม่สำเร็จ" : "บันทึกไม่สำเร็จ", { description: error.message });
-      setIsSubmitting(false);
-    }
-  };
-
-  // 🔥 2. ฟังก์ชันจังหวะบันทึก (Execute) จะทำงานเมื่อกดยืนยันผ่านป๊อปอัป หรือไม่มีคิวชน
-  const executeBooking = async (payload: any, dbPayload: any) => {
-    setIsSubmitting(true);
-    try {
       if (editingApp) {
         if (editingApp.gcal_event_id) {
           const calRes = await fetch("/api/calendar", {
-            method: "PUT", headers: { "Content-Type": "application/json" },
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           const calData = await calRes.json();
-          if (!calRes.ok || !calData.success) throw new Error(calData.error || "Google Calendar ปฏิเสธการอัปเดต");
+          if (!calRes.ok || !calData.success)
+            throw new Error(calData.error || "Google Calendar ปฏิเสธการอัปเดต");
         }
-        await supabase.from("appointments").update(dbPayload).eq("id", editingApp.id);
+        await supabase
+          .from("appointments")
+          .update(dbPayload)
+          .eq("id", editingApp.id);
         toast.success("อัปเดตข้อมูลสำเร็จ!");
+        resetForm();
+        fetchMyAppointments();
+        setActiveTab("list");
       } else {
         const calRes = await fetch("/api/calendar", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const calData = await calRes.json();
-        if (!calRes.ok || !calData.success) throw new Error(calData.error || "Google Calendar ปฏิเสธการบันทึก");
+        if (!calRes.ok || !calData.success)
+          throw new Error(calData.error || "Google Calendar ปฏิเสธการบันทึก");
 
-        await supabase.from("appointments").insert([{
-          user_id: profile.userId, status: "active",
-          booker_name: dbUser.full_name, booker_email: dbUser.gmail,
-          gcal_event_id: calData.eventId, ...dbPayload,
-        }]);
+        await supabase.from("appointments").insert([
+          {
+            user_id: profile.userId,
+            status: "active",
+            booker_name: dbUser.full_name,
+            booker_email: dbUser.gmail,
+            gcal_event_id: calData.eventId,
+            ...dbPayload,
+          },
+        ]);
 
         if (liff.isInClient()) {
           await liff.sendMessages([{ type: "text", text: "📅 บันทึกคิวงาน" }]);
           liff.closeWindow();
           return;
         }
-        toast.success("บันทึกคิวงานสำเร็จ!");
-      }
 
-      setOverlapWarning(null); // ปิดป๊อปอัปเตือน
-      resetForm();
-      fetchMyAppointments();
-      setActiveTab("list");
+        toast.success("บันทึกคิวงานสำเร็จ!");
+        resetForm();
+        setActiveTab("list");
+        fetchMyAppointments();
+      }
     } catch (error: any) {
-      toast.error(editingApp ? "อัปเดตไม่สำเร็จ" : "บันทึกไม่สำเร็จ", { description: error.message });
+      toast.error(editingApp ? "อัปเดตไม่สำเร็จ" : "บันทึกไม่สำเร็จ", {
+        description: error.message,
+      });
     }
     setIsSubmitting(false);
   };
@@ -684,9 +683,6 @@ export default function CalendarPage() {
             handleBooking={handleBooking}
             executeDelete={executeDelete}
             formatThaiDate={formatThaiDate}
-            overlapWarning={overlapWarning}
-            setOverlapWarning={setOverlapWarning}
-            executeBooking={executeBooking}
           />
         </div>
       ) : null}
