@@ -82,6 +82,9 @@ export default function AppointmentModals({
   handleBooking,
   executeDelete,
   formatThaiDate,
+  overlapWarning,
+  setOverlapWarning,
+  executeBooking,
 }: AppointmentModalsProps) {
   const AttendeeCustomOption = ({ data, innerRef, innerProps }: any) => (
     <div
